@@ -23,9 +23,9 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
             <ComboBox x:Name="UrlSelector" Width="200" Margin="5" SelectionChanged="UrlSelector_SelectionChanged"
                       DisplayMemberPath="DisplayName" SelectedValuePath="Url" SelectedIndex="0"/>
-            <Button x:Name="CopyButton" Content="Copy from VS" Click="CopyButton_Click" Margin="5"/>
-            <Button x:Name="PasteButton" Content="Paste to Chat" Click="PasteButton_Click" Margin="5"/>
+            <Button x:Name="CopyButton" Content="VS -> AI" Click="VStoAI_Click" Margin="5"/>
+            <Button x:Name="PasteButton" Content="Clipboard -> AI" Click="ClipboardtoAI_Click" Margin="5"/>
         </StackPanel>
-        <wpf:WebView2 x:Name="ChatWebView" Grid.Row="1"/>
+        <wpf:WebView2 x:Name="ChatWebView" Grid.Row="1" Source="https://www.grok.com"/>
     </Grid>
 </UserControl>

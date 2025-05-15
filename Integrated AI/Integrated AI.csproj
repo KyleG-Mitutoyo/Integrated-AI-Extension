@@ -74,6 +74,9 @@
     <PackageReference Include="Microsoft.Web.WebView2">
       <Version>1.0.3240.44</Version>
     </PackageReference>
+    <PackageReference Include="System.Text.Json">
+      <Version>9.0.5</Version>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <VSCTCompile Include="AIChatCommandPackage.vsct">
