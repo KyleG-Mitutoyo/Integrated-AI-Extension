@@ -23,9 +23,21 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
             <ComboBox x:Name="UrlSelector" Width="200" Margin="5" SelectionChanged="UrlSelector_SelectionChanged"
                       DisplayMemberPath="DisplayName" SelectedValuePath="Url" SelectedIndex="0"/>
-            <Button x:Name="CopyButton" Content="VS -> AI" Click="VStoAI_Click" Margin="5"/>
-            <Button x:Name="PasteButton" Content="Clipboard -> AI" Click="ClipboardtoAI_Click" Margin="5"/>
+            <hc:SplitButton x:Name="VSToAISplitButton" 
+                Margin="5" 
+                Content="Code -> AI" 
+                Click="SplitButton_Click" 
+                PreviewMouseDown="SplitButton_PreviewMouseDown"
+                HorizontalAlignment="Stretch">
+                <hc:SplitButton.DropDownContent>
+                    <StackPanel>
+                        <MenuItem Header="File -> AI" Click="MenuItem_Click" Tag="File -> AI"/>
+                        <MenuItem Header="Code -> AI" Click="MenuItem_Click" Tag="Code -> AI"/>
+                    </StackPanel>
+                </hc:SplitButton.DropDownContent>
+            </hc:SplitButton>
+            <Button x:Name="PasteButton" Content="AI -> VS" Margin="5"/>
         </StackPanel>
-        <wpf:WebView2 x:Name="ChatWebView" Grid.Row="1" Source="https://www.grok.com"/>
+        <wpf:WebView2 x:Name="ChatWebView" Grid.Row="1" Source="https://grok.com"/>
     </Grid>
 </UserControl>
