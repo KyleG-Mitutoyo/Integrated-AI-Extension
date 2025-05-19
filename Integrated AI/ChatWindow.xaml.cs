@@ -54,7 +54,7 @@ namespace Integrated_AI
 
                 ChatWebView.CoreWebView2.Settings.IsWebMessageEnabled = true;
                 ChatWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-                ChatWebView.CoreWebView2.Settings.IsStatusBarEnabled = false; // Usually good to hide for cleaner UI
+                ChatWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
             }
             catch (Exception ex)
             {
@@ -78,7 +78,6 @@ namespace Integrated_AI
             {
                 if (!e.IsSuccess)
                 {
-                    // Check for common errors like no internet, DNS issues, etc.
                     string errorMessage = $"Failed to load {ChatWebView.Source?.ToString() ?? "page"}. Error status: {e.WebErrorStatus}.";
                     if (e.WebErrorStatus == CoreWebView2WebErrorStatus.CannotConnect ||
                         e.WebErrorStatus == CoreWebView2WebErrorStatus.HostNameNotResolved)
@@ -100,21 +99,13 @@ namespace Integrated_AI
                     {
                         ChatWebView.Source = new Uri(selectedOption.Url);
                     }
-                    else
-                    {
-                        // WebView not ready, could queue the navigation or inform user.
-                        // For now, if it's null, InitializeWebView2Async would have shown an error or is still running.
-                    }
                 }
                 catch (UriFormatException ex)
                 {
                     MessageBox.Show($"Invalid URL '{selectedOption.Url}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    // Fallback or clear WebView
                 }
             }
         }
-
-        
 
         private async void SplitButton_Click(object sender, RoutedEventArgs e)
         {
@@ -130,7 +121,7 @@ namespace Integrated_AI
             if (sender is SplitButton splitButton)
             {
                 var clickPosition = e.GetPosition(splitButton);
-                if (clickPosition.X > splitButton.ActualWidth * 0.7) // Adjust threshold if needed
+                if (clickPosition.X > splitButton.ActualWidth * 0.7)
                 {
                     _executeCommandOnClick = false;
                 }
@@ -206,57 +197,27 @@ namespace Integrated_AI
             }
         }
 
-        private async Task InjectTextIntoWebViewAsync(string textToInject, string sourceOfText)
+        private async Task<string> RetrieveTextFromWebViewAsync()
         {
             if (ChatWebView?.CoreWebView2 == null)
             {
-                MessageBox.Show("Web view is not ready. Please wait for the page to load.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                Log("Web view is not ready. Cannot retrieve text.");
+                return null;
             }
 
             string currentUrl = ChatWebView.Source?.ToString() ?? "";
-
-            // Updated selector map
             var selectorMap = new Dictionary<string, string>
-    {
-        { "https://grok.com", "textarea[aria-label=\"Ask Grok anything\"]" },
-        { "https://chatgpt.com", "div#prompt-textarea" }, // Changed to div for ChatGPT
-        { "https://aistudio.google.com", "textarea[aria-label=\"Type something or tab to choose an example prompt\"]" }
-    };
+            {
+                { "https://grok.com", "textarea[aria-label=\"Ask Grok anything\"]" },
+                { "https://chatgpt.com", "div#prompt-textarea" },
+                { "https://aistudio.google.com", "textarea[aria-label=\"Type something or tab to choose an example prompt\"]" }
+            };
 
             string selector = selectorMap.FirstOrDefault(x => currentUrl.StartsWith(x.Key)).Value;
             if (string.IsNullOrEmpty(selector))
             {
                 selector = "textarea"; // Fallback
                 Log($"Warning: No specific selector for {currentUrl}. Falling back to generic 'textarea'.");
-            }
-
-            // Determine if HTML content formatting is needed
-            bool useHtmlContent = currentUrl.StartsWith("https://chatgpt.com"); // Enable for ChatGPT
-            string preparedTextForJs;
-
-            if (useHtmlContent)
-            {
-                // Format for ChatGPT's contenteditable div
-                string htmlContent = string.Join("",
-                    textToInject.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
-                                .Select(line => "<p>" + WebUtility.HtmlEncode(line) + "</p>")
-                );
-                preparedTextForJs = htmlContent
-                    .Replace("\\", "\\\\")
-                    .Replace("'", "\\'")
-                    .Replace("`", "\\`");
-            }
-            else
-            {
-                // Standard text escaping for textarea
-                preparedTextForJs = textToInject
-                    .Replace("\\", "\\\\")
-                    .Replace("'", "\\'")
-                    .Replace("`", "\\`")
-                    .Replace("\n", "\\n")
-                    .Replace("\r", "\\r")
-                    .Replace("\t", "\\t");
             }
 
             string escapedSelectorForJs = selector.Replace("'", "\\'");
@@ -271,8 +232,148 @@ namespace Integrated_AI
 
         const style = window.getComputedStyle(elem);
         if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0' || elem.disabled) {{
+            return `FAILURE: Input field (selector: {escapedSelectorForJs.Replace("`", "\\`")}) is not visible or is disabled.`;
+        }}
+
+        let text;
+        if (elem.tagName.toLowerCase() === 'textarea' || elem.tagName.toLowerCase() === 'input') {{
+            text = elem.value || '';
+        }} else if (elem.isContentEditable) {{
+            text = elem.innerText || ''; // Use innerText to avoid HTML tags
+        }} else {{
+            return `FAILURE: Element (selector: {escapedSelectorForJs.Replace("`", "\\`")}) is neither a text input nor contenteditable.`;
+        }}
+
+        // Normalize newlines and remove literal escape sequences
+        text = text.replace(/\\\\n/g, '\\n');
+        return text;
+    }} catch (e) {{
+        return `FAILURE: JavaScript error: ` + e.message + ` (Selector: {escapedSelectorForJs.Replace("`", "\\`")})`;
+    }}
+}})();";
+
+            try
+            {
+                string result = await ChatWebView.ExecuteScriptAsync(script);
+                result = result?.Trim('"');
+
+                if (result == null || result == "null" || result.StartsWith("FAILURE:"))
+                {
+                    string failureMessage = result?.Replace("FAILURE: ", "") ?? "Unknown error during script execution.";
+                    Log($"Failed to retrieve text: {failureMessage}");
+                    return null;
+                }
+
+                // Further normalize in C# to ensure consistent newlines
+                result = result.Replace("\\n", "\n");
+                Log("Text retrieved successfully from WebView.");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Log($"Error retrieving text from WebView: {ex.Message}");
+                return null;
+            }
+        }
+
+        private async Task InjectTextIntoWebViewAsync(string textToInject, string sourceOfText)
+        {
+            if (ChatWebView?.CoreWebView2 == null)
+            {
+                MessageBox.Show("Web view is not ready. Please wait for the page to load.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string currentUrl = ChatWebView.Source?.ToString() ?? "";
+            var selectorMap = new Dictionary<string, string>
+    {
+        { "https://grok.com", "textarea[aria-label=\"Ask Grok anything\"]" },
+        { "https://chatgpt.com", "div#prompt-textarea" },
+        { "https://aistudio.google.com", "textarea[aria-label=\"Type something or tab to choose an example prompt\"]" }
+    };
+
+            string selector = selectorMap.FirstOrDefault(x => currentUrl.StartsWith(x.Key)).Value;
+            if (string.IsNullOrEmpty(selector))
+            {
+                selector = "textarea"; // Fallback
+                Log($"Warning: No specific selector for {currentUrl}. Falling back to generic 'textarea'.");
+            }
+
+            bool useHtmlContent = currentUrl.StartsWith("https://chatgpt.com");
+
+            // Normalize input text line endings and trim leading/trailing newlines
+            textToInject = textToInject.Replace("\r\n", "\n").Replace("\r", "\n").Trim('\n');
+
+            // Retrieve existing text
+            string currentText = await RetrieveTextFromWebViewAsync();
+            string textToSet;
+            if (currentText != null)
+            {
+                // Ensure currentText has normalized newlines and trim
+                currentText = currentText.Replace("\\n", "\n").Trim('\n');
+                if (useHtmlContent)
+                {
+                    // For ChatGPT, wrap each block in a div and convert newlines to <br>
+                    var newLines = textToInject.Split(new[] { '\n' }, StringSplitOptions.None)
+                        .Where(line => !string.IsNullOrEmpty(line)) // Skip empty lines
+                        .Select(line => "<span>" + WebUtility.HtmlEncode(line) + "</span>");
+                    string newHtml = "<div style=\"margin: 0; padding: 0; white-space: pre-wrap; line-height: 1.4;\">" +
+                        string.Join("<br>", newLines) + "</div>";
+                    var currentLines = currentText.Split(new[] { '\n' }, StringSplitOptions.None)
+                        .Where(line => !string.IsNullOrEmpty(line)) // Skip empty lines
+                        .Select(line => "<span>" + WebUtility.HtmlEncode(line) + "</span>");
+                    string currentHtml = string.IsNullOrEmpty(currentText) ? "" :
+                        "<div style=\"margin: 0; padding: 0; white-space: pre-wrap; line-height: 1.4;\">" +
+                        string.Join("<br>", currentLines) + "</div>";
+                    textToSet = currentHtml + (string.IsNullOrEmpty(currentHtml) ? "" : "<div></div>") + newHtml;
+                }
+                else
+                {
+                    // For textarea, append with a single newline
+                    textToSet = currentText + (string.IsNullOrEmpty(currentText) ? "" : "\n") + textToInject;
+                }
+            }
+            else
+            {
+                textToSet = useHtmlContent
+                    ? "<div style=\"margin: 0; padding: 0; white-space: pre-wrap; line-height: 1.4;\">" +
+                      string.Join("<br>", textToInject.Split(new[] { '\n' }, StringSplitOptions.None)
+                          .Where(line => !string.IsNullOrEmpty(line))
+                          .Select(line => "<span>" + WebUtility.HtmlEncode(line) + "</span>")) + "</div>"
+                    : textToInject;
+            }
+
+            // Escape only necessary characters for JavaScript
+            string preparedTextForJs = textToSet
+                .Replace("\\", "\\\\") // Escape backslashes
+                .Replace("'", "\\'")   // Escape single quotes
+                .Replace("`", "\\`");  // Escape backticks
+                                       // Do not escape newlines to preserve them in textarea
+
+            string escapedSelectorForJs = selector.Replace("'", "\\'");
+
+            // Pass the flag to the JavaScript to conditionally apply styling
+            bool isChatGpt = currentUrl.StartsWith("https://chatgpt.com");
+            string script = $@"
+(function() {{
+    try {{
+        const elem = document.querySelector('{escapedSelectorForJs}');
+        if (!elem) {{
+            return `FAILURE: Input field not found for selector: {escapedSelectorForJs.Replace("`", "\\`")}`;
+        }}
+
+        const style = window.getComputedStyle(elem);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0' || elem.disabled) {{
             return `FAILURE: Input field (selector: {escapedSelectorForJs.Replace("`", "\\`")}) is not visible, interactable, or is disabled.`;
         }}
+
+        // Apply aggressive styling only for ChatGPT
+        {(isChatGpt ? @"
+        elem.style.setProperty('white-space', 'pre-wrap', 'important');
+        elem.style.setProperty('line-height', '1.4', 'important');
+        elem.style.setProperty('margin', '0', 'important');
+        elem.style.setProperty('padding', '0', 'important');
+        " : "")}
 
         const textValue = `{preparedTextForJs}`;
 
@@ -281,7 +382,7 @@ namespace Integrated_AI
         if (elem.tagName.toLowerCase() === 'textarea' || elem.tagName.toLowerCase() === 'input') {{
             elem.value = textValue;
             elem.dispatchEvent(new Event('input', {{ bubbles: true, cancelable: true }}));
-            return `SUCCESS: Text injected into {escapedSelectorForJs.Replace("`", "\\`")} (value set)`;
+            return `SUCCESS: Text set in {escapedSelectorForJs.Replace("`", "\\`")} (value set)`;
         }} else if (elem.isContentEditable) {{
             elem.innerHTML = textValue;
             const range = document.createRange();
@@ -291,7 +392,7 @@ namespace Integrated_AI
             sel.removeAllRanges();
             sel.addRange(range);
             elem.dispatchEvent(new Event('input', {{ bubbles: true, cancelable: true }}));
-            return `SUCCESS: Text injected into {escapedSelectorForJs.Replace("`", "\\`")} (contenteditable)`;
+            return `SUCCESS: Text set in {escapedSelectorForJs.Replace("`", "\\`")} (contenteditable)`;
         }}
         return `FAILURE: Element (selector: {escapedSelectorForJs.Replace("`", "\\`")}) is neither a text input nor contenteditable.`;
     }} catch (e) {{
@@ -307,7 +408,8 @@ namespace Integrated_AI
                 if (result == null || result == "null" || result.StartsWith("FAILURE:"))
                 {
                     string failureMessage = result?.Replace("FAILURE: ", "") ?? "Unknown error during script execution.";
-                    MessageBox.Show($"Failed to inject {sourceOfText}: {failureMessage}", "Injection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    failureMessage = $"Failed to append {sourceOfText}: {failureMessage}";
+                    MessageBox.Show(failureMessage, "Injection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
                 else
                 {
@@ -316,13 +418,12 @@ namespace Integrated_AI
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error injecting {sourceOfText} into WebView: {ex.Message}", "Execution Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error appending {sourceOfText} to WebView: {ex.Message}", "Execution Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void Log(string message)
         {
-            // TODO: Implement proper logging (e.g., to VS Output Pane)
             Debug.WriteLine($"LOG: {message}");
         }
 
