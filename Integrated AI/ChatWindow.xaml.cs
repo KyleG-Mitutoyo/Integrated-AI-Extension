@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net; // Required for WebUtility
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,16 +24,17 @@ namespace Integrated_AI
         {
             new UrlOption { DisplayName = "Grok", Url = "https://grok.com" },
             new UrlOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com" },
-            new UrlOption { DisplayName = "ChatGPT", Url = "https://chat.openai.com" }
+            new UrlOption { DisplayName = "ChatGPT", Url = "https://chatgpt.com" }
         };
 
         private string _userDataFolder;
+        private string _selectedOption = "Code -> AI";
+        private bool _executeCommandOnClick = true;
 
         public ChatWindow()
         {
             InitializeComponent();
-            // Required for HandyControl XAML compilation
-            var dummy = typeof(HandyControl.Controls.Window);
+            var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
             UrlSelector.ItemsSource = _urlOptions;
             InitializeWebView2Async();
         }
@@ -52,7 +54,7 @@ namespace Integrated_AI
 
                 ChatWebView.CoreWebView2.Settings.IsWebMessageEnabled = true;
                 ChatWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-                ChatWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+                ChatWebView.CoreWebView2.Settings.IsStatusBarEnabled = false; // Usually good to hide for cleaner UI
             }
             catch (Exception ex)
             {
@@ -66,7 +68,7 @@ namespace Integrated_AI
                 {
                     UrlSelector.SelectedIndex = 0; // Load first URL
                 }
-                else
+                else if (!e.IsSuccess)
                 {
                     MessageBox.Show($"WebView2 initialization failed: {e.InitializationException?.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
@@ -76,7 +78,14 @@ namespace Integrated_AI
             {
                 if (!e.IsSuccess)
                 {
-                    MessageBox.Show($"Failed to load {ChatWebView.Source?.ToString() ?? "page"}: {e.WebErrorStatus}", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    // Check for common errors like no internet, DNS issues, etc.
+                    string errorMessage = $"Failed to load {ChatWebView.Source?.ToString() ?? "page"}. Error status: {e.WebErrorStatus}.";
+                    if (e.WebErrorStatus == CoreWebView2WebErrorStatus.CannotConnect ||
+                        e.WebErrorStatus == CoreWebView2WebErrorStatus.HostNameNotResolved)
+                    {
+                        errorMessage += " Please check your internet connection and firewall settings.";
+                    }
+                    MessageBox.Show(errorMessage, "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             };
         }
@@ -91,47 +100,44 @@ namespace Integrated_AI
                     {
                         ChatWebView.Source = new Uri(selectedOption.Url);
                     }
+                    else
+                    {
+                        // WebView not ready, could queue the navigation or inform user.
+                        // For now, if it's null, InitializeWebView2Async would have shown an error or is still running.
+                    }
                 }
                 catch (UriFormatException ex)
                 {
                     MessageBox.Show($"Invalid URL '{selectedOption.Url}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    ChatWebView.Source = new Uri("https://grok.com");
+                    // Fallback or clear WebView
                 }
             }
         }
 
-        private string _selectedOption = "Code -> AI"; // Default option
-        private bool _executeCommandOnClick = true; // Flag to control Click event
+        
 
         private async void SplitButton_Click(object sender, RoutedEventArgs e)
         {
             if (_executeCommandOnClick)
             {
-                // Execute the current command when the button's text/content is clicked
                 await ExecuteCommandAsync(_selectedOption);
             }
-            // Reset flag for next click
             _executeCommandOnClick = true;
         }
 
         private void SplitButton_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            var splitButton = sender as SplitButton;
-            if (splitButton == null) return;
-
-            // Get click position relative to the SplitButton
-            var clickPosition = e.GetPosition(splitButton);
-            // Estimate the dropdown arrow area (rightmost 20% of the button)
-            // Adjust the threshold (0.8) based on your SplitButton's appearance
-            if (clickPosition.X > splitButton.ActualWidth * 0.7)
+            if (sender is SplitButton splitButton)
             {
-                // Click is likely on the arrow; skip command execution
-                _executeCommandOnClick = false;
-            }
-            else
-            {
-                // Click is on the text/content area; allow command execution
-                _executeCommandOnClick = true;
+                var clickPosition = e.GetPosition(splitButton);
+                if (clickPosition.X > splitButton.ActualWidth * 0.7) // Adjust threshold if needed
+                {
+                    _executeCommandOnClick = false;
+                }
+                else
+                {
+                    _executeCommandOnClick = true;
+                }
             }
         }
 
@@ -140,8 +146,8 @@ namespace Integrated_AI
             if (sender is MenuItem menuItem && menuItem.Tag is string option)
             {
                 _selectedOption = option;
-                VSToAISplitButton.Content = option; // Update button content
-                await ExecuteCommandAsync(option); // Execute the selected command immediately
+                VSToAISplitButton.Content = option;
+                await ExecuteCommandAsync(option);
             }
         }
 
@@ -149,11 +155,19 @@ namespace Integrated_AI
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             var dte = await ServiceProvider.GetGlobalServiceAsync(typeof(DTE)) as DTE2;
-            if (dte?.ActiveDocument == null)
+            if (dte == null)
+            {
+                MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            if (dte.ActiveDocument == null)
             {
                 MessageBox.Show("No active document in Visual Studio.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
+
+            string textToInject = null;
+            string sourceDescription = "";
 
             if (option == "Code -> AI")
             {
@@ -163,18 +177,32 @@ namespace Integrated_AI
                     MessageBox.Show("No text selected in Visual Studio.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
-                await InjectTextIntoWebViewAsync(textSelection.Text, "VS Selection");
+                textToInject = textSelection.Text;
+                sourceDescription = "VS Selection";
             }
             else if (option == "File -> AI")
             {
-                var textDocument = (TextDocument)dte.ActiveDocument.Object("TextDocument");
-                var text = textDocument.StartPoint.CreateEditPoint().GetText(textDocument.EndPoint);
-                if (string.IsNullOrEmpty(text))
+                if (dte.ActiveDocument.Object("TextDocument") is TextDocument textDocument)
                 {
-                    MessageBox.Show("The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    var text = textDocument.StartPoint.CreateEditPoint().GetText(textDocument.EndPoint);
+                    if (string.IsNullOrEmpty(text))
+                    {
+                        MessageBox.Show("The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                    textToInject = text;
+                    sourceDescription = "VS Full File";
+                }
+                else
+                {
+                    MessageBox.Show("Could not get text document from active document.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                await InjectTextIntoWebViewAsync(text, "VS Full File");
+            }
+
+            if (textToInject != null)
+            {
+                await InjectTextIntoWebViewAsync(textToInject, sourceDescription);
             }
         }
 
@@ -186,111 +214,116 @@ namespace Integrated_AI
                 return;
             }
 
-            // Escape text for JavaScript
-            string escapedText = textToInject
-                .Replace("\\", "\\\\")
-                .Replace("'", "\\'")
-                .Replace("\n", "\\n")
-                .Replace("\r", "\\r")
-                .Replace("\t", "\\t");
-
-            // Map URLs to specific selectors for AI chat sites
-            var selectorMap = new Dictionary<string, string>
-            {
-                { "https://grok.com", "textarea[aria-label=\"Ask Grok anything\"]" },
-                { "https://chat.openai.com", "div[contenteditable=\"true\"][data-testid=\"conversation-input\"]" },
-                { "https://aistudio.google.com", "textarea[aria-label=\"Type something or tab to choose an example prompt\"]" }
-            };
-
             string currentUrl = ChatWebView.Source?.ToString() ?? "";
-            string selector = selectorMap.FirstOrDefault(x => currentUrl.StartsWith(x.Key)).Value ?? "textarea"; // Fallback to generic textarea
 
-            // JavaScript to inject text without sending
+            // Updated selector map
+            var selectorMap = new Dictionary<string, string>
+    {
+        { "https://grok.com", "textarea[aria-label=\"Ask Grok anything\"]" },
+        { "https://chatgpt.com", "div#prompt-textarea" }, // Changed to div for ChatGPT
+        { "https://aistudio.google.com", "textarea[aria-label=\"Type something or tab to choose an example prompt\"]" }
+    };
+
+            string selector = selectorMap.FirstOrDefault(x => currentUrl.StartsWith(x.Key)).Value;
+            if (string.IsNullOrEmpty(selector))
+            {
+                selector = "textarea"; // Fallback
+                Log($"Warning: No specific selector for {currentUrl}. Falling back to generic 'textarea'.");
+            }
+
+            // Determine if HTML content formatting is needed
+            bool useHtmlContent = currentUrl.StartsWith("https://chatgpt.com"); // Enable for ChatGPT
+            string preparedTextForJs;
+
+            if (useHtmlContent)
+            {
+                // Format for ChatGPT's contenteditable div
+                string htmlContent = string.Join("",
+                    textToInject.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+                                .Select(line => "<p>" + WebUtility.HtmlEncode(line) + "</p>")
+                );
+                preparedTextForJs = htmlContent
+                    .Replace("\\", "\\\\")
+                    .Replace("'", "\\'")
+                    .Replace("`", "\\`");
+            }
+            else
+            {
+                // Standard text escaping for textarea
+                preparedTextForJs = textToInject
+                    .Replace("\\", "\\\\")
+                    .Replace("'", "\\'")
+                    .Replace("`", "\\`")
+                    .Replace("\n", "\\n")
+                    .Replace("\r", "\\r")
+                    .Replace("\t", "\\t");
+            }
+
+            string escapedSelectorForJs = selector.Replace("'", "\\'");
+
             string script = $@"
 (function() {{
     try {{
-        const elem = document.querySelector('{selector}');
-        if (!elem) return 'FAILURE: Input field not found for selector: {selector}';
-        
-        // Verify element is visible and interactable
-        const style = window.getComputedStyle(elem);
-        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {{
-            return 'FAILURE: Input field is not visible or interactable for selector: {selector}';
+        const elem = document.querySelector('{escapedSelectorForJs}');
+        if (!elem) {{
+            return `FAILURE: Input field not found for selector: {escapedSelectorForJs.Replace("`", "\\`")}`;
         }}
 
-        elem.focus();
-        if (elem.value !== undefined) {{ // <textarea> or <input>
-            elem.value = '{escapedText}';
-            elem.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            elem.dispatchEvent(new Event('change', {{ bubbles: true }}));
-            return 'SUCCESS: Text injected into {selector} (value set)';
-        }} else if (elem.isContentEditable) {{ // contenteditable Atlantis
-            elem.textContent = '{escapedText}';
-            elem.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            return 'SUCCESS: Text injected into {selector} (contenteditable)';
+        const style = window.getComputedStyle(elem);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0' || elem.disabled) {{
+            return `FAILURE: Input field (selector: {escapedSelectorForJs.Replace("`", "\\`")}) is not visible, interactable, or is disabled.`;
         }}
-        return 'FAILURE: Element is neither a text input nor contenteditable for selector: {selector}';
+
+        const textValue = `{preparedTextForJs}`;
+
+        elem.focus();
+
+        if (elem.tagName.toLowerCase() === 'textarea' || elem.tagName.toLowerCase() === 'input') {{
+            elem.value = textValue;
+            elem.dispatchEvent(new Event('input', {{ bubbles: true, cancelable: true }}));
+            return `SUCCESS: Text injected into {escapedSelectorForJs.Replace("`", "\\`")} (value set)`;
+        }} else if (elem.isContentEditable) {{
+            elem.innerHTML = textValue;
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.selectNodeContents(elem);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            elem.dispatchEvent(new Event('input', {{ bubbles: true, cancelable: true }}));
+            return `SUCCESS: Text injected into {escapedSelectorForJs.Replace("`", "\\`")} (contenteditable)`;
+        }}
+        return `FAILURE: Element (selector: {escapedSelectorForJs.Replace("`", "\\`")}) is neither a text input nor contenteditable.`;
     }} catch (e) {{
-        return 'FAILURE: Error: ' + e.message;
+        return `FAILURE: JavaScript error: ` + e.message + ` (Selector: {escapedSelectorForJs.Replace("`", "\\`")})`;
     }}
 }})();";
 
             try
             {
                 string result = await ChatWebView.ExecuteScriptAsync(script);
-                result = result?.Trim('"') ?? "null"; // Remove JSON quotes and handle null
-                if (result == "null" || result.Contains("FAILURE"))
+                result = result?.Trim('"');
+
+                if (result == null || result == "null" || result.StartsWith("FAILURE:"))
                 {
-                    MessageBox.Show($"Failed to inject {sourceOfText}: {result.Replace("FAILURE: ", "")}", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    string failureMessage = result?.Replace("FAILURE: ", "") ?? "Unknown error during script execution.";
+                    MessageBox.Show($"Failed to inject {sourceOfText}: {failureMessage}", "Injection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
                 else
                 {
-                    Log($"InjectTextIntoWebViewAsync: {result}"); // Log success to custom pane
+                    Log($"InjectTextIntoWebViewAsync: {result}");
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error injecting {sourceOfText}: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error injecting {sourceOfText} into WebView: {ex.Message}", "Execution Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void Log(string message)
         {
-            try
-            {
-                var outputWindow = ServiceProvider.GetGlobalServiceAsync(typeof(SVsOutputWindow)).Result as IVsOutputWindow;
-                if (outputWindow == null)
-                {
-                    Debug.WriteLine($"Log failed: Output window service unavailable - {message}");
-                    return;
-                }
-
-                // Use a custom pane for the extension
-                Guid paneGuid = new Guid("D7E1B3F6-3E3E-4E9E-BE6A-7A8D6B5A3C9F"); // Unique GUID for AI Chat Extension
-                IVsOutputWindowPane pane;
-                int hr = outputWindow.GetPane(ref paneGuid, out pane);
-                if (hr < 0 || pane == null) // Pane doesn't exist, create it
-                {
-                    hr = outputWindow.CreatePane(ref paneGuid, "AI Chat Extension", 1, 0);
-                    if (hr >= 0)
-                    {
-                        hr = outputWindow.GetPane(ref paneGuid, out pane);
-                    }
-                }
-
-                if (hr >= 0 && pane != null)
-                {
-                    pane.OutputStringThreadSafe($"{DateTime.Now}: {message}\n");
-                }
-                else
-                {
-                    Debug.WriteLine($"Log failed: Could not create or get custom pane (HRESULT: {hr}) - {message}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Log failed: {ex.Message} - {message}");
-            }
+            // TODO: Implement proper logging (e.g., to VS Output Pane)
+            Debug.WriteLine($"LOG: {message}");
         }
 
         private class UrlOption
