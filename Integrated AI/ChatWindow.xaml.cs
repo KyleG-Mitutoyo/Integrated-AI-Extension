@@ -286,74 +286,38 @@ namespace Integrated_AI
 
             string currentUrl = ChatWebView.Source?.ToString() ?? "";
             var selectorMap = new Dictionary<string, string>
-    {
-        { "https://grok.com", "textarea[aria-label=\"Ask Grok anything\"]" },
-        { "https://chatgpt.com", "div#prompt-textarea" },
-        { "https://aistudio.google.com", "textarea[aria-label=\"Type something or tab to choose an example prompt\"]" }
-    };
-
-            string selector = selectorMap.FirstOrDefault(x => currentUrl.StartsWith(x.Key)).Value;
-            if (string.IsNullOrEmpty(selector))
             {
-                selector = "textarea"; // Fallback
-                Log($"Warning: No specific selector for {currentUrl}. Falling back to generic 'textarea'.");
-            }
+                { "https://grok.com", "textarea[aria-label=\"Ask Grok anything\"]" },
+                { "https://chatgpt.com", "div#prompt-textarea" },
+                { "https://aistudio.google.com", "textarea[aria-label=\"Type something or tab to choose an example prompt\"]" }
+            };
 
-            bool useHtmlContent = currentUrl.StartsWith("https://chatgpt.com");
+            string selector = selectorMap.FirstOrDefault(x => currentUrl.StartsWith(x.Key)).Value ?? "textarea";
+            Log($"Using selector: {selector} for URL: {currentUrl}");
 
-            // Normalize input text line endings and trim leading/trailing newlines
+            // Normalize input text
             textToInject = textToInject.Replace("\r\n", "\n").Replace("\r", "\n").Trim('\n');
 
-            // Retrieve existing text
-            string currentText = await RetrieveTextFromWebViewAsync();
-            string textToSet;
-            if (currentText != null)
+            // Prepare HTML for contenteditable (like original)
+            string preparedTextForJs;
+            bool isChatGpt = currentUrl.StartsWith("https://chatgpt.com");
+            if (isChatGpt)
             {
-                // Ensure currentText has normalized newlines and trim
-                currentText = currentText.Replace("\\n", "\n").Trim('\n');
-                if (useHtmlContent)
-                {
-                    // For ChatGPT, wrap each block in a div and convert newlines to <br>
-                    var newLines = textToInject.Split(new[] { '\n' }, StringSplitOptions.None)
-                        .Where(line => !string.IsNullOrEmpty(line)) // Skip empty lines
-                        .Select(line => "<span>" + WebUtility.HtmlEncode(line) + "</span>");
-                    string newHtml = "<div style=\"margin: 0; padding: 0; white-space: pre-wrap; line-height: 1.4;\">" +
-                        string.Join("<br>", newLines) + "</div>";
-                    var currentLines = currentText.Split(new[] { '\n' }, StringSplitOptions.None)
-                        .Where(line => !string.IsNullOrEmpty(line)) // Skip empty lines
-                        .Select(line => "<span>" + WebUtility.HtmlEncode(line) + "</span>");
-                    string currentHtml = string.IsNullOrEmpty(currentText) ? "" :
-                        "<div style=\"margin: 0; padding: 0; white-space: pre-wrap; line-height: 1.4;\">" +
-                        string.Join("<br>", currentLines) + "</div>";
-                    textToSet = currentHtml + (string.IsNullOrEmpty(currentHtml) ? "" : "<div></div>") + newHtml;
-                }
-                else
-                {
-                    // For textarea, append with a single newline
-                    textToSet = currentText + (string.IsNullOrEmpty(currentText) ? "" : "\n") + textToInject;
-                }
+                var lines = textToInject.Split(new[] { '\n' }, StringSplitOptions.None)
+                    .Where(line => !string.IsNullOrEmpty(line))
+                    .Select(line => $"<span>{WebUtility.HtmlEncode(line)}</span>");
+                preparedTextForJs = $"<div style=\"white-space: pre-wrap; line-height: 1.4;\">{string.Join("<br>", lines)}</div>";
             }
             else
             {
-                textToSet = useHtmlContent
-                    ? "<div style=\"margin: 0; padding: 0; white-space: pre-wrap; line-height: 1.4;\">" +
-                      string.Join("<br>", textToInject.Split(new[] { '\n' }, StringSplitOptions.None)
-                          .Where(line => !string.IsNullOrEmpty(line))
-                          .Select(line => "<span>" + WebUtility.HtmlEncode(line) + "</span>")) + "</div>"
-                    : textToInject;
+                preparedTextForJs = textToInject
+                    .Replace("\\", "\\\\")
+                    .Replace("'", "\\'")
+                    .Replace("`", "\\`");
             }
-
-            // Escape only necessary characters for JavaScript
-            string preparedTextForJs = textToSet
-                .Replace("\\", "\\\\") // Escape backslashes
-                .Replace("'", "\\'")   // Escape single quotes
-                .Replace("`", "\\`");  // Escape backticks
-                                       // Do not escape newlines to preserve them in textarea
 
             string escapedSelectorForJs = selector.Replace("'", "\\'");
 
-            // Pass the flag to the JavaScript to conditionally apply styling
-            bool isChatGpt = currentUrl.StartsWith("https://chatgpt.com");
             string script = $@"
 (function() {{
     try {{
@@ -364,10 +328,9 @@ namespace Integrated_AI
 
         const style = window.getComputedStyle(elem);
         if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0' || elem.disabled) {{
-            return `FAILURE: Input field (selector: {escapedSelectorForJs.Replace("`", "\\`")}) is not visible, interactable, or is disabled.`;
+            return `FAILURE: Input field (selector: {escapedSelectorForJs.Replace("`", "\\`")}) is not visible or is disabled.`;
         }}
 
-        // Apply aggressive styling only for ChatGPT
         {(isChatGpt ? @"
         elem.style.setProperty('white-space', 'pre-wrap', 'important');
         elem.style.setProperty('line-height', '1.4', 'important');
@@ -375,16 +338,16 @@ namespace Integrated_AI
         elem.style.setProperty('padding', '0', 'important');
         " : "")}
 
-        const textValue = `{preparedTextForJs}`;
-
         elem.focus();
 
         if (elem.tagName.toLowerCase() === 'textarea' || elem.tagName.toLowerCase() === 'input') {{
-            elem.value = textValue;
+            const currentValue = elem.value || '';
+            elem.value = currentValue + (currentValue ? '\n' : '') + `{preparedTextForJs}`;
             elem.dispatchEvent(new Event('input', {{ bubbles: true, cancelable: true }}));
-            return `SUCCESS: Text set in {escapedSelectorForJs.Replace("`", "\\`")} (value set)`;
+            return `SUCCESS: Text appended to {escapedSelectorForJs.Replace("`", "\\`")} (value set)`;
         }} else if (elem.isContentEditable) {{
-            elem.innerHTML = textValue;
+            const currentContent = elem.innerHTML;
+            elem.innerHTML = currentContent + (currentContent ? '<div></div>' : '') + `{preparedTextForJs}`;
             const range = document.createRange();
             const sel = window.getSelection();
             range.selectNodeContents(elem);
@@ -392,7 +355,7 @@ namespace Integrated_AI
             sel.removeAllRanges();
             sel.addRange(range);
             elem.dispatchEvent(new Event('input', {{ bubbles: true, cancelable: true }}));
-            return `SUCCESS: Text set in {escapedSelectorForJs.Replace("`", "\\`")} (contenteditable)`;
+            return `SUCCESS: Text appended to {escapedSelectorForJs.Replace("`", "\\`")} (contenteditable)`;
         }}
         return `FAILURE: Element (selector: {escapedSelectorForJs.Replace("`", "\\`")}) is neither a text input nor contenteditable.`;
     }} catch (e) {{
@@ -400,9 +363,11 @@ namespace Integrated_AI
     }}
 }})();";
 
+            Log($"Generated JavaScript: {script}");
+
             try
             {
-                string result = await ChatWebView.ExecuteScriptAsync(script);
+                string result = await ChatWebView.CoreWebView2.ExecuteScriptAsync(script);
                 result = result?.Trim('"');
 
                 if (result == null || result == "null" || result.StartsWith("FAILURE:"))
