@@ -197,6 +197,7 @@ namespace Integrated_AI
             }
         }
 
+        //This will be used later to retrieve text from the web view
         private async Task<string> RetrieveTextFromWebViewAsync()
         {
             if (ChatWebView?.CoreWebView2 == null)
@@ -298,15 +299,20 @@ namespace Integrated_AI
             // Normalize input text
             textToInject = textToInject.Replace("\r\n", "\n").Replace("\r", "\n").Trim('\n');
 
-            // Prepare HTML for contenteditable (like original)
+            // Prepare text for JavaScript
             string preparedTextForJs;
             bool isChatGpt = currentUrl.StartsWith("https://chatgpt.com");
             if (isChatGpt)
             {
-                var lines = textToInject.Split(new[] { '\n' }, StringSplitOptions.None)
-                    .Where(line => !string.IsNullOrEmpty(line))
-                    .Select(line => $"<span>{WebUtility.HtmlEncode(line)}</span>");
+                // Escape backslashes before HTML encoding
+                string escapedText = textToInject.Replace("\\", "\\\\");
+                var lines = escapedText.Split(new[] { '\n' }, StringSplitOptions.None)
+                    .Select(line => string.IsNullOrEmpty(line) ? "<span></span>" : $"<span>{WebUtility.HtmlEncode(line)}</span>");
                 preparedTextForJs = $"<div style=\"white-space: pre-wrap; line-height: 1.4;\">{string.Join("<br>", lines)}</div>";
+                // Escape quotes and backticks for JavaScript
+                preparedTextForJs = preparedTextForJs
+                    .Replace("'", "\\'")
+                    .Replace("`", "\\`");
             }
             else
             {
