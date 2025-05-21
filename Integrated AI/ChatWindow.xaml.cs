@@ -159,6 +159,18 @@ namespace Integrated_AI
 
             string textToInject = null;
             string sourceDescription = "";
+            string solutionPath = Path.GetDirectoryName(dte.Solution.FullName);
+            string filePath = dte.ActiveDocument.FullName;
+            string relativePath = "";
+
+            if (!string.IsNullOrEmpty(solutionPath) && filePath.StartsWith(solutionPath, StringComparison.OrdinalIgnoreCase))
+            {
+                relativePath = filePath.Substring(solutionPath.Length + 1).Replace("\\", "/");
+            }
+            else
+            {
+                relativePath = Path.GetFileName(filePath);
+            }
 
             if (option == "Code -> AI")
             {
@@ -169,7 +181,7 @@ namespace Integrated_AI
                     return;
                 }
                 textToInject = textSelection.Text;
-                sourceDescription = "VS Selection";
+                sourceDescription = $"---{relativePath} (partial code block)---\n{textToInject}\n---End code---\n\n";
             }
             else if (option == "File -> AI")
             {
@@ -181,8 +193,15 @@ namespace Integrated_AI
                         MessageBox.Show("The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
+                    // Check if the file's content is already in the web view
+                    string currentContent = await RetrieveTextFromWebViewAsync();
+                    if (currentContent != null && currentContent.Contains($"---From {relativePath} (whole file contents)---"))
+                    {
+                        MessageBox.Show("This file's contents have already been injected.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
                     textToInject = text;
-                    sourceDescription = "VS Full File";
+                    sourceDescription = $"---{relativePath} (whole file contents)---\n{textToInject}\n---End code---\n\n";
                 }
                 else
                 {
@@ -193,11 +212,10 @@ namespace Integrated_AI
 
             if (textToInject != null)
             {
-                await InjectTextIntoWebViewAsync(textToInject, sourceDescription);
+                await InjectTextIntoWebViewAsync(sourceDescription, option);
             }
         }
 
-        //This will be used later to retrieve text from the web view
         private async Task<string> RetrieveTextFromWebViewAsync()
         {
             if (ChatWebView?.CoreWebView2 == null)
@@ -232,12 +250,12 @@ namespace Integrated_AI
         }}
 
         const style = window.getComputedStyle(elem);
-        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0' || elem.disabled) {{
+        if (style.display === 'none' || style.visibility == 'hidden' || style.opacity == '0' || elem.disabled) {{
             return `FAILURE: Input field (selector: {escapedSelectorForJs.Replace("`", "\\`")}) is not visible or is disabled.`;
         }}
 
         let text;
-        if (elem.tagName.toLowerCase() === 'textarea' || elem.tagName.toLowerCase() === 'input') {{
+        if (elem.tagName.toLowerCase() == 'textarea' || elem.tagName.toLowerCase() == 'input') {{
             text = elem.value || '';
         }} else if (elem.isContentEditable) {{
             text = elem.innerText || ''; // Use innerText to avoid HTML tags
@@ -296,8 +314,8 @@ namespace Integrated_AI
             string selector = selectorMap.FirstOrDefault(x => currentUrl.StartsWith(x.Key)).Value ?? "textarea";
             Log($"Using selector: {selector} for URL: {currentUrl}");
 
-            // Normalize input text
-            textToInject = textToInject.Replace("\r\n", "\n").Replace("\r", "\n").Trim('\n');
+            // Normalize input text, preserving trailing newline
+            textToInject = textToInject.Replace("\r\n", "\n").Replace("\r", "\n");
 
             // Prepare text for JavaScript
             string preparedTextForJs;
@@ -333,7 +351,7 @@ namespace Integrated_AI
         }}
 
         const style = window.getComputedStyle(elem);
-        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0' || elem.disabled) {{
+        if (style.display == 'none' || style.visibility == 'hidden' || style.opacity == '0' || elem.disabled) {{
             return `FAILURE: Input field (selector: {escapedSelectorForJs.Replace("`", "\\`")}) is not visible or is disabled.`;
         }}
 
@@ -346,14 +364,14 @@ namespace Integrated_AI
 
         elem.focus();
 
-        if (elem.tagName.toLowerCase() === 'textarea' || elem.tagName.toLowerCase() === 'input') {{
+        if (elem.tagName.toLowerCase() == 'textarea' || elem.tagName.toLowerCase() == 'input') {{
             const currentValue = elem.value || '';
             elem.value = currentValue + (currentValue ? '\n' : '') + `{preparedTextForJs}`;
             elem.dispatchEvent(new Event('input', {{ bubbles: true, cancelable: true }}));
             return `SUCCESS: Text appended to {escapedSelectorForJs.Replace("`", "\\`")} (value set)`;
         }} else if (elem.isContentEditable) {{
             const currentContent = elem.innerHTML;
-            elem.innerHTML = currentContent + (currentContent ? '<div></div>' : '') + `{preparedTextForJs}`;
+            elem.innerHTML = currentContent + '' + `{preparedTextForJs}`;
             const range = document.createRange();
             const sel = window.getSelection();
             range.selectNodeContents(elem);

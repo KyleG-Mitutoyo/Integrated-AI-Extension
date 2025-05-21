@@ -22,13 +22,13 @@
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
             <ComboBox x:Name="UrlSelector" Width="200" Margin="5" SelectionChanged="UrlSelector_SelectionChanged"
-                      DisplayMemberPath="DisplayName" SelectedValuePath="Url" SelectedIndex="0"/>
+                  DisplayMemberPath="DisplayName" SelectedValuePath="Url" SelectedIndex="0"/>
             <hc:SplitButton x:Name="VSToAISplitButton" 
-                Margin="5" 
-                Content="Code -> AI" 
-                Click="SplitButton_Click" 
-                PreviewMouseDown="SplitButton_PreviewMouseDown"
-                HorizontalAlignment="Stretch">
+            Margin="5" 
+            Content="Code -> AI" 
+            Click="SplitButton_Click" 
+            PreviewMouseDown="SplitButton_PreviewMouseDown"
+            HorizontalAlignment="Stretch">
                 <hc:SplitButton.DropDownContent>
                     <StackPanel>
                         <MenuItem Header="File -> AI" Click="MenuItem_Click" Tag="File -> AI"/>
