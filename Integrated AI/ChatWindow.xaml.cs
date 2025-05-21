@@ -142,6 +142,52 @@ namespace Integrated_AI
             }
         }
 
+        private List<FunctionSelectionWindow.FunctionItem> GetFunctionsFromActiveDocument(DTE2 dte)
+        {
+            var functions = new List<FunctionSelectionWindow.FunctionItem>();
+            if (dte.ActiveDocument?.Object("TextDocument") is TextDocument textDocument)
+            {
+                var codeModel = dte.ActiveDocument.ProjectItem?.FileCodeModel;
+                if (codeModel != null)
+                {
+                    foreach (CodeElement element in codeModel.CodeElements)
+                    {
+                        CollectFunctions(element, functions);
+                    }
+                }
+            }
+            return functions;
+        }
+
+        private void CollectFunctions(CodeElement element, List<FunctionSelectionWindow.FunctionItem> functions)
+        {
+            if (element.Kind == vsCMElement.vsCMElementFunction)
+            {
+                var codeFunction = (CodeFunction)element;
+                string functionCode = codeFunction.StartPoint.CreateEditPoint().GetText(codeFunction.EndPoint);
+                string displayName = codeFunction.Name;
+                string listBoxDisplayName = $"{codeFunction.Name} ({codeFunction.Parameters.Cast<CodeParameter>().Count()} params)";
+                string fullName = $"{codeFunction.FullName}";
+                functions.Add(new FunctionSelectionWindow.FunctionItem
+                {
+                    DisplayName = displayName,
+                    ListBoxDisplayName = listBoxDisplayName,
+                    FullName = fullName,
+                    Function = codeFunction,
+                    FullCode = functionCode
+                });
+            }
+
+            // Recursively check for nested elements (e.g., in classes or namespaces)
+            if (element.Children != null)
+            {
+                foreach (CodeElement child in element.Children)
+                {
+                    CollectFunctions(child, functions);
+                }
+            }
+        }
+
         private async Task ExecuteCommandAsync(string option)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -193,7 +239,6 @@ namespace Integrated_AI
                         MessageBox.Show("The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
-                    // Check if the file's content is already in the web view
                     string currentContent = await RetrieveTextFromWebViewAsync();
                     if (currentContent != null && currentContent.Contains($"---From {relativePath} (whole file contents)---"))
                     {
@@ -207,6 +252,27 @@ namespace Integrated_AI
                 {
                     MessageBox.Show("Could not get text document from active document.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
+                }
+            }
+            else if (option == "Function -> AI")
+            {
+                var functions = GetFunctionsFromActiveDocument(dte);
+                if (!functions.Any())
+                {
+                    MessageBox.Show("No functions found in the active document.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                string recentFunctionsFilePath = Path.Combine(_userDataFolder, "recent_functions.txt");
+                var functionSelectionWindow = new FunctionSelectionWindow(functions, recentFunctionsFilePath);
+                if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
+                {
+                    textToInject = functionSelectionWindow.SelectedFunction.FullCode;
+                    sourceDescription = $"---{relativePath} (function: {functionSelectionWindow.SelectedFunction.DisplayName})---\n{textToInject}\n---End code---\n\n";
+                }
+                else
+                {
+                    return; // User cancelled selection
                 }
             }
 
