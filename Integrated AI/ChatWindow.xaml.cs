@@ -264,7 +264,7 @@ namespace Integrated_AI
                 }
 
                 string recentFunctionsFilePath = Path.Combine(_userDataFolder, "recent_functions.txt");
-                var functionSelectionWindow = new FunctionSelectionWindow(functions, recentFunctionsFilePath);
+                var functionSelectionWindow = new FunctionSelectionWindow(functions, recentFunctionsFilePath, relativePath);
                 if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
                 {
                     textToInject = functionSelectionWindow.SelectedFunction.FullCode;
@@ -486,6 +486,11 @@ namespace Integrated_AI
         {
             public string DisplayName { get; set; }
             public string Url { get; set; }
+        }
+
+        private void ErrortoAISplitButton_Click(object sender, RoutedEventArgs e)
+        {
+
         }
     }
 }

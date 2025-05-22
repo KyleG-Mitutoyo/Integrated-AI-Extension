@@ -26,13 +26,13 @@ namespace Integrated_AI
         private readonly string _recentFunctionsFilePath;
         private List<string> _recentFunctions;
 
-        public FunctionSelectionWindow(IEnumerable<FunctionItem> functions, string recentFunctionsFilePath)
+        public FunctionSelectionWindow(IEnumerable<FunctionItem> functions, string recentFunctionsFilePath, string openedFile)
         {
             InitializeComponent();
             var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
             _recentFunctionsFilePath = recentFunctionsFilePath;
             LoadRecentFunctions();
-            PopulateFunctionList(functions);
+            PopulateFunctionList(functions, openedFile);
         }
 
         private void LoadRecentFunctions()
@@ -44,27 +44,28 @@ namespace Integrated_AI
             }
         }
 
-        private void PopulateFunctionList(IEnumerable<FunctionItem> functions)
+        private void PopulateFunctionList(IEnumerable<FunctionItem> functions, string openedFile)
         {
             var functionList = functions.ToList();
             var items = new List<FunctionItem>();
 
-            // Add recent functions first, if they still exist in the current document
-            foreach (var recent in _recentFunctions)
+            // Add recent functions and their header if any exist
+            if (_recentFunctions.Any())
             {
-                var matchingFunction = functionList.FirstOrDefault(f => f.DisplayName == recent);
-                if (matchingFunction != null)
+                items.Add(new FunctionItem { ListBoxDisplayName = "----- Recent Functions -----", FullName = $"Recent functions used for {openedFile}" });
+                foreach (var recent in _recentFunctions)
                 {
-                    items.Add(matchingFunction);
-                    functionList.Remove(matchingFunction); // Remove to avoid duplicates
+                    var matchingFunction = functionList.FirstOrDefault(f => f.DisplayName == recent);
+                    if (matchingFunction != null)
+                    {
+                        items.Add(matchingFunction);
+                        functionList.Remove(matchingFunction); // Remove to avoid duplicates
+                    }
                 }
             }
 
-            // Add separator if there are recent functions
-            if (items.Any())
-            {
-                items.Add(new FunctionItem { ListBoxDisplayName = "----- All Functions -----", FullName = "All the functions within the current file" });
-            }
+            // Always add "All Functions" header
+            items.Add(new FunctionItem { ListBoxDisplayName = "----- All Functions -----", FullName = $"All the functions within {openedFile}" });
 
             // Add remaining functions
             items.AddRange(functionList);
@@ -73,7 +74,7 @@ namespace Integrated_AI
 
         private void SelectButton_Click(object sender, RoutedEventArgs e)
         {
-            if (FunctionListBox.SelectedItem is FunctionItem selected && !selected.DisplayName.StartsWith("-----"))
+            if (FunctionListBox.SelectedItem is FunctionItem selected && !selected.ListBoxDisplayName.StartsWith("-----"))
             {
                 SelectedFunction = selected;
                 UpdateRecentFunctions(selected.DisplayName);
@@ -84,7 +85,7 @@ namespace Integrated_AI
 
         private void FunctionListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            if (FunctionListBox.SelectedItem is FunctionItem selected && !selected.DisplayName.StartsWith("-----"))
+            if (FunctionListBox.SelectedItem is FunctionItem selected && !selected.ListBoxDisplayName.StartsWith("-----"))
             {
                 SelectedFunction = selected;
                 UpdateRecentFunctions(selected.DisplayName);

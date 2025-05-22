@@ -37,6 +37,19 @@
                     </StackPanel>
                 </hc:SplitButton.DropDownContent>
             </hc:SplitButton>
+            <hc:SplitButton x:Name="ErrortoAISplitButton" 
+                            Margin="5" 
+                            Content="Error -> AI" 
+                            Click="ErrortoAISplitButton_Click" 
+                            PreviewMouseDown="SplitButton_PreviewMouseDown"
+                            HorizontalAlignment="Stretch">
+                <hc:SplitButton.DropDownContent>
+                    <StackPanel>
+                        <MenuItem Header="Error -> AI" Click="MenuItem_Click" Tag="Error -> AI"/>
+                        <MenuItem Header="Exception -> AI" Click="MenuItem_Click" Tag="Exception -> AI"/>
+                    </StackPanel>
+                </hc:SplitButton.DropDownContent>
+            </hc:SplitButton>
             <Button x:Name="PasteButton" Content="AI -> VS" Margin="5"/>
         </StackPanel>
         <wpf:WebView2 x:Name="ChatWebView" Grid.Row="1" Source="https://grok.com"/>
