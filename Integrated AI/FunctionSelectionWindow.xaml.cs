@@ -1,113 +1,66 @@
-﻿using EnvDTE;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Window = System.Windows.Window;
+using EnvDTE;
 using HandyControl.Controls;
+using Integrated_AI.Utilities;
+using Window = System.Windows.Window;
 
 namespace Integrated_AI
-{
-    public partial class FunctionSelectionWindow : Window
     {
-        public class FunctionItem
+        public partial class FunctionSelectionWindow : Window
         {
-            public string DisplayName { get; set; }
-            public string ListBoxDisplayName { get; set; }
-            public string FullName { get; set; }
-            public CodeFunction Function { get; set; }
-            public string FullCode { get; set; }
-        }
-
-        public FunctionItem SelectedFunction { get; private set; }
-        private readonly string _recentFunctionsFilePath;
-        private List<string> _recentFunctions;
-
-        public FunctionSelectionWindow(IEnumerable<FunctionItem> functions, string recentFunctionsFilePath, string openedFile)
-        {
-            InitializeComponent();
-            var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
-            _recentFunctionsFilePath = recentFunctionsFilePath;
-            LoadRecentFunctions();
-            PopulateFunctionList(functions, openedFile);
-        }
-
-        private void LoadRecentFunctions()
-        {
-            _recentFunctions = new List<string>();
-            if (File.Exists(_recentFunctionsFilePath))
+            public class FunctionItem
             {
-                _recentFunctions = File.ReadAllLines(_recentFunctionsFilePath).Take(3).ToList();
+                public string DisplayName { get; set; }
+                public string ListBoxDisplayName { get; set; }
+                public string FullName { get; set; }
+                public CodeFunction Function { get; set; }
+                public string FullCode { get; set; }
             }
-        }
 
-        private void PopulateFunctionList(IEnumerable<FunctionItem> functions, string openedFile)
-        {
-            var functionList = functions.ToList();
-            var items = new List<FunctionItem>();
+            public FunctionItem SelectedFunction { get; private set; }
+            private readonly string _recentFunctionsFilePath;
+            private readonly List<string> _recentFunctions;
 
-            // Add recent functions and their header if any exist
-            if (_recentFunctions.Any())
+            public FunctionSelectionWindow(IEnumerable<FunctionItem> functions, string recentFunctionsFilePath, string openedFile)
             {
-                items.Add(new FunctionItem { ListBoxDisplayName = "----- Recent Functions -----", FullName = $"Recent functions used for {openedFile}" });
-                foreach (var recent in _recentFunctions)
+                InitializeComponent();
+                var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
+                _recentFunctionsFilePath = recentFunctionsFilePath;
+                _recentFunctions = FileUtil.LoadRecentFunctions(recentFunctionsFilePath);
+                FunctionListBox.ItemsSource = FunctionSelectionUtilities.PopulateFunctionList(functions, _recentFunctions, openedFile);
+            }
+
+            private void SelectButton_Click(object sender, RoutedEventArgs e)
+            {
+                if (FunctionListBox.SelectedItem is FunctionItem selected && !selected.ListBoxDisplayName.StartsWith("-----"))
                 {
-                    var matchingFunction = functionList.FirstOrDefault(f => f.DisplayName == recent);
-                    if (matchingFunction != null)
-                    {
-                        items.Add(matchingFunction);
-                        functionList.Remove(matchingFunction); // Remove to avoid duplicates
-                    }
+                    SelectedFunction = selected;
+                    FileUtil.UpdateRecentFunctions(_recentFunctions, selected.DisplayName, _recentFunctionsFilePath);
+                    DialogResult = true;
+                    Close();
                 }
             }
 
-            // Always add "All Functions" header
-            items.Add(new FunctionItem { ListBoxDisplayName = "----- All Functions -----", FullName = $"All the functions within {openedFile}" });
-
-            // Add remaining functions
-            items.AddRange(functionList);
-            FunctionListBox.ItemsSource = items;
-        }
-
-        private void SelectButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (FunctionListBox.SelectedItem is FunctionItem selected && !selected.ListBoxDisplayName.StartsWith("-----"))
+            private void FunctionListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
             {
-                SelectedFunction = selected;
-                UpdateRecentFunctions(selected.DisplayName);
-                DialogResult = true;
+                if (FunctionListBox.SelectedItem is FunctionItem selected && !selected.ListBoxDisplayName.StartsWith("-----"))
+                {
+                    SelectedFunction = selected;
+                    FileUtil.UpdateRecentFunctions(_recentFunctions, selected.DisplayName, _recentFunctionsFilePath);
+                    DialogResult = true;
+                    Close();
+                }
+            }
+
+            private void CancelButton_Click(object sender, RoutedEventArgs e)
+            {
+                DialogResult = false;
                 Close();
             }
-        }
-
-        private void FunctionListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            if (FunctionListBox.SelectedItem is FunctionItem selected && !selected.ListBoxDisplayName.StartsWith("-----"))
-            {
-                SelectedFunction = selected;
-                UpdateRecentFunctions(selected.DisplayName);
-                DialogResult = true;
-                Close();
-            }
-        }
-
-        private void CancelButton_Click(object sender, RoutedEventArgs e)
-        {
-            DialogResult = false;
-            Close();
-        }
-
-        private void UpdateRecentFunctions(string functionName)
-        {
-            if (string.IsNullOrEmpty(functionName) || functionName.StartsWith("-----")) return;
-
-            _recentFunctions.Remove(functionName); // Remove if already exists to avoid duplicates
-            _recentFunctions.Insert(0, functionName); // Add to top
-            _recentFunctions = _recentFunctions.Take(3).ToList(); // Keep only top 3
-            File.WriteAllLines(_recentFunctionsFilePath, _recentFunctions);
         }
     }
-}
