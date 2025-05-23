@@ -19,5 +19,7 @@
     </Prerequisites>
     <Assets>
         <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
+		<Asset Type="Microsoft.VisualStudio.Content" Path="Scripts\injectText.js" />
+		<Asset Type="Microsoft.VisualStudio.Content" Path="Scripts\retrieveText.js" />
     </Assets>
 </PackageManifest>
