@@ -36,3 +36,4 @@
 - `ChatWindowUtilities.cs`
 - `FileUtil.cs`
 - `FunctionSelectionUtilities.cs`
+- `DiffUtility.cs`

@@ -22,13 +22,13 @@
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
             <ComboBox x:Name="UrlSelector" Width="200" Margin="5" SelectionChanged="UrlSelector_SelectionChanged"
-                  DisplayMemberPath="DisplayName" SelectedValuePath="Url" SelectedIndex="0"/>
+                      DisplayMemberPath="DisplayName" SelectedValuePath="Url" SelectedIndex="0"/>
             <hc:SplitButton x:Name="VSToAISplitButton" 
-            Margin="5" 
-            Content="Code -> AI" 
-            Click="SplitButton_Click" 
-            PreviewMouseDown="SplitButton_PreviewMouseDown"
-            HorizontalAlignment="Stretch">
+                            Margin="5" 
+                            Content="Code -> AI" 
+                            Click="SplitButton_Click" 
+                            PreviewMouseDown="SplitButton_PreviewMouseDown"
+                            HorizontalAlignment="Stretch">
                 <hc:SplitButton.DropDownContent>
                     <StackPanel>
                         <MenuItem Header="File -> AI" Click="MenuItem_Click" Tag="File -> AI"/>
@@ -50,7 +50,9 @@
                     </StackPanel>
                 </hc:SplitButton.DropDownContent>
             </hc:SplitButton>
-            <Button x:Name="PasteButton" Content="AI -> VS" Margin="5"/>
+            <Button x:Name="PasteButton" Content="AI -> VS" Click="PasteButton_Click" Visibility="Visible" Margin="5"/>
+            <Button x:Name="AcceptButton" Content="Accept" Style="{StaticResource ButtonSuccess}" Click="AcceptButton_Click" hc:BorderElement.CornerRadius="5,0,0,5" Margin="5,0,0,0" Visibility="Collapsed"/>
+            <Button x:Name="DeclineButton" Content="Decline" Style="{StaticResource ButtonDanger}" Click="DeclineButton_Click" hc:BorderElement.CornerRadius="0,5,5,0" Margin="0,0,5,0" Visibility="Collapsed"/>
         </StackPanel>
         <wpf:WebView2 x:Name="ChatWebView" Grid.Row="1" Source="https://grok.com"/>
     </Grid>
