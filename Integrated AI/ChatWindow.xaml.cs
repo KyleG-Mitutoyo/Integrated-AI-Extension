@@ -202,68 +202,43 @@ namespace Integrated_AI
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             string aiCodeToApply = null;
-            DiffUtility.DiffContext contextToClose = _diffContext; // Work with a copy for clarity if needed
+            var contextToClose = _diffContext;
 
-            if (contextToClose != null && !string.IsNullOrEmpty(contextToClose.TempAiFile))
+            // 1. Retrieve AI code from temp file if available
+            if (contextToClose?.TempAiFile != null && File.Exists(contextToClose.TempAiFile))
             {
-                // 1. Get AI code from the temp file BEFORE closing the diff.
-                aiCodeToApply = DiffUtility.GetAICode(contextToClose.TempAiFile);
-
-                if (string.IsNullOrEmpty(aiCodeToApply) && contextToClose.TempAiFile != null && System.IO.File.Exists(contextToClose.TempAiFile))
+                aiCodeToApply = FileUtil.GetAICode(contextToClose.TempAiFile);
+                if (string.IsNullOrEmpty(aiCodeToApply))
                 {
-                    // GetAICode logs errors. If it returned empty but file existed, it means content was empty or read failed.
-                    ChatWindowUtilities.Log("AcceptButton_Click: AI code retrieved from temp file is empty. Proceeding to apply empty content if intended.");
-                    // If empty string is a valid "apply" operation (e.g., to clear the document), this is fine.
-                    // If not, you might want to show a message and abort here. For now, we allow applying empty.
+                    ChatWindowUtilities.Log("AcceptButton_Click: AI code is empty, proceeding to apply empty content.");
                 }
             }
             else
             {
-                ChatWindowUtilities.Log("AcceptButton_Click: No valid diff context or AI temp file path. Cannot get AI code.");
-                // No code to apply, but UI should still be reset.
+                ChatWindowUtilities.Log("AcceptButton_Click: No valid diff context or AI temp file.");
             }
 
-            // 2. Close the diff window and clean up its resources (this deletes temp files).
-            // This should always be done if Accept is clicked and there was a context.
+            // 2. Close diff window and clean up
             if (contextToClose != null)
             {
                 DiffUtility.CloseDiffAndReset(contextToClose);
-                _diffContext = null; // Very important: clear the stored context.
+                _diffContext = null;
             }
 
-            // 3. Apply changes to the CURRENTLY active document in VS (if AI code was retrieved).
-            if (aiCodeToApply != null) // Check for null, empty string is a valid content to apply (clears document)
+            // 3. Apply AI code to active document
+            if (aiCodeToApply != null && _dte != null)
             {
-                // Ensure _dte is available (it might have been null if ChatWindow opened before DTE was fully ready)
-                if (_dte == null)
-                {
-                    // Attempt to re-acquire DTE if necessary (example, adjust per your actual DTE init)
-                    // var vsPackage = this.Package as AsyncPackage; // If ChatWindow has access to the package
-                    // if (vsPackage != null)
-                    // {
-                    //    _dte = await vsPackage.GetServiceAsync(typeof(SDTE)) as DTE2;
-                    // }
-
-                    if (_dte == null)
-                    {
-                        MessageBox.Show("Visual Studio services (DTE) are not available. Cannot apply changes.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        ChatWindowUtilities.Log("AcceptButton_Click: DTE service is null. Cannot apply changes.");
-                        // Fall through to reset buttons.
-                    }
-                }
-
-                if (_dte != null) // Proceed if DTE is available
-                {
-                    // At this point, dte.ActiveDocument should be the user's actual code file,
-                    // not one of the (now deleted) temp files.
-                    DiffUtility.ApplyChanges(_dte, aiCodeToApply);
-                }
+                DiffUtility.ApplyChanges(_dte, aiCodeToApply);
             }
-            else if (contextToClose != null) // Log only if we expected to get code
+            else if (aiCodeToApply == null && contextToClose != null)
             {
-                ChatWindowUtilities.Log("AcceptButton_Click: AI code was null (possibly due to read error or no context); skipping ApplyChanges.");
+                ChatWindowUtilities.Log("AcceptButton_Click: No AI code to apply.");
             }
-
+            else if (_dte == null)
+            {
+                MessageBox.Show("Visual Studio services (DTE) unavailable. Cannot apply changes.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ChatWindowUtilities.Log("AcceptButton_Click: DTE service is null.");
+            }
 
             // 4. Reset button visibility
             PasteButton.Visibility = Visibility.Visible;
