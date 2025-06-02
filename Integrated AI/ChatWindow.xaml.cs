@@ -6,10 +6,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using Integrated_AI.Utilities;
 using MessageBox = System.Windows.MessageBox;
 
@@ -17,6 +19,7 @@ namespace Integrated_AI
 {
     public partial class ChatWindow : UserControl
     {
+        // Existing fields...
         public List<UrlOption> _urlOptions = new List<UrlOption>
         {
             new UrlOption { DisplayName = "Grok", Url = "https://grok.com" },
@@ -27,18 +30,33 @@ namespace Integrated_AI
         private readonly string _userDataFolder;
         private string _selectedOption = "Code -> AI";
         private bool _executeCommandOnClick = true;
-        private readonly DTE2 _dte; // Renamed to _dte for consistency
+        private readonly DTE2 _dte;
         private DiffUtility.DiffContext _diffContext;
+        private static bool _isWebViewInFocus;
+        private IntPtr _hwndSource; // Handle for the window
+        private bool _isClipboardListenerRegistered;
+
+        // Windows API declarations
+        private const int WM_CLIPBOARDUPDATE = 0x031D;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool AddClipboardFormatListener(IntPtr hwnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
 
         public ChatWindow()
         {
             InitializeComponent();
-            var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
+            var dummy = typeof(HandyControl.Controls.Window);
             UrlSelector.ItemsSource = _urlOptions;
             _dte = (DTE2)Package.GetGlobalService(typeof(DTE));
             _diffContext = null;
+            _isWebViewInFocus = false;
+            _isClipboardListenerRegistered = false;
 
-            // Initialize user data folder
             _userDataFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "AIChatExtension",
@@ -47,6 +65,122 @@ namespace Integrated_AI
 
             // Initialize WebView2
             ChatWindowUtilities.InitializeWebView2Async(ChatWebView, _userDataFolder, _urlOptions, UrlSelector);
+
+            // Register for window messages when the control is loaded
+            Loaded += ChatWindow_Loaded;
+            Unloaded += ChatWindow_Unloaded;
+        }
+
+        private void ChatWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Get the window handle
+            var hwndSource = PresentationSource.FromVisual(this) as HwndSource;
+            if (hwndSource != null)
+            {
+                _hwndSource = hwndSource.Handle;
+                hwndSource.AddHook(WndProc);
+                _isClipboardListenerRegistered = AddClipboardFormatListener(_hwndSource);
+                if (!_isClipboardListenerRegistered)
+                {
+                    ChatWindowUtilities.Log("Failed to register clipboard listener.");
+                }
+            }
+        }
+
+        private void ChatWindow_Unloaded(object sender, RoutedEventArgs e)
+        {
+            // Clean up clipboard listener
+            if (_isClipboardListenerRegistered && _hwndSource != IntPtr.Zero)
+            {
+                RemoveClipboardFormatListener(_hwndSource);
+                _isClipboardListenerRegistered = false;
+            }
+
+            var hwndSource = PresentationSource.FromVisual(this) as HwndSource;
+            if (hwndSource != null)
+            {
+                hwndSource.RemoveHook(WndProc);
+            }
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg == WM_CLIPBOARDUPDATE && _isWebViewInFocus)
+            {
+                // Clipboard changed and WebView is in focus
+                HandleClipboardChange();
+            }
+            return IntPtr.Zero;
+        }
+
+        private async void HandleClipboardChange()
+        {
+            // Run on UI thread
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                try
+                {
+                    // Check if WebView is still focused
+                    if (!_isWebViewInFocus)
+                    {
+                        return;
+                    }
+
+                    // Get clipboard text
+                    if (Clipboard.ContainsText())
+                    {
+                        string clipboardText = Clipboard.GetText();
+                        if (!string.IsNullOrEmpty(clipboardText))
+                        {
+                            // Trigger the PasteButton_Click logic
+                            await PasteButton_ClickLogic(clipboardText);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ChatWindowUtilities.Log($"Clipboard change handling error: {ex.Message}");
+                }
+            });
+        }
+
+        private async Task PasteButton_ClickLogic(string aiCode)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (_dte == null)
+            {
+                MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(aiCode))
+            {
+                MessageBox.Show("No code retrieved from clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string currentCode = DiffUtility.GetActiveDocumentText(_dte);
+            _diffContext = DiffUtility.OpenDiffView(_dte, currentCode, aiCode);
+
+            PasteButton.Visibility = Visibility.Collapsed;
+            AcceptButton.Visibility = Visibility.Visible;
+            DeclineButton.Visibility = Visibility.Visible;
+        }
+
+        private void Window_GotFocus(object sender, RoutedEventArgs e)
+        {
+            _isWebViewInFocus = true;
+        }
+
+        private void Window_LostFocus(object sender, RoutedEventArgs e)
+        {
+            _isWebViewInFocus = false;
+        }
+
+        public static bool IsChatWindowFocused()
+        {
+            return _isWebViewInFocus;
         }
 
         private void UrlSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -116,7 +250,6 @@ namespace Integrated_AI
                 return;
             }
 
-            // Get relative path
             string solutionPath = Path.GetDirectoryName(_dte.Solution.FullName);
             string filePath = _dte.ActiveDocument.FullName;
             string relativePath = FileUtil.GetRelativePath(solutionPath, filePath);
@@ -170,7 +303,7 @@ namespace Integrated_AI
                 }
                 else
                 {
-                    return; // User cancelled selection
+                    return;
                 }
             }
 
@@ -180,21 +313,23 @@ namespace Integrated_AI
             }
         }
 
-        private void PasteButton_Click(object sender, RoutedEventArgs e)
+        private async void PasteButton_Click(object sender, RoutedEventArgs e)
         {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
             if (_dte == null)
             {
                 MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            string aiCode = GetAICodeFromWebView();
-            string currentCode = DiffUtility.GetActiveDocumentText(_dte);
-            _diffContext = DiffUtility.OpenDiffView(_dte, currentCode, aiCode);
-            
-            PasteButton.Visibility = Visibility.Collapsed;
-            AcceptButton.Visibility = Visibility.Visible;
-            DeclineButton.Visibility = Visibility.Visible;
+            string aiCode = await GetAICodeFromWebView();
+            if (aiCode == null)
+            {
+                return;
+            }
+
+            await PasteButton_ClickLogic(aiCode);
         }
 
         private async void AcceptButton_Click(object sender, RoutedEventArgs e)
@@ -204,7 +339,6 @@ namespace Integrated_AI
             string aiCodeToApply = null;
             var contextToClose = _diffContext;
 
-            // 1. Retrieve AI code from temp file if available
             if (contextToClose?.TempAiFile != null && File.Exists(contextToClose.TempAiFile))
             {
                 aiCodeToApply = FileUtil.GetAICode(contextToClose.TempAiFile);
@@ -218,14 +352,12 @@ namespace Integrated_AI
                 ChatWindowUtilities.Log("AcceptButton_Click: No valid diff context or AI temp file.");
             }
 
-            // 2. Close diff window and clean up
             if (contextToClose != null)
             {
                 DiffUtility.CloseDiffAndReset(contextToClose);
                 _diffContext = null;
             }
 
-            // 3. Apply AI code to active document
             if (aiCodeToApply != null && _dte != null)
             {
                 DiffUtility.ApplyChanges(_dte, aiCodeToApply);
@@ -240,7 +372,6 @@ namespace Integrated_AI
                 ChatWindowUtilities.Log("AcceptButton_Click: DTE service is null.");
             }
 
-            // 4. Reset button visibility
             PasteButton.Visibility = Visibility.Visible;
             AcceptButton.Visibility = Visibility.Collapsed;
             DeclineButton.Visibility = Visibility.Collapsed;
@@ -259,13 +390,17 @@ namespace Integrated_AI
             DeclineButton.Visibility = Visibility.Collapsed;
         }
 
-        private string GetAICodeFromWebView()
+        private async Task<string> GetAICodeFromWebView()
         {
-            // TODO: Implement WebView2 JavaScript execution to extract AI-generated code
-            return "/* Sample AI-generated code */\npublic void Example() {\n    Console.WriteLine(\"Hello, AI!\");\n}";
+            string selectedText = await ChatWindowUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
+            if (string.IsNullOrEmpty(selectedText))
+            {
+                return null;
+            }
+            return selectedText;
         }
 
-        private void ErrortoAISplitButton_Click(object sender, RoutedEventArgs e)
+        private void ErrorToAISplitButton_Click(object sender, RoutedEventArgs e)
         {
             // Placeholder for future implementation
         }

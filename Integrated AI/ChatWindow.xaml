@@ -4,7 +4,8 @@
              xmlns:wpf="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              xmlns:hc="https://handyorg.github.io/handycontrol"
              Height="Auto"
-             Width="Auto">
+             Width="Auto"
+             GotFocus="Window_GotFocus" LostFocus="Window_LostFocus">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -40,7 +41,7 @@
             <hc:SplitButton x:Name="ErrortoAISplitButton" 
                             Margin="5" 
                             Content="Error -> AI" 
-                            Click="ErrortoAISplitButton_Click" 
+                            Click="ErrorToAISplitButton_Click" 
                             PreviewMouseDown="SplitButton_PreviewMouseDown"
                             HorizontalAlignment="Stretch">
                 <hc:SplitButton.DropDownContent>

@@ -105,7 +105,13 @@ namespace Integrated_AI
 
                 webView.NavigationCompleted += (s, e) =>
                 {
-                    if (!e.IsSuccess)
+                    if (e.IsSuccess)
+                    {
+                        // Execute test script when navigation is successful
+                        string testScript = "console.log('Navigation completed successfully!'); alert('Test script executed.');";
+                        webView.CoreWebView2.ExecuteScriptAsync(testScript);
+                    }
+                    else
                     {
                         string errorMessage = $"Failed to load {webView.Source?.ToString() ?? "page"}. Error status: {e.WebErrorStatus}.";
                         if (e.WebErrorStatus == CoreWebView2WebErrorStatus.CannotConnect ||
@@ -292,6 +298,49 @@ namespace Integrated_AI
                 string errorMsg = $"Failed to prepare for text injection ('{sourceOfText}'). Problem: {ex.Message}";
                 MessageBox.Show(errorMsg, "Preparation Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 Log(errorMsg + "\nStackTrace: " + ex.StackTrace);
+            }
+        }
+
+        public static async Task<string> RetrieveSelectedTextFromWebViewAsync(WebView2 webView)
+        {
+            if (webView?.CoreWebView2 == null)
+            {
+                Log("Web view is not ready. Cannot retrieve selected text.");
+                return null;
+            }
+
+            try
+            {
+                string scriptFileContent = LoadScript("retrieveSelectedText.js");
+                string scriptToExecute = $"{scriptFileContent}\nretrieveSelectedText();";
+                Log($"RetrieveSelectedText - Full scriptToExecute (first 500 chars of scriptFileContent):\n{scriptFileContent.Substring(0, Math.Min(scriptFileContent.Length, 500))}\nretrieveSelectedText();\n---END SCRIPT PREVIEW---");
+
+                string result = await webView.ExecuteScriptAsync(scriptToExecute);
+                Log($"Raw result from RetrieveSelectedText ExecuteScriptAsync: {(result == null ? "C# null" : $"\"{result}\"")}");
+
+                result = result?.Trim('"');
+                if (result == null || result == "null" || result.StartsWith("FAILURE:") || result.StartsWith("LoadScript ERROR:"))
+                {
+                    string failureMessage = result ?? "Unknown error during script execution.";
+                    if (result == null) failureMessage = "ExecuteScriptAsync returned C# null (JS syntax error or severe issue).";
+                    else if (result == "null") failureMessage = "No text selected in the chat window. Please highlight text and try again.";
+                    else if (result.StartsWith("FAILURE:")) failureMessage = result.Replace("FAILURE: ", "");
+                    else if (result.StartsWith("LoadScript ERROR:")) failureMessage = "Problem loading script file: " + result.Replace("LoadScript ERROR: ", "");
+
+                    Log($"Failed to retrieve selected text: {failureMessage}");
+                    MessageBox.Show(failureMessage, "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return null;
+                }
+
+                result = result.Replace("\\n", "\n"); // Unescape newlines
+                Log("Selected text retrieved successfully from WebView.");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in RetrieveSelectedTextFromWebViewAsync: {ex.Message}\n{ex.StackTrace}");
+                MessageBox.Show($"Could not retrieve selected text from AI: {ex.Message}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return null;
             }
         }
 
