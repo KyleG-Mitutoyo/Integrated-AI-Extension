@@ -23,7 +23,7 @@ namespace Integrated_AI
         {
             { "https://grok.com", "textarea[aria-label=\"Ask Grok anything\"]" },
             { "https://chatgpt.com", "div#prompt-textarea" },
-            { "https://aistudio.google.com", "textarea[aria-label=\"Type something or tab to choose an example prompt\"]" }
+            { "https://aistudio.google.com", "textarea[aria-label=\"Start typing a prompt\"]" }
         };
 
         private static readonly Dictionary<string, string> _scriptCache = new Dictionary<string, string>();
@@ -108,8 +108,20 @@ namespace Integrated_AI
                     if (e.IsSuccess)
                     {
                         // Execute test script when navigation is successful
-                        string testScript = "console.log('Navigation completed successfully!'); alert('Test script executed.');";
-                        webView.CoreWebView2.ExecuteScriptAsync(testScript);
+                        //string testScript = "console.log('Navigation completed successfully!'); alert('Test script executed.');";
+                        //webView.CoreWebView2.ExecuteScriptAsync(testScript);
+                        // Inject clipboard monitoring script after successful navigation
+
+                        string monitorScript = LoadScript("monitorClipboardWrite.js");
+                        try
+                        {
+                            webView.CoreWebView2.ExecuteScriptAsync(monitorScript);
+                            Log("Clipboard monitoring script injected after navigation.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"Failed to inject clipboard monitoring script: {ex.Message}");
+                        }
                     }
                     else
                     {
@@ -126,6 +138,20 @@ namespace Integrated_AI
             catch (Exception ex)
             {
                 MessageBox.Show($"Failed to initialize WebView2: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        public static async Task<bool> IsProgrammaticCopyAsync(WebView2 webView)
+        {
+            try
+            {
+                string result = await webView.CoreWebView2.ExecuteScriptAsync("localStorage.getItem('isProgrammaticCopy')");
+                return result == "\"true\"";
+            }
+            catch (Exception ex)
+            {
+                Log($"Error checking programmatic copy flag: {ex.Message}");
+                return false;
             }
         }
 

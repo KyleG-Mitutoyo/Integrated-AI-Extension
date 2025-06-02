@@ -120,10 +120,11 @@ namespace Integrated_AI
             {
                 try
                 {
-                    // Check if WebView is still focused
-                    if (!_isWebViewInFocus)
+                    // Check if WebView is focused and clipboard write was programmatic
+                    if (!_isWebViewInFocus || !await ChatWindowUtilities.IsProgrammaticCopyAsync(ChatWebView))
                     {
-                        return;
+                        //MessageBox.Show("Clipboard change ignored: WebView not focused or not a programmatic copy.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return; // Ignore if not focused or not a programmatic copy (e.g., Ctrl+C)
                     }
 
                     // Get clipboard text
