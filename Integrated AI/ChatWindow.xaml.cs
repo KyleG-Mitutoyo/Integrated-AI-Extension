@@ -14,6 +14,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using Integrated_AI.Utilities;
 using MessageBox = System.Windows.MessageBox;
+using HandyControl.Tools.Extension;
 
 namespace Integrated_AI
 {
@@ -179,11 +180,6 @@ namespace Integrated_AI
             _isWebViewInFocus = false;
         }
 
-        public static bool IsChatWindowFocused()
-        {
-            return _isWebViewInFocus;
-        }
-
         private void UrlSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (UrlSelector.SelectedItem is UrlOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
@@ -324,8 +320,8 @@ namespace Integrated_AI
                 return;
             }
 
-            string aiCode = await GetAICodeFromWebView();
-            if (aiCode == null)
+            string aiCode = await ChatWindowUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
+            if (aiCode == null || aiCode == "null" || string.IsNullOrEmpty(aiCode))
             {
                 return;
             }
@@ -333,16 +329,16 @@ namespace Integrated_AI
             await PasteButton_ClickLogic(aiCode);
         }
 
-        private async void AcceptButton_Click(object sender, RoutedEventArgs e)
+        private void AcceptButton_Click(object sender, RoutedEventArgs e)
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            ThreadHelper.ThrowIfNotOnUIThread();
 
             string aiCodeToApply = null;
             var contextToClose = _diffContext;
 
             if (contextToClose?.TempAiFile != null && File.Exists(contextToClose.TempAiFile))
             {
-                aiCodeToApply = FileUtil.GetAICode(contextToClose.TempAiFile);
+                aiCodeToApply = FileUtil.GetEditedAiCode(contextToClose);
                 if (string.IsNullOrEmpty(aiCodeToApply))
                 {
                     ChatWindowUtilities.Log("AcceptButton_Click: AI code is empty, proceeding to apply empty content.");
@@ -389,16 +385,6 @@ namespace Integrated_AI
             PasteButton.Visibility = Visibility.Visible;
             AcceptButton.Visibility = Visibility.Collapsed;
             DeclineButton.Visibility = Visibility.Collapsed;
-        }
-
-        private async Task<string> GetAICodeFromWebView()
-        {
-            string selectedText = await ChatWindowUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
-            if (string.IsNullOrEmpty(selectedText))
-            {
-                return null;
-            }
-            return selectedText;
         }
 
         private void ErrorToAISplitButton_Click(object sender, RoutedEventArgs e)

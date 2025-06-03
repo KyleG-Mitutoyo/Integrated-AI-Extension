@@ -12,6 +12,7 @@ using System.Net;
 using System.Reflection;
 using System.Text; // For StringBuilder
 using System.Threading.Tasks;
+using System.Web;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -358,7 +359,8 @@ namespace Integrated_AI
                     return null;
                 }
 
-                result = result.Replace("\\n", "\n"); // Unescape newlines
+                // Unescape the JSON-encoded string
+                result = UnescapeJsonString(result);
                 Log("Selected text retrieved successfully from WebView.");
                 return result;
             }
@@ -368,6 +370,85 @@ namespace Integrated_AI
                 MessageBox.Show($"Could not retrieve selected text from AI: {ex.Message}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return null;
             }
+        }
+
+        // Custom method to unescape JSON-encoded strings
+        private static string UnescapeJsonString(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            // Remove outer quotes if present
+            input = input.Trim('"');
+
+            // Handle common JSON escape sequences
+            StringBuilder result = new StringBuilder(input.Length);
+            for (int i = 0; i < input.Length; i++)
+            {
+                if (i < input.Length - 1 && input[i] == '\\')
+                {
+                    char nextChar = input[i + 1];
+                    switch (nextChar)
+                    {
+                        case '"':
+                            result.Append('"');
+                            i++;
+                            break;
+                        case '\\':
+                            result.Append('\\');
+                            i++;
+                            break;
+                        case 'n':
+                            result.Append('\n');
+                            i++;
+                            break;
+                        case 'r':
+                            result.Append('\r');
+                            i++;
+                            break;
+                        case 't':
+                            result.Append('\t');
+                            i++;
+                            break;
+                        case 'b':
+                            result.Append('\b');
+                            i++;
+                            break;
+                        case 'f':
+                            result.Append('\f');
+                            i++;
+                            break;
+                        case 'u': // Handle Unicode escape sequences (e.g., \u0022)
+                            if (i + 5 < input.Length)
+                            {
+                                string hex = input.Substring(i + 2, 4);
+                                if (int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out int unicodeChar))
+                                {
+                                    result.Append((char)unicodeChar);
+                                    i += 5;
+                                }
+                                else
+                                {
+                                    result.Append('\\');
+                                }
+                            }
+                            else
+                            {
+                                result.Append('\\');
+                            }
+                            break;
+                        default:
+                            result.Append('\\');
+                            break;
+                    }
+                }
+                else
+                {
+                    result.Append(input[i]);
+                }
+            }
+
+            return result.ToString();
         }
 
         public static void Log(string message)
