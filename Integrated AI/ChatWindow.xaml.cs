@@ -1,6 +1,8 @@
 ﻿using EnvDTE;
 using EnvDTE80;
 using HandyControl.Controls;
+using HandyControl.Tools.Extension;
+using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.Shell;
 using System;
 using System.Collections.Generic;
@@ -12,9 +14,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
-using Integrated_AI.Utilities;
+using static Integrated_AI.ChatWindowUtilities;
 using MessageBox = System.Windows.MessageBox;
-using HandyControl.Tools.Extension;
 
 namespace Integrated_AI
 {
@@ -135,7 +136,7 @@ namespace Integrated_AI
                         if (!string.IsNullOrEmpty(clipboardText))
                         {
                             // Trigger the PasteButton_Click logic
-                            await PasteButton_ClickLogic(clipboardText);
+                            PasteButton_ClickLogic(clipboardText);
                         }
                     }
                 }
@@ -146,28 +147,105 @@ namespace Integrated_AI
             });
         }
 
-        private async Task PasteButton_ClickLogic(string aiCode)
+        private void PasteButton_ClickLogic(string aiCode)
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-            if (_dte == null)
+            ThreadHelper.Generic.BeginInvoke(() =>
             {
-                MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
+                if (_dte == null)
+                {
+                    MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(aiCode))
+                {
+                    MessageBox.Show("No code retrieved from clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var context = ChatWindowUtilities.GetLastSentContext();
+                if (context == null)
+                {
+                    MessageBox.Show("No sent code context available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                string selectedAICode = aiCode;
+                var codeBlocks = SplitCodeBlocks(aiCode);
+                if (codeBlocks.Count > 1)
+                {
+                    //selectedAICode = PromptForCodeBlockSelection(codeBlocks);
+                    if (string.IsNullOrEmpty(selectedAICode)) return;
+                }
+
+                string currentCode = DiffUtility.GetActiveDocumentText(_dte);
+                string modifiedCode = ReplaceCodeInDocument(currentCode, context, selectedAICode);
+                _diffContext = DiffUtility.OpenDiffView(_dte, currentCode, modifiedCode);
+
+                PasteButton.Visibility = Visibility.Collapsed;
+                AcceptButton.Visibility = Visibility.Visible;
+                DeclineButton.Visibility = Visibility.Visible;
+            });
+        }
+
+        private List<string> SplitCodeBlocks(string aiCode)
+        {
+            var blocks = new List<string>();
+            var lines = aiCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            var currentBlock = new List<string>();
+            bool inCodeBlock = false;
+
+            foreach (var line in lines)
+            {
+                if (line.Trim().StartsWith("```"))
+                {
+                    if (inCodeBlock)
+                    {
+                        blocks.Add(string.Join("\n", currentBlock));
+                        currentBlock.Clear();
+                    }
+                    inCodeBlock = !inCodeBlock;
+                    continue;
+                }
+                if (inCodeBlock)
+                {
+                    currentBlock.Add(line);
+                }
             }
 
-            if (string.IsNullOrEmpty(aiCode))
+            if (currentBlock.Count > 0)
             {
-                MessageBox.Show("No code retrieved from clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
+                blocks.Add(string.Join("\n", currentBlock));
             }
 
-            string currentCode = DiffUtility.GetActiveDocumentText(_dte);
-            _diffContext = DiffUtility.OpenDiffView(_dte, currentCode, aiCode);
+            return blocks;
+        }
 
-            PasteButton.Visibility = Visibility.Collapsed;
-            AcceptButton.Visibility = Visibility.Visible;
-            DeclineButton.Visibility = Visibility.Visible;
+        //private string PromptForCodeBlockSelection(List<string> codeBlocks)
+        //{
+        //    var selectionWindow = new FunctionSelectionWindow(codeBlocks.Select(b => new { FullCode = b, DisplayName = b.Substring(0, Math.Min(b.Length, 50)) + "..." }).ToList(), null, null);
+        //    if (selectionWindow.ShowDialog() == true && selectionWindow.SelectedFunction != null)
+        //    {
+        //        return selectionWindow.SelectedFunction.FullCode;
+        //    }
+        //    return null;
+        //}
+
+        private string ReplaceCodeInDocument(string currentCode, SentCodeContext context, string aiCode)
+        {
+            var lines = currentCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
+            if (context.Type == "file")
+            {
+                return aiCode;
+            }
+
+            if (context.StartLine > 0 && context.EndLine >= context.StartLine && context.EndLine <= lines.Count)
+            {
+                lines.RemoveRange(context.StartLine - 1, context.EndLine - context.StartLine + 1);
+                lines.Insert(context.StartLine - 1, aiCode);
+            }
+
+            return string.Join("\n", lines);
         }
 
         private void Window_GotFocus(object sender, RoutedEventArgs e)
@@ -202,7 +280,7 @@ namespace Integrated_AI
         {
             if (_executeCommandOnClick)
             {
-                await ExecuteCommandAsync(_selectedOption);
+                await ChatWindowUtilities.ExecuteCommandAsync(_selectedOption, _dte, ChatWebView, _userDataFolder);
             }
             _executeCommandOnClick = true;
         }
@@ -229,84 +307,7 @@ namespace Integrated_AI
             {
                 _selectedOption = option;
                 VSToAISplitButton.Content = option;
-                await ExecuteCommandAsync(option);
-            }
-        }
-
-        private async Task ExecuteCommandAsync(string option)
-        {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            if (_dte == null)
-            {
-                MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-            if (_dte.ActiveDocument == null)
-            {
-                MessageBox.Show("No active document in Visual Studio.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            string solutionPath = Path.GetDirectoryName(_dte.Solution.FullName);
-            string filePath = _dte.ActiveDocument.FullName;
-            string relativePath = FileUtil.GetRelativePath(solutionPath, filePath);
-
-            string textToInject = null;
-            string sourceDescription = "";
-
-            if (option == "Code -> AI")
-            {
-                var textSelection = (TextSelection)_dte.ActiveDocument.Selection;
-                if (string.IsNullOrEmpty(textSelection?.Text))
-                {
-                    MessageBox.Show("No text selected in Visual Studio.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-                textToInject = textSelection.Text;
-                sourceDescription = $"---{relativePath} (partial code block)---\n{textToInject}\n---End code---\n\n";
-            }
-            else if (option == "File -> AI")
-            {
-                var text = DiffUtility.GetActiveDocumentText(_dte);
-                if (string.IsNullOrEmpty(text))
-                {
-                    MessageBox.Show("The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-                string currentContent = await ChatWindowUtilities.RetrieveTextFromWebViewAsync(ChatWebView);
-                if (currentContent != null && currentContent.Contains($"---{relativePath} (whole file contents)---"))
-                {
-                    MessageBox.Show("This file's contents have already been injected.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-                textToInject = text;
-                sourceDescription = $"---{relativePath} (whole file contents)---\n{textToInject}\n---End code---\n\n";
-            }
-            else if (option == "Function -> AI")
-            {
-                var functions = FunctionSelectionUtilities.GetFunctionsFromActiveDocument(_dte);
-                if (!functions.Any())
-                {
-                    MessageBox.Show("No functions found in the active document.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                string recentFunctionsFilePath = Path.Combine(_userDataFolder, "recent_functions.txt");
-                var functionSelectionWindow = new FunctionSelectionWindow(functions, recentFunctionsFilePath, relativePath);
-                if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
-                {
-                    textToInject = functionSelectionWindow.SelectedFunction.FullCode;
-                    sourceDescription = $"---{relativePath} (function: {functionSelectionWindow.SelectedFunction.DisplayName})---\n{textToInject}\n---End code---\n\n";
-                }
-                else
-                {
-                    return;
-                }
-            }
-
-            if (textToInject != null)
-            {
-                await ChatWindowUtilities.InjectTextIntoWebViewAsync(ChatWebView, sourceDescription, option);
+                await ChatWindowUtilities.ExecuteCommandAsync(option, _dte, ChatWebView, _userDataFolder);
             }
         }
 
@@ -326,7 +327,7 @@ namespace Integrated_AI
                 return;
             }
 
-            await PasteButton_ClickLogic(aiCode);
+            PasteButton_ClickLogic(aiCode);
         }
 
         private void AcceptButton_Click(object sender, RoutedEventArgs e)

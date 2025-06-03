@@ -41,7 +41,9 @@ namespace Integrated_AI
                     ListBoxDisplayName = listBoxDisplayName,
                     FullName = fullName,
                     Function = codeFunction,
-                    FullCode = functionCode
+                    FullCode = functionCode,
+                    StartLine = codeFunction.StartPoint.Line, // Added
+                    EndLine = codeFunction.EndPoint.Line      // Added
                 });
             }
 

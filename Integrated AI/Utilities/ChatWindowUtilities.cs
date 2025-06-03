@@ -1,12 +1,15 @@
 ﻿using EnvDTE;
 using EnvDTE80;
+using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Packaging;
 using System.Linq;
 using System.Net;
 using System.Reflection;
@@ -27,7 +30,17 @@ namespace Integrated_AI
             { "https://aistudio.google.com", "textarea[aria-label=\"Start typing a prompt\"]" }
         };
 
+        public class SentCodeContext
+        {
+            public string Code { get; set; }
+            public string Type { get; set; } // "snippet", "function", or "file"
+            public string FilePath { get; set; }
+            public int StartLine { get; set; }
+            public int EndLine { get; set; }
+        }
+
         private static readonly Dictionary<string, string> _scriptCache = new Dictionary<string, string>();
+        private static SentCodeContext _lastSentContext;
 
         private static string LoadScript(string scriptName)
         {
@@ -155,6 +168,106 @@ namespace Integrated_AI
                 return false;
             }
         }
+
+        // Integrated AI/Utilities/ChatWindowUtilities.cs (Async Version)
+        public static async Task ExecuteCommandAsync(string option, DTE2 dte, WebView2 chatWebView, string userDataFolder)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (dte == null)
+            {
+                MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            if (dte.ActiveDocument == null)
+            {
+                MessageBox.Show("No active document in Visual Studio.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string solutionPath = Path.GetDirectoryName(dte.Solution.FullName);
+            string filePath = dte.ActiveDocument.FullName;
+            string relativePath = FileUtil.GetRelativePath(solutionPath, filePath);
+
+            string textToInject = null;
+            string sourceDescription = "";
+            string type = "";
+            int startLine = 1;
+            int endLine = 1;
+
+            if (option == "Code -> AI")
+            {
+                var textSelection = (TextSelection)dte.ActiveDocument.Selection;
+                if (string.IsNullOrEmpty(textSelection?.Text))
+                {
+                    MessageBox.Show("No text selected in Visual Studio.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                textToInject = textSelection.Text;
+                type = "snippet";
+                startLine = textSelection.TopPoint.Line;
+                endLine = textSelection.BottomPoint.Line;
+                sourceDescription = $"---{relativePath} (partial code block)---\n{textToInject}\n---End code---\n\n";
+            }
+            else if (option == "File -> AI")
+            {
+                var text = DiffUtility.GetActiveDocumentText(dte);
+                if (string.IsNullOrEmpty(text))
+                {
+                    MessageBox.Show("The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                string currentContent = await RetrieveTextFromWebViewAsync(chatWebView);
+                if (currentContent != null && currentContent.Contains($"---{relativePath} (whole file contents)---"))
+                {
+                    MessageBox.Show("This file's contents have already been injected.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                textToInject = text;
+                type = "file";
+                var textDoc = dte.ActiveDocument.Object("TextDocument") as TextDocument;
+                endLine = textDoc?.EndPoint.Line ?? 1;
+                sourceDescription = $"---{relativePath} (whole file contents)---\n{textToInject}\n---End code---\n\n";
+            }
+            else if (option == "Function -> AI")
+            {
+                var functions = FunctionSelectionUtilities.GetFunctionsFromActiveDocument(dte);
+                if (!functions.Any())
+                {
+                    MessageBox.Show("No functions found in the active document.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                string recentFunctionsFilePath = Path.Combine(userDataFolder, "recent_functions.txt");
+                var functionSelectionWindow = new FunctionSelectionWindow(functions, recentFunctionsFilePath, relativePath);
+                if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
+                {
+                    textToInject = functionSelectionWindow.SelectedFunction.FullCode;
+                    type = "function";
+                    startLine = functionSelectionWindow.SelectedFunction.StartLine;
+                    endLine = functionSelectionWindow.SelectedFunction.EndLine;
+                    sourceDescription = $"---{relativePath} (function: {functionSelectionWindow.SelectedFunction.DisplayName})---\n{textToInject}\n---End code---\n\n";
+                }
+                else
+                {
+                    return;
+                }
+            }
+
+            if (textToInject != null)
+            {
+                _lastSentContext = new SentCodeContext
+                {
+                    Code = textToInject,
+                    Type = type,
+                    FilePath = filePath,
+                    StartLine = startLine,
+                    EndLine = endLine
+                };
+                await InjectTextIntoWebViewAsync(chatWebView, sourceDescription, option);
+            }
+        }
+
+        public static SentCodeContext GetLastSentContext() => _lastSentContext;
 
         public static async Task<string> RetrieveTextFromWebViewAsync(WebView2 webView)
         {
