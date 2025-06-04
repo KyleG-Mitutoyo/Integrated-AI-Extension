@@ -9,9 +9,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.Remoting.Contexts;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using static Integrated_AI.ChatWindowUtilities;
@@ -21,6 +23,12 @@ namespace Integrated_AI
 {
     public partial class ChatWindow : UserControl
     {
+        public class UrlOption
+        {
+            public string DisplayName { get; set; }
+            public string Url { get; set; }
+        }
+
         // Existing fields...
         public List<UrlOption> _urlOptions = new List<UrlOption>
         {
@@ -147,6 +155,7 @@ namespace Integrated_AI
             });
         }
 
+        
         private void PasteButton_ClickLogic(string aiCode)
         {
             ThreadHelper.Generic.BeginInvoke(() =>
@@ -163,89 +172,35 @@ namespace Integrated_AI
                     return;
                 }
 
-                var context = ChatWindowUtilities.GetLastSentContext();
-                if (context == null)
+                var activeDocument = _dte.ActiveDocument;
+                if (activeDocument == null)
                 {
-                    MessageBox.Show("No sent code context available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("No active document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
-                string selectedAICode = aiCode;
-                var codeBlocks = SplitCodeBlocks(aiCode);
-                if (codeBlocks.Count > 1)
+                var contexts = ChatWindowUtilities.GetContextsForFile(activeDocument.FullName);
+                if (!contexts.Any())
                 {
-                    //selectedAICode = PromptForCodeBlockSelection(codeBlocks);
-                    if (string.IsNullOrEmpty(selectedAICode)) return;
+                    //Warning: No contexts found for the active document. Using null for the context.
                 }
 
                 string currentCode = DiffUtility.GetActiveDocumentText(_dte);
-                string modifiedCode = ReplaceCodeInDocument(currentCode, context, selectedAICode);
-                _diffContext = DiffUtility.OpenDiffView(_dte, currentCode, modifiedCode);
+                string modifiedCode = currentCode;
 
-                PasteButton.Visibility = Visibility.Collapsed;
-                AcceptButton.Visibility = Visibility.Visible;
-                DeclineButton.Visibility = Visibility.Visible;
+                var context = FindMatchingContext(contexts, aiCode);
+                modifiedCode = ReplaceCodeInDocument(modifiedCode, context, aiCode, _dte);
+
+                _diffContext = DiffUtility.OpenDiffView(_dte, currentCode, modifiedCode, aiCode);
+
+                //If opening the diff view had a problem, we don't want to show the accept/decline buttons.
+                if (_diffContext == null)
+                {
+                    return;
+                }
+
+                UpdateDiffButtons(true);
             });
-        }
-
-        private List<string> SplitCodeBlocks(string aiCode)
-        {
-            var blocks = new List<string>();
-            var lines = aiCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-            var currentBlock = new List<string>();
-            bool inCodeBlock = false;
-
-            foreach (var line in lines)
-            {
-                if (line.Trim().StartsWith("```"))
-                {
-                    if (inCodeBlock)
-                    {
-                        blocks.Add(string.Join("\n", currentBlock));
-                        currentBlock.Clear();
-                    }
-                    inCodeBlock = !inCodeBlock;
-                    continue;
-                }
-                if (inCodeBlock)
-                {
-                    currentBlock.Add(line);
-                }
-            }
-
-            if (currentBlock.Count > 0)
-            {
-                blocks.Add(string.Join("\n", currentBlock));
-            }
-
-            return blocks;
-        }
-
-        //private string PromptForCodeBlockSelection(List<string> codeBlocks)
-        //{
-        //    var selectionWindow = new FunctionSelectionWindow(codeBlocks.Select(b => new { FullCode = b, DisplayName = b.Substring(0, Math.Min(b.Length, 50)) + "..." }).ToList(), null, null);
-        //    if (selectionWindow.ShowDialog() == true && selectionWindow.SelectedFunction != null)
-        //    {
-        //        return selectionWindow.SelectedFunction.FullCode;
-        //    }
-        //    return null;
-        //}
-
-        private string ReplaceCodeInDocument(string currentCode, SentCodeContext context, string aiCode)
-        {
-            var lines = currentCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
-            if (context.Type == "file")
-            {
-                return aiCode;
-            }
-
-            if (context.StartLine > 0 && context.EndLine >= context.StartLine && context.EndLine <= lines.Count)
-            {
-                lines.RemoveRange(context.StartLine - 1, context.EndLine - context.StartLine + 1);
-                lines.Insert(context.StartLine - 1, aiCode);
-            }
-
-            return string.Join("\n", lines);
         }
 
         private void Window_GotFocus(object sender, RoutedEventArgs e)
@@ -330,24 +285,25 @@ namespace Integrated_AI
             PasteButton_ClickLogic(aiCode);
         }
 
+        // Integrated AI/ChatWindow.xaml.cs
         private void AcceptButton_Click(object sender, RoutedEventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            string aiCodeToApply = null;
+            string aiCodeFullFile = null;
             var contextToClose = _diffContext;
 
             if (contextToClose?.TempAiFile != null && File.Exists(contextToClose.TempAiFile))
             {
-                aiCodeToApply = FileUtil.GetAICode(contextToClose.TempAiFile);
-                if (string.IsNullOrEmpty(aiCodeToApply))
+                aiCodeFullFile = FileUtil.GetAICode(contextToClose.TempAiFile);
+                if (string.IsNullOrEmpty(aiCodeFullFile))
                 {
-                    ChatWindowUtilities.Log("AcceptButton_Click: AI code is empty, proceeding to apply empty content.");
+                    ChatWindowUtilities.Log("AcceptButton_Click: AI code is empty.");
                 }
             }
             else
             {
-                ChatWindowUtilities.Log("AcceptButton_Click: No valid diff context or AI temp file.");
+                ChatWindowUtilities.Log("AcceptButton_Click: No valid diff context or temp file.");
             }
 
             if (contextToClose != null)
@@ -356,23 +312,40 @@ namespace Integrated_AI
                 _diffContext = null;
             }
 
-            if (aiCodeToApply != null && _dte != null)
+            // Update context and apply changes
+            if (aiCodeFullFile != null && _dte != null)
             {
-                DiffUtility.ApplyChanges(_dte, aiCodeToApply);
-            }
-            else if (aiCodeToApply == null && contextToClose != null)
-            {
-                ChatWindowUtilities.Log("AcceptButton_Click: No AI code to apply.");
-            }
-            else if (_dte == null)
-            {
-                MessageBox.Show("Visual Studio services (DTE) unavailable. Cannot apply changes.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                ChatWindowUtilities.Log("AcceptButton_Click: DTE service is null.");
+                var activeDocument = _dte.ActiveDocument;
+                if (activeDocument != null)
+                {
+                    var contexts = ChatWindowUtilities.GetContextsForFile(activeDocument.FullName);
+                    var context = FindMatchingContext(contexts, contextToClose.AICodeBlock);
+                    if (context != null)
+                    {
+                        // Calculate new line numbers based on the single code block
+                        int newStartLine = context.StartLine;
+                        int lineCount = contextToClose.AICodeBlock.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).Length;
+                        int newEndLine = newStartLine + lineCount - 1;
+
+                        ChatWindowUtilities.UpdateContextData(context, newStartLine, newEndLine, contextToClose.AICodeBlock);
+                        ChatWindowUtilities.IncrementContextAges(activeDocument.FullName, context);
+                        ChatWindowUtilities.Log($"Updated context: Type={context.Type}, File={context.FilePath}, Lines={newStartLine}-{newEndLine}, AgeCounter={context.AgeCounter}");
+                    }
+                    else
+                    {
+                        ChatWindowUtilities.Log("No matching context found for AI code; applied at cursor position.");
+                    }
+
+                    DiffUtility.ApplyChanges(_dte, aiCodeFullFile);
+                }
             }
 
-            PasteButton.Visibility = Visibility.Visible;
-            AcceptButton.Visibility = Visibility.Collapsed;
-            DeclineButton.Visibility = Visibility.Collapsed;
+            UpdateDiffButtons(false);
+        }
+
+        private void ChooseButton_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Coming soon, be patient!");
         }
 
         private void DeclineButton_Click(object sender, RoutedEventArgs e)
@@ -383,9 +356,7 @@ namespace Integrated_AI
                 _diffContext = null;
             }
 
-            PasteButton.Visibility = Visibility.Visible;
-            AcceptButton.Visibility = Visibility.Collapsed;
-            DeclineButton.Visibility = Visibility.Collapsed;
+            UpdateDiffButtons(false);
         }
 
         private void ErrorToAISplitButton_Click(object sender, RoutedEventArgs e)
@@ -393,10 +364,45 @@ namespace Integrated_AI
             // Placeholder for future implementation
         }
 
-        public class UrlOption
+        private void UpdateDiffButtons(bool showDiffButons)
         {
-            public string DisplayName { get; set; }
-            public string Url { get; set; }
+            if (showDiffButons)
+            {
+                PasteButton.Visibility = Visibility.Collapsed;
+                AcceptButton.Visibility = Visibility.Visible;
+                ChooseButton.Visibility = Visibility.Visible;
+                DeclineButton.Visibility = Visibility.Visible;
+            }
+
+            else
+            {
+                PasteButton.Visibility = Visibility.Visible;
+                AcceptButton.Visibility = Visibility.Collapsed;
+                ChooseButton.Visibility = Visibility.Collapsed;
+                DeclineButton.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        // Integrated AI/ChatWindow.xaml.cs
+        private void DebugButton_Click(object sender, RoutedEventArgs e)
+        {
+            ThreadHelper.Generic.BeginInvoke(() =>
+            {
+                // Get all contexts (not just for the active document)
+                var allContexts = ChatWindowUtilities.GetAllSentContexts(); // New method needed
+                var contextText = FormatContextList(allContexts);
+
+                var debugWindow = new DebugContextWindow(contextText)
+                {
+                    //Owner = this // Center relative to ChatWindow
+                };
+                debugWindow.ShowDialog();
+            });
+        }
+
+        private void RestoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Coming soon!");
         }
     }
 }

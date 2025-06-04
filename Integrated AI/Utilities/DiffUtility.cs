@@ -17,13 +17,14 @@ namespace Integrated_AI.Utilities
         {
             public string TempCurrentFile { get; set; }
             public string TempAiFile { get; set; }
+            public string AICodeBlock { get; set; }
             public IVsWindowFrame DiffFrame { get; set; }
         }
 
-        public static DiffContext OpenDiffView(DTE2 dte, string currentCode, string aiCode)
+        public static DiffContext OpenDiffView(DTE2 dte, string currentCode, string aiCodeFullFileContents, string aiCode)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            if (dte == null || currentCode == null || aiCode == null)
+            if (dte == null || currentCode == null || aiCodeFullFileContents == null)
             {
                 MessageBox.Show("Invalid input: DTE or code strings are null.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return null;
@@ -37,10 +38,12 @@ namespace Integrated_AI.Utilities
                 TempAiFile = Path.Combine(Path.GetTempPath(), $"AI_{Guid.NewGuid()}{extension}")
             };
 
+            context.AICodeBlock = aiCode;
+
             try
             {
                 File.WriteAllText(context.TempCurrentFile, currentCode);
-                File.WriteAllText(context.TempAiFile, aiCode);
+                File.WriteAllText(context.TempAiFile, aiCodeFullFileContents);
 
                 var diffService = Package.GetGlobalService(typeof(SVsDifferenceService)) as IVsDifferenceService;
                 if (diffService == null)

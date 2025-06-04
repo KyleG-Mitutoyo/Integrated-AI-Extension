@@ -1,0 +1,18 @@
+﻿<!-- Integrated AI/DebugContextWindow.xaml -->
+<Window x:Class="Integrated_AI.DebugContextWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Debug SentCodeContext List" Height="400" Width="600"
+        WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBox x:Name="ContextTextBox" Grid.Row="0" IsReadOnly="True" 
+                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" 
+                 Margin="10" AcceptsReturn="True" AcceptsTab="True" FontFamily="Consolas"/>
+        <Button Grid.Row="1" Content="Close" Click="CloseButton_Click" 
+                HorizontalAlignment="Right" Margin="10" Width="100"/>
+    </Grid>
+</Window>

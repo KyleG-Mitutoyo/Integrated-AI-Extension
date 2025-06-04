@@ -37,10 +37,221 @@ namespace Integrated_AI
             public string FilePath { get; set; }
             public int StartLine { get; set; }
             public int EndLine { get; set; }
+            public int AgeCounter { get; set; }
         }
 
         private static readonly Dictionary<string, string> _scriptCache = new Dictionary<string, string>();
-        private static SentCodeContext _lastSentContext;
+
+        private static List<SentCodeContext> _sentContexts = new List<SentCodeContext>();
+        private const int MaxAgeCounter = 5;
+
+        public static void AddSentContext(SentCodeContext context)
+        {
+            context.AgeCounter = 0; // Initialize counter
+            _sentContexts.Add(context);
+        }
+
+        public static List<SentCodeContext> GetContextsForFile(string filePath)
+        {
+            return _sentContexts.Where(c => c.FilePath == filePath).ToList();
+        }
+
+        public static void UpdateContextData(SentCodeContext context, int newStartLine, int newEndLine, string code)
+        {
+            context.StartLine = newStartLine;
+            context.EndLine = newEndLine;
+            context.Code = code;
+            context.AgeCounter = 0; // Reset counter when context is used
+        }
+
+        //Incrememnts the age counter for all contexts in the specified file, except the context that was used
+        public static void IncrementContextAges(string filePath, SentCodeContext usedContext)
+        {
+            foreach (var context in _sentContexts.Where(c => c.FilePath == filePath && c != usedContext))
+            {
+                context.AgeCounter++;
+            }
+            // Remove contexts that are too old
+            _sentContexts.RemoveAll(c => c.FilePath == filePath && c.AgeCounter >= MaxAgeCounter);
+        }
+
+        //You know what this does
+        public static void ClearContextsForFile(string filePath)
+        {
+            _sentContexts.RemoveAll(c => c.FilePath == filePath);
+        }
+
+        //Includes contexts from all files
+        public static List<SentCodeContext> GetAllSentContexts()
+        {
+            return _sentContexts.ToList(); // Return a copy to avoid modifying the original
+        }
+
+        //Returns the best matching context based on similarity to the provided code block
+        public static SentCodeContext FindMatchingContext(List<SentCodeContext> contexts, string codeBlock)
+        {
+            if (contexts == null || contexts.Count == 0 || string.IsNullOrWhiteSpace(codeBlock))
+            {
+                return null; // No contexts or code block to match against
+            }
+
+            // Normalize the input code block
+            string normalizedCodeBlock = NormalizeCode(codeBlock);
+
+            SentCodeContext bestMatch = null;
+            double highestSimilarity = 0.0;
+            //Unused for now
+            const double MINIMUM_SIMILARITY = 0.5; // Adjust based on testing
+
+            foreach (var context in contexts.OrderByDescending(c => c.StartLine))
+            {
+                // Normalize context code
+                string normalizedContextCode = NormalizeCode(context.Code);
+
+                // Check for exact match
+                if (normalizedContextCode == normalizedCodeBlock)
+                {
+                    return context; // Exact match is best, return immediately
+                }
+
+                // Calculate similarity
+                double similarity = CalculateSimilarity(normalizedContextCode, normalizedCodeBlock);
+                if (similarity > highestSimilarity)
+                {
+                    highestSimilarity = similarity;
+                    bestMatch = context;
+                }
+
+                // Fallback: Check if context is a file and code block is a subset
+                if (context.Type == "file" && normalizedContextCode.Contains(normalizedCodeBlock))
+                {
+                    if (similarity > highestSimilarity) // Only update if better
+                    {
+                        highestSimilarity = similarity;
+                        bestMatch = context;
+                    }
+                }
+            }
+
+            return bestMatch;
+        }
+
+        // Helper method to normalize code (remove whitespace, comments)
+        private static string NormalizeCode(string code)
+        {
+            if (string.IsNullOrWhiteSpace(code))
+                return string.Empty;
+
+            // Split into lines, trim, remove empty lines and comments
+            var lines = code.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
+                .Select(line => line.Trim())
+                .Where(line => !string.IsNullOrEmpty(line) && !line.StartsWith("'") && !line.StartsWith("//"))
+                .ToArray();
+
+            return string.Join(" ", lines).Replace("  ", " ");
+        }
+
+        // Helper method to calculate similarity (Levenshtein distance-based)
+        private static double CalculateSimilarity(string source, string target)
+        {
+            if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(target))
+                return 0.0;
+
+            int[,] matrix = new int[source.Length + 1, target.Length + 1];
+
+            for (int i = 0; i <= source.Length; i++)
+                matrix[i, 0] = i;
+            for (int j = 0; j <= target.Length; j++)
+                matrix[0, j] = j;
+
+            for (int i = 1; i <= source.Length; i++)
+            {
+                for (int j = 1; j <= target.Length; j++)
+                {
+                    int cost = (source[i - 1] == target[j - 1]) ? 0 : 1;
+                    matrix[i, j] = Math.Min(
+                        Math.Min(matrix[i - 1, j] + 1, matrix[i, j - 1] + 1),
+                        matrix[i - 1, j - 1] + cost);
+                }
+            }
+
+            int maxLength = Math.Max(source.Length, target.Length);
+            return 1.0 - (double)matrix[source.Length, target.Length] / maxLength;
+        }
+
+        // Integrated AI/Utilities/ChatWindowUtilities.cs
+        public static string ReplaceCodeInDocument(string currentCode, SentCodeContext context, string aiCode, DTE2 dte)
+        {
+            var lines = currentCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
+
+            if (context != null)
+            {
+                if (context.Type == "file")
+                {
+                    return aiCode; // Replace entire document for "file" type
+                }
+
+                if (context.StartLine > 0 && context.EndLine >= context.StartLine && context.EndLine <= lines.Count)
+                {
+                    // Replace code within the context's line range
+                    lines.RemoveRange(context.StartLine - 1, context.EndLine - context.StartLine + 1);
+                    lines.Insert(context.StartLine - 1, aiCode);
+                    return string.Join("\n", lines);
+                }
+            }
+
+            // Fallback: Insert aiCode at cursor position
+            if (dte?.ActiveDocument != null)
+            {
+                var selection = (TextSelection)dte.ActiveDocument.Selection;
+                int cursorLine = selection.ActivePoint.Line;
+
+                if (cursorLine > 0 && cursorLine <= lines.Count + 1)
+                {
+                    lines.Insert(cursorLine - 1, aiCode); // Insert at cursor line
+                }
+                else
+                {
+                    lines.Add(aiCode); // Append to end if cursor position is invalid
+                }
+            }
+            else
+            {
+                // If no DTE or active document, append to end as last resort
+                lines.Add(aiCode);
+            }
+
+            return string.Join("\n", lines);
+        }
+
+        public static string FormatContextList(List<SentCodeContext> contexts)
+        {
+            if (!contexts.Any())
+            {
+                return "No SentCodeContext entries available.";
+            }
+
+            var builder = new System.Text.StringBuilder();
+            builder.AppendLine("SentCodeContext List:");
+            builder.AppendLine(new string('-', 50));
+
+            for (int i = 0; i < contexts.Count; i++)
+            {
+                var context = contexts[i];
+                builder.AppendLine($"Context {i + 1}:");
+                builder.AppendLine($"  FilePath: {context.FilePath}");
+                builder.AppendLine($"  Type: {context.Type}");
+                builder.AppendLine($"  StartLine: {context.StartLine}");
+                builder.AppendLine($"  EndLine: {context.EndLine}");
+                builder.AppendLine($"  AgeCounter: {context.AgeCounter}");
+                builder.AppendLine($"  Code:");
+                builder.AppendLine($"  {new string('-', 30)}");
+                builder.AppendLine(context.Code);
+                builder.AppendLine(new string('-', 50));
+            }
+
+            return builder.ToString();
+        }
 
         private static string LoadScript(string scriptName)
         {
@@ -169,7 +380,7 @@ namespace Integrated_AI
             }
         }
 
-        // Integrated AI/Utilities/ChatWindowUtilities.cs (Async Version)
+        
         public static async Task ExecuteCommandAsync(string option, DTE2 dte, WebView2 chatWebView, string userDataFolder)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -255,19 +466,19 @@ namespace Integrated_AI
 
             if (textToInject != null)
             {
-                _lastSentContext = new SentCodeContext
+                var context = new SentCodeContext
                 {
                     Code = textToInject,
                     Type = type,
                     FilePath = filePath,
                     StartLine = startLine,
-                    EndLine = endLine
+                    EndLine = endLine,
+                    AgeCounter = 0
                 };
+                AddSentContext(context);
                 await InjectTextIntoWebViewAsync(chatWebView, sourceDescription, option);
             }
         }
-
-        public static SentCodeContext GetLastSentContext() => _lastSentContext;
 
         public static async Task<string> RetrieveTextFromWebViewAsync(WebView2 webView)
         {
