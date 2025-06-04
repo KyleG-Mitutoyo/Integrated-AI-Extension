@@ -68,69 +68,23 @@ namespace Integrated_AI.Utilities
             return null;
         }
 
-        public static string GetEditedAiCode(DiffContext context)
+        public static string GetAICode(string tempAiFile)
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            if (context?.RightTextBuffer == null)
+            if (string.IsNullOrEmpty(tempAiFile) || !File.Exists(tempAiFile))
             {
-                ChatWindowUtilities.Log("GetEditedAiCode: Right text buffer is null.");
-                // Fallback to file read if buffer is unavailable
-                if (context?.TempAiFile != null && File.Exists(context.TempAiFile))
-                {
-                    try
-                    {
-                        return File.ReadAllText(context.TempAiFile);
-                    }
-                    catch (Exception ex)
-                    {
-                        ChatWindowUtilities.Log($"GetEditedAiCode: Error reading AI file: {ex}");
-                        return null;
-                    }
-                }
-                return null;
+                ChatWindowUtilities.Log($"Invalid AI code file: {tempAiFile ?? "null"}");
+                return string.Empty;
             }
 
             try
             {
-                // Force save to ensure buffer changes are written to the file
-                if (context.RightTextBuffer is IVsPersistDocData persistDocData)
-                {
-                    persistDocData.SaveDocData(VSSAVEFLAGS.VSSAVE_SilentSave, out string newMoniker, out int canceled);
-                    if (canceled != 0)
-                    {
-                        ChatWindowUtilities.Log("GetEditedAiCode: Save operation was canceled.");
-                        return null;
-                    }
-                    if (!string.IsNullOrEmpty(newMoniker) && newMoniker != context.TempAiFile)
-                    {
-                        ChatWindowUtilities.Log($"GetEditedAiCode: Document moniker changed to {newMoniker}. Updating context.");
-                        context.TempAiFile = newMoniker; // Update file path if renamed
-                    }
-                }
-
-                // Get text from the buffer
-                context.RightTextBuffer.GetLineCount(out int lineCount);
-                context.RightTextBuffer.GetLengthOfLine(lineCount - 1, out int lastLineLength);
-                context.RightTextBuffer.GetLineText(0, 0, lineCount - 1, lastLineLength, out string text);
-                return text;
+                return File.ReadAllText(tempAiFile);
             }
             catch (Exception ex)
             {
-                ChatWindowUtilities.Log($"GetEditedAiCode: Error reading from text buffer: {ex}");
-                // Fallback to file read
-                if (context?.TempAiFile != null && File.Exists(context.TempAiFile))
-                {
-                    try
-                    {
-                        return File.ReadAllText(context.TempAiFile);
-                    }
-                    catch (Exception ex2)
-                    {
-                        ChatWindowUtilities.Log($"GetEditedAiCode: Fallback file read failed: {ex2}");
-                        return null;
-                    }
-                }
-                return null;
+                ChatWindowUtilities.Log($"Error reading AI code file '{tempAiFile}': {ex.Message}");
+                MessageBox.Show($"Error reading AI code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return string.Empty;
             }
         }
     }

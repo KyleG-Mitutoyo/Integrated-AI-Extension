@@ -18,7 +18,6 @@ namespace Integrated_AI.Utilities
             public string TempCurrentFile { get; set; }
             public string TempAiFile { get; set; }
             public IVsWindowFrame DiffFrame { get; set; }
-            public IVsTextLines RightTextBuffer { get; set; } // Store the right-hand buffer
         }
 
         public static DiffContext OpenDiffView(DTE2 dte, string currentCode, string aiCode)
@@ -41,9 +40,7 @@ namespace Integrated_AI.Utilities
             try
             {
                 File.WriteAllText(context.TempCurrentFile, currentCode);
-                File.SetAttributes(context.TempCurrentFile, FileAttributes.Normal);
                 File.WriteAllText(context.TempAiFile, aiCode);
-                File.SetAttributes(context.TempAiFile, FileAttributes.Normal);
 
                 var diffService = Package.GetGlobalService(typeof(SVsDifferenceService)) as IVsDifferenceService;
                 if (diffService == null)
@@ -58,7 +55,7 @@ namespace Integrated_AI.Utilities
                     caption: $"{dte.ActiveDocument.Name} compare",
                     Tooltip: $"Changes to {dte.ActiveDocument.Name}",
                     leftLabel: "Current Document",
-                    rightLabel: "AI-Generated Code (Editable)",
+                    rightLabel: "AI-Generated Code",
                     inlineLabel: "",
                     roles: "",
                     grfDiffOptions: 0); // Remove LeftFileIsTemporary
@@ -67,12 +64,6 @@ namespace Integrated_AI.Utilities
                 {
                     MessageBox.Show("Failed to create diff window.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return FileUtil.CleanUpTempFiles(context);
-                }
-
-                // Get the right-hand text buffer for editable AI code
-                if (context.DiffFrame.GetProperty((int)__VSFPROPID.VSFPROPID_DocData, out object docData) == VSConstants.S_OK)
-                {
-                    context.RightTextBuffer = docData as IVsTextLines;
                 }
 
                 ErrorHandler.ThrowOnFailure(context.DiffFrame.Show());
@@ -151,7 +142,6 @@ namespace Integrated_AI.Utilities
                 context.DiffFrame = null;
             }
 
-            context.RightTextBuffer = null;
             FileUtil.CleanUpTempFiles(context);
             context.TempCurrentFile = null;
             context.TempAiFile = null;

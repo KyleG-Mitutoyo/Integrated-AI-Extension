@@ -339,7 +339,7 @@ namespace Integrated_AI
 
             if (contextToClose?.TempAiFile != null && File.Exists(contextToClose.TempAiFile))
             {
-                aiCodeToApply = FileUtil.GetEditedAiCode(contextToClose);
+                aiCodeToApply = FileUtil.GetAICode(contextToClose.TempAiFile);
                 if (string.IsNullOrEmpty(aiCodeToApply))
                 {
                     ChatWindowUtilities.Log("AcceptButton_Click: AI code is empty, proceeding to apply empty content.");
