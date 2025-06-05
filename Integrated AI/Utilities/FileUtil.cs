@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -14,6 +15,9 @@ namespace Integrated_AI.Utilities
 {
     public static class FileUtil
     {
+        //Used with LoadScript to prevent repeated file reads for the same script
+        private static readonly Dictionary<string, string> _scriptCache = new Dictionary<string, string>();
+
         public static List<string> LoadRecentFunctions(string recentFunctionsFilePath)
         {
             var recentFunctions = new List<string>();
@@ -72,7 +76,7 @@ namespace Integrated_AI.Utilities
         {
             if (string.IsNullOrEmpty(tempAiFile) || !File.Exists(tempAiFile))
             {
-                ChatWindowUtilities.Log($"Invalid AI code file: {tempAiFile ?? "null"}");
+                WebViewUtilities.Log($"Invalid AI code file: {tempAiFile ?? "null"}");
                 return string.Empty;
             }
 
@@ -82,9 +86,61 @@ namespace Integrated_AI.Utilities
             }
             catch (Exception ex)
             {
-                ChatWindowUtilities.Log($"Error reading AI code file '{tempAiFile}': {ex.Message}");
+                WebViewUtilities.Log($"Error reading AI code file '{tempAiFile}': {ex.Message}");
                 MessageBox.Show($"Error reading AI code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return string.Empty;
+            }
+        }
+        //t
+        public static string LoadScript(string scriptName)
+        {
+            if (_scriptCache.TryGetValue(scriptName, out string cachedScript))
+            {
+                WebViewUtilities.Log($"Retrieved '{scriptName}' from cache.");
+                return cachedScript;
+            }
+
+            try
+            {
+                string assemblyLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                if (string.IsNullOrEmpty(assemblyLocation))
+                {
+                    string errorMsg = $"Critical Error: Could not determine assembly location for loading script '{scriptName}'.";
+                    WebViewUtilities.Log(errorMsg);
+                    // Return a script that will cause a clear JS error and log to console
+                    return $"console.error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}'); throw new Error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}');";
+                }
+                string scriptPath = Path.Combine(assemblyLocation, "Scripts", scriptName);
+
+                WebViewUtilities.Log($"Attempting to load script from: {scriptPath}");
+
+                if (File.Exists(scriptPath))
+                {
+                    string scriptContent = File.ReadAllText(scriptPath);
+                    if (string.IsNullOrWhiteSpace(scriptContent))
+                    {
+                        string errorMsg = $"Error: Script file '{scriptName}' at '{scriptPath}' is empty or consists only of whitespace.";
+                        WebViewUtilities.Log(errorMsg);
+                        return $"console.error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}'); throw new Error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}');";
+                    }
+                    _scriptCache[scriptName] = scriptContent;
+                    WebViewUtilities.Log($"Successfully loaded script: {scriptName}. Length: {scriptContent.Length}. First 100 chars: {scriptContent.Substring(0, Math.Min(100, scriptContent.Length))}");
+                    return scriptContent;
+                }
+                else
+                {
+                    // This case means files are not in bin/Debug/Scripts, which contradicts user observation for debug.
+                    // However, this path WOULD be hit if VSIX deployment fails.
+                    string errorMsg = $"Error: Script file '{scriptName}' not found at '{scriptPath}'. VSIX packaging issue likely if this happens after deployment.";
+                    WebViewUtilities.Log(errorMsg);
+                    return $"console.error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}'); throw new Error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}');";
+                }
+            }
+            catch (Exception ex)
+            {
+                string errorMsg = $"Generic error loading script '{scriptName}': {ex.Message}";
+                WebViewUtilities.Log(errorMsg);
+                return $"console.error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}'); throw new Error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}');";
             }
         }
     }

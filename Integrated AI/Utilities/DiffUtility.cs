@@ -21,16 +21,16 @@ namespace Integrated_AI.Utilities
             public IVsWindowFrame DiffFrame { get; set; }
         }
 
-        public static DiffContext OpenDiffView(DTE2 dte, string currentCode, string aiCodeFullFileContents, string aiCode)
+        public static DiffContext OpenDiffView(Document activeDoc, string currentCode, string aiCodeFullFileContents, string aiCode)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            if (dte == null || currentCode == null || aiCodeFullFileContents == null)
+            if (activeDoc == null || currentCode == null || aiCodeFullFileContents == null)
             {
-                MessageBox.Show("Invalid input: DTE or code strings are null.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Invalid input: DTE active document or code strings are null.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return null;
             }
 
-            string extension = Path.GetExtension(dte.ActiveDocument.FullName) ?? ".txt";
+            string extension = Path.GetExtension(activeDoc.FullName) ?? ".txt";
 
             var context = new DiffContext
             {
@@ -55,8 +55,8 @@ namespace Integrated_AI.Utilities
                 context.DiffFrame = diffService.OpenComparisonWindow2(
                     leftFileMoniker: context.TempCurrentFile,
                     rightFileMoniker: context.TempAiFile,
-                    caption: $"{dte.ActiveDocument.Name} compare",
-                    Tooltip: $"Changes to {dte.ActiveDocument.Name}",
+                    caption: $"{activeDoc.Name} compare",
+                    Tooltip: $"Changes to {activeDoc.Name}",
                     leftLabel: "Current Document",
                     rightLabel: "AI-Generated Code",
                     inlineLabel: "",
@@ -85,14 +85,14 @@ namespace Integrated_AI.Utilities
             if (dte == null || dte.ActiveDocument == null)
             {
                 MessageBox.Show("No active document or DTE unavailable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                ChatWindowUtilities.Log("ApplyChanges: DTE or active document is null.");
+                WebViewUtilities.Log("ApplyChanges: DTE or active document is null.");
                 return;
             }
 
             if (aiCode == null)
             {
                 MessageBox.Show("AI code is null.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                ChatWindowUtilities.Log("ApplyChanges: AI code is null.");
+                WebViewUtilities.Log("ApplyChanges: AI code is null.");
                 return;
             }
 
@@ -101,14 +101,14 @@ namespace Integrated_AI.Utilities
             if (textDoc == null)
             {
                 MessageBox.Show($"Document '{activeDoc.Name}' is not editable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                ChatWindowUtilities.Log($"ApplyChanges: '{activeDoc.FullName}' is not a text document.");
+                WebViewUtilities.Log($"ApplyChanges: '{activeDoc.FullName}' is not a text document.");
                 return;
             }
 
             if (activeDoc.ReadOnly)
             {
                 MessageBox.Show($"Document '{activeDoc.Name}' is read-only.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                ChatWindowUtilities.Log($"ApplyChanges: '{activeDoc.FullName}' is read-only.");
+                WebViewUtilities.Log($"ApplyChanges: '{activeDoc.FullName}' is read-only.");
                 return;
             }
 
@@ -118,12 +118,12 @@ namespace Integrated_AI.Utilities
                 var endPoint = textDoc.EndPoint.CreateEditPoint();
                 startPoint.Delete(endPoint);
                 startPoint.Insert(aiCode);
-                ChatWindowUtilities.Log($"ApplyChanges: Successfully applied changes to '{activeDoc.FullName}'.");
+                WebViewUtilities.Log($"ApplyChanges: Successfully applied changes to '{activeDoc.FullName}'.");
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error applying changes to '{activeDoc.Name}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                ChatWindowUtilities.Log($"ApplyChanges: Exception for '{activeDoc.FullName}': {ex}");
+                WebViewUtilities.Log($"ApplyChanges: Exception for '{activeDoc.FullName}': {ex}");
             }
         }
 
