@@ -16,7 +16,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
-using static Integrated_AI.ChatWindowUtilities;
+using static Integrated_AI.WebViewUtilities;
 using MessageBox = System.Windows.MessageBox;
 
 namespace Integrated_AI
@@ -74,7 +74,7 @@ namespace Integrated_AI
             Directory.CreateDirectory(_userDataFolder);
 
             // Initialize WebView2
-            ChatWindowUtilities.InitializeWebView2Async(ChatWebView, _userDataFolder, _urlOptions, UrlSelector);
+            WebViewUtilities.InitializeWebView2Async(ChatWebView, _userDataFolder, _urlOptions, UrlSelector);
 
             // Register for window messages when the control is loaded
             Loaded += ChatWindow_Loaded;
@@ -92,7 +92,7 @@ namespace Integrated_AI
                 _isClipboardListenerRegistered = AddClipboardFormatListener(_hwndSource);
                 if (!_isClipboardListenerRegistered)
                 {
-                    ChatWindowUtilities.Log("Failed to register clipboard listener.");
+                    WebViewUtilities.Log("Failed to register clipboard listener.");
                 }
             }
         }
@@ -131,7 +131,7 @@ namespace Integrated_AI
                 try
                 {
                     // Check if WebView is focused and clipboard write was programmatic
-                    if (!_isWebViewInFocus || !await ChatWindowUtilities.IsProgrammaticCopyAsync(ChatWebView))
+                    if (!_isWebViewInFocus || !await WebViewUtilities.IsProgrammaticCopyAsync(ChatWebView))
                     {
                         //MessageBox.Show("Clipboard change ignored: WebView not focused or not a programmatic copy.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         return; // Ignore if not focused or not a programmatic copy (e.g., Ctrl+C)
@@ -150,7 +150,7 @@ namespace Integrated_AI
                 }
                 catch (Exception ex)
                 {
-                    ChatWindowUtilities.Log($"Clipboard change handling error: {ex.Message}");
+                    WebViewUtilities.Log($"Clipboard change handling error: {ex.Message}");
                 }
             });
         }
@@ -179,7 +179,7 @@ namespace Integrated_AI
                     return;
                 }
 
-                var contexts = ChatWindowUtilities.GetContextsForFile(activeDocument.FullName);
+                var contexts = SentCodeContextManager.GetContextsForFile(activeDocument.FullName);
                 if (!contexts.Any())
                 {
                     //Warning: No contexts found for the active document. Using null for the context.
@@ -188,8 +188,8 @@ namespace Integrated_AI
                 string currentCode = DiffUtility.GetActiveDocumentText(_dte);
                 string modifiedCode = currentCode;
 
-                var context = FindMatchingContext(contexts, aiCode);
-                modifiedCode = ReplaceCodeInDocument(modifiedCode, context, aiCode, _dte);
+                var context = SentCodeContextManager.FindMatchingContext(contexts, aiCode);
+                modifiedCode = SentCodeContextManager.ReplaceCodeInDocument(modifiedCode, context, aiCode, _dte);
 
                 _diffContext = DiffUtility.OpenDiffView(_dte, currentCode, modifiedCode, aiCode);
 
@@ -235,7 +235,7 @@ namespace Integrated_AI
         {
             if (_executeCommandOnClick)
             {
-                await ChatWindowUtilities.ExecuteCommandAsync(_selectedOption, _dte, ChatWebView, _userDataFolder);
+                await WebViewUtilities.ExecuteCommandAsync(_selectedOption, _dte, ChatWebView, _userDataFolder);
             }
             _executeCommandOnClick = true;
         }
@@ -262,7 +262,7 @@ namespace Integrated_AI
             {
                 _selectedOption = option;
                 VSToAISplitButton.Content = option;
-                await ChatWindowUtilities.ExecuteCommandAsync(option, _dte, ChatWebView, _userDataFolder);
+                await WebViewUtilities.ExecuteCommandAsync(option, _dte, ChatWebView, _userDataFolder);
             }
         }
 
@@ -276,7 +276,7 @@ namespace Integrated_AI
                 return;
             }
 
-            string aiCode = await ChatWindowUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
+            string aiCode = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
             if (aiCode == null || aiCode == "null" || string.IsNullOrEmpty(aiCode))
             {
                 return;
@@ -298,12 +298,12 @@ namespace Integrated_AI
                 aiCodeFullFile = FileUtil.GetAICode(contextToClose.TempAiFile);
                 if (string.IsNullOrEmpty(aiCodeFullFile))
                 {
-                    ChatWindowUtilities.Log("AcceptButton_Click: AI code is empty.");
+                    WebViewUtilities.Log("AcceptButton_Click: AI code is empty.");
                 }
             }
             else
             {
-                ChatWindowUtilities.Log("AcceptButton_Click: No valid diff context or temp file.");
+                WebViewUtilities.Log("AcceptButton_Click: No valid diff context or temp file.");
             }
 
             if (contextToClose != null)
@@ -318,8 +318,8 @@ namespace Integrated_AI
                 var activeDocument = _dte.ActiveDocument;
                 if (activeDocument != null)
                 {
-                    var contexts = ChatWindowUtilities.GetContextsForFile(activeDocument.FullName);
-                    var context = FindMatchingContext(contexts, contextToClose.AICodeBlock);
+                    var contexts = SentCodeContextManager.GetContextsForFile(activeDocument.FullName);
+                    var context = SentCodeContextManager.FindMatchingContext(contexts, contextToClose.AICodeBlock);
                     if (context != null)
                     {
                         // Calculate new line numbers based on the single code block
@@ -327,13 +327,13 @@ namespace Integrated_AI
                         int lineCount = contextToClose.AICodeBlock.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).Length;
                         int newEndLine = newStartLine + lineCount - 1;
 
-                        ChatWindowUtilities.UpdateContextData(context, newStartLine, newEndLine, contextToClose.AICodeBlock);
-                        ChatWindowUtilities.IncrementContextAges(activeDocument.FullName, context);
-                        ChatWindowUtilities.Log($"Updated context: Type={context.Type}, File={context.FilePath}, Lines={newStartLine}-{newEndLine}, AgeCounter={context.AgeCounter}");
+                        SentCodeContextManager.UpdateContextData(context, newStartLine, newEndLine, contextToClose.AICodeBlock);
+                        SentCodeContextManager.IncrementContextAges(activeDocument.FullName, context);
+                        WebViewUtilities.Log($"Updated context: Type={context.Type}, File={context.FilePath}, Lines={newStartLine}-{newEndLine}, AgeCounter={context.AgeCounter}");
                     }
                     else
                     {
-                        ChatWindowUtilities.Log("No matching context found for AI code; applied at cursor position.");
+                        WebViewUtilities.Log("No matching context found for AI code; applied at cursor position.");
                     }
 
                     DiffUtility.ApplyChanges(_dte, aiCodeFullFile);
@@ -389,8 +389,8 @@ namespace Integrated_AI
             ThreadHelper.Generic.BeginInvoke(() =>
             {
                 // Get all contexts (not just for the active document)
-                var allContexts = ChatWindowUtilities.GetAllSentContexts(); // New method needed
-                var contextText = FormatContextList(allContexts);
+                var allContexts = SentCodeContextManager.GetAllSentContexts(); // New method needed
+                var contextText = SentCodeContextManager.FormatContextList(allContexts);
 
                 var debugWindow = new DebugContextWindow(contextText)
                 {

@@ -85,14 +85,14 @@ namespace Integrated_AI.Utilities
             if (dte == null || dte.ActiveDocument == null)
             {
                 MessageBox.Show("No active document or DTE unavailable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                ChatWindowUtilities.Log("ApplyChanges: DTE or active document is null.");
+                WebViewUtilities.Log("ApplyChanges: DTE or active document is null.");
                 return;
             }
 
             if (aiCode == null)
             {
                 MessageBox.Show("AI code is null.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                ChatWindowUtilities.Log("ApplyChanges: AI code is null.");
+                WebViewUtilities.Log("ApplyChanges: AI code is null.");
                 return;
             }
 
@@ -101,14 +101,14 @@ namespace Integrated_AI.Utilities
             if (textDoc == null)
             {
                 MessageBox.Show($"Document '{activeDoc.Name}' is not editable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                ChatWindowUtilities.Log($"ApplyChanges: '{activeDoc.FullName}' is not a text document.");
+                WebViewUtilities.Log($"ApplyChanges: '{activeDoc.FullName}' is not a text document.");
                 return;
             }
 
             if (activeDoc.ReadOnly)
             {
                 MessageBox.Show($"Document '{activeDoc.Name}' is read-only.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                ChatWindowUtilities.Log($"ApplyChanges: '{activeDoc.FullName}' is read-only.");
+                WebViewUtilities.Log($"ApplyChanges: '{activeDoc.FullName}' is read-only.");
                 return;
             }
 
@@ -118,12 +118,12 @@ namespace Integrated_AI.Utilities
                 var endPoint = textDoc.EndPoint.CreateEditPoint();
                 startPoint.Delete(endPoint);
                 startPoint.Insert(aiCode);
-                ChatWindowUtilities.Log($"ApplyChanges: Successfully applied changes to '{activeDoc.FullName}'.");
+                WebViewUtilities.Log($"ApplyChanges: Successfully applied changes to '{activeDoc.FullName}'.");
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error applying changes to '{activeDoc.Name}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                ChatWindowUtilities.Log($"ApplyChanges: Exception for '{activeDoc.FullName}': {ex}");
+                WebViewUtilities.Log($"ApplyChanges: Exception for '{activeDoc.FullName}': {ex}");
             }
         }
 
