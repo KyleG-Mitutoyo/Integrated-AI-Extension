@@ -161,4 +161,8 @@
   <Target Name="AfterBuild">
   </Target>
   -->
+  <!-- Clean the solution before building the project -->
+  <Target Name="BeforeBuild">
+    <MSBuild Projects="$(SolutionPath)" Targets="Clean" Properties="Configuration=$(Configuration)" />
+  </Target>
 </Project>

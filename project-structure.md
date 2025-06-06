@@ -12,6 +12,8 @@
 - `AIChatCommandPackage.vsct`
 - `ChatWindow.xaml`
 - `ChatWindow.xaml.cs`
+- `DebugContextWindow.xaml`
+- `DebugContextWindow.xaml.cs`
 - `FunctionSelectionWindow.xaml`
 - `FunctionSelectionWindow.xaml.cs`
 - `Integrated AI.csproj`
@@ -32,8 +34,16 @@
 - `AIChatCommand.png`
 - `AIChatCommandPackage.ico`
 
+### Integrated AI/Scripts/
+- `injectText.js`
+- `monitorClipboardWrite.js`
+- `retrieveSelectedText.js`
+- `retrieveText.js`
+
 ### Integrated AI/Utilities/
-- `ChatWindowUtilities.cs`
+- `DiffUtility.cs`
 - `FileUtil.cs`
 - `FunctionSelectionUtilities.cs`
-- `DiffUtility.cs`
+- `SentCodeContextManager.cs`
+- `StringUtil.cs`
+- `WebViewUtilities.cs`

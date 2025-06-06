@@ -1,4 +1,5 @@
 ﻿// Integrated AI/DebugContextWindow.xaml.cs
+using Integrated_AI.Utilities;
 using System.Windows;
 
 namespace Integrated_AI
@@ -14,6 +15,17 @@ namespace Integrated_AI
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void ClearButton_Click(object sender, RoutedEventArgs e)
+        {
+            SentCodeContextManager.ClearContexts();
+            ContextTextBox.Text = "Contexts cleared.";
+        }
+
+        private void PopulateButton_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Just use VS to AI button once or twice to get the contexts nice.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 }

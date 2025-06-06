@@ -1,34 +1,74 @@
 ﻿using EnvDTE;
 using EnvDTE80;
-using Integrated_AI.Utilities;
+using Integrated_AI.Utilities; // Assuming FileUtil, DiffUtility, FunctionSelectionUtilities, SentCodeContextManager, StringUtilities are here
 using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.Shell.Interop;
+// using Microsoft.VisualStudio.Shell.Interop; // Not directly used in the provided snippet, but likely in the project
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+// using System.Diagnostics; // Not directly used
 using System.IO;
-using System.IO.Packaging;
+// using System.IO.Packaging; // Not directly used
 using System.Linq;
-using System.Net;
-using System.Reflection;
-using System.Text; // For StringBuilder
+using System.Net; // For WebUtility
+// using System.Reflection; // Not directly used
+// using System.Text; // For StringBuilder - Not directly used
 using System.Threading.Tasks;
-using System.Web;
+// using System.Web; // HttpUtility, WebUtility is in System.Net
 using System.Windows;
-using System.Windows.Controls;
+using System.Windows.Controls; // For ComboBox (used in InitializeWebView2Async)
 
 namespace Integrated_AI
 {
     public static class WebViewUtilities
     {
-        private static readonly Dictionary<string, string> _selectorMap = new Dictionary<string, string>
+        // Modified _selectorMap to support a list of selectors for each URL
+        private static readonly Dictionary<string, List<string>> _selectorMap = new Dictionary<string, List<string>>
         {
-            { "https://grok.com", "textarea[aria-label=\"Ask Grok anything\"]" },
-            { "https://chatgpt.com", "div#prompt-textarea" },
-            { "https://aistudio.google.com", "textarea[aria-label=\"Start typing a prompt\"]" }
+            { "https://grok.com", new List<string> { "textarea[aria-label=\"Ask Grok anything\"]" } },
+            { "https://chatgpt.com", new List<string> { "div#prompt-textarea" } },
+            {
+                "https://aistudio.google.com", new List<string>
+                {
+                    "textarea[aria-label=\"Start typing a prompt\"]",
+                    "textarea[aria-label=\"Type something or tab to choose an example prompt\"]"
+                }
+            }
+            // Add other URLs and their selectors here
         };
+
+        // Helper method to get selectors for a given URL, finding the most specific match
+        private static List<string> GetSelectorsForUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                Log("URL is null or empty, using default selector 'textarea'.");
+                return new List<string> { "textarea" };
+            }
+
+            string bestMatchKey = null;
+            foreach (var key in _selectorMap.Keys)
+            {
+                // Use case-insensitive matching for URL prefixes
+                if (url.StartsWith(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (bestMatchKey == null || key.Length > bestMatchKey.Length)
+                    {
+                        bestMatchKey = key;
+                    }
+                }
+            }
+
+            if (bestMatchKey != null && _selectorMap.TryGetValue(bestMatchKey, out var selectors) && selectors != null && selectors.Any())
+            {
+                Log($"Found selectors for URL prefix '{bestMatchKey}': [{string.Join("], [", selectors)}]");
+                return selectors;
+            }
+
+            Log($"No specific selectors found for URL '{url}'. Using default selector 'textarea'.");
+            return new List<string> { "textarea" }; // Default selector list
+        }
 
 
         public static async Task InitializeWebView2Async(WebView2 webView, string userDataFolder, List<ChatWindow.UrlOption> urlOptions, ComboBox urlSelector)
@@ -58,20 +98,22 @@ namespace Integrated_AI
                 {
                     if (e.IsSuccess)
                     {
-                        // Execute test script when navigation is successful
-                        //string testScript = "console.log('Navigation completed successfully!'); alert('Test script executed.');";
-                        //webView.CoreWebView2.ExecuteScriptAsync(testScript);
-                        // Inject clipboard monitoring script after successful navigation
-
                         string monitorScript = FileUtil.LoadScript("monitorClipboardWrite.js");
-                        try
+                        if (monitorScript.StartsWith("LoadScript ERROR:"))
                         {
-                            webView.CoreWebView2.ExecuteScriptAsync(monitorScript);
-                            Log("Clipboard monitoring script injected after navigation.");
+                            Log($"Failed to inject clipboard monitoring script after navigation: {monitorScript}");
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            Log($"Failed to inject clipboard monitoring script: {ex.Message}");
+                            try
+                            {
+                                webView.CoreWebView2.ExecuteScriptAsync(monitorScript);
+                                Log("Clipboard monitoring script injected after navigation.");
+                            }
+                            catch (Exception ex)
+                            {
+                                Log($"Failed to inject clipboard monitoring script after navigation: {ex.Message}");
+                            }
                         }
                     }
                     else
@@ -106,7 +148,7 @@ namespace Integrated_AI
             }
         }
 
-        
+
         public static async Task ExecuteCommandAsync(string option, DTE2 dte, WebView2 chatWebView, string userDataFolder)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -206,6 +248,98 @@ namespace Integrated_AI
             }
         }
 
+        // Executes a JavaScript script with multiple selectors, handling results and errors.
+        // Parameters:
+        // - webView: The WebView2 control to execute the script in.
+        // - scriptFileName: The name of the script file to load (e.g., "retrieveText.js" or "injectText.js").
+        // - currentUrl: The URL of the current page in the WebView.
+        // - operationName: The name of the operation for logging (e.g., "RetrieveText" or "InjectText").
+        // - jsFunctionName: The JavaScript function to call (e.g., "retrieveTextFromElement" or "injectTextIntoElement").
+        // - preparedTextForJs: Optional text to inject (for injectTextIntoElement).
+        // - isChatGpt: Indicates if the URL is for ChatGPT (for injectTextIntoElement).
+        // Returns a tuple with the result (or null if failed) and the last error message.
+        private static async Task<(string Result, string LastError)> ExecuteScriptWithSelectors(
+            WebView2 webView,
+            string scriptFileName,
+            string currentUrl,
+            string operationName,
+            string jsFunctionName,
+            bool stopOnSuccess = true,
+            bool isChatGpt = false,
+            string preparedTextForJs = null)
+        {
+            string scriptFileContent = FileUtil.LoadScript(scriptFileName);
+            if (scriptFileContent.StartsWith("LoadScript ERROR:"))
+            {
+                string errorMessage = "Problem loading script file: " + scriptFileContent.Replace("LoadScript ERROR: ", "");
+                Log($"Failed to perform {operationName}: {errorMessage}");
+                return (null, errorMessage);
+            }
+
+            List<string> selectors = GetSelectorsForUrl(currentUrl);
+            string lastError = $"No suitable selector found or all {operationName} attempts failed.";
+
+            foreach (string selector in selectors)
+            {
+                string escapedSelectorForJs = selector.Replace("'", "\\'");
+                // Construct the script based on the function name and parameters
+                string scriptToExecute = jsFunctionName == "injectTextIntoElement"
+                    ? $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}', '{preparedTextForJs}', {isChatGpt.ToString().ToLowerInvariant()});"
+                    : $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}');";
+                Log($"{operationName} - Attempting with selector: '{selector}'. Script (first 500 chars of file may be shown):\n{scriptFileContent.Substring(0, Math.Min(scriptFileContent.Length, 500))}\n{scriptToExecute.Split('\n').Last()}");
+
+                try
+                {
+                    string result = await webView.CoreWebView2.ExecuteScriptAsync(scriptToExecute);
+                    Log($"Raw result from {operationName} ExecuteScriptAsync for selector '{selector}': {(result == null ? "C# null" : $"\"{result}\"")}");
+                    result = result?.Trim('"');
+
+                    if (result == null) // C# null from ExecuteScriptAsync
+                    {
+                        lastError = $"ExecuteScriptAsync returned C# null for selector '{selector}'. This often indicates a JavaScript syntax error in the generated script or a problem with the WebView. Check JS console in WebView DevTools.";
+                        Log($"{operationName} attempt failed: {lastError}");
+                        continue; // Try next selector
+                    }
+                    if (result == "null") // JS 'null' or 'undefined'
+                    {
+                        lastError = $"Script returned JavaScript 'null' or 'undefined' for selector '{selector}'. This commonly means the function (e.g., '{jsFunctionName}') was not defined, or the element was not found and the function returned null. Check JS console in WebView DevTools.";
+                        Log($"{operationName} attempt failed: {lastError}");
+                        continue; // Try next selector
+                    }
+                    // Check for "FAILURE: Element not found" specifically to try next selector
+                    if (result.StartsWith("FAILURE: Element not found", StringComparison.OrdinalIgnoreCase))
+                    {
+                        lastError = $"Element not found with selector '{selector}'.";
+                        Log($"{operationName} attempt: {lastError}");
+                        continue; // Try next selector
+                    }
+                    if (result.StartsWith("FAILURE:")) // Other FAILURE types
+                    {
+                        lastError = result.Replace("FAILURE: ", "");
+                        Log($"{operationName} attempt for selector '{selector}' failed critically: {lastError}");
+                        continue; // Continue to try other selectors
+                    }
+
+                    // Success for this selector
+                    Log($"{operationName} succeeded using selector '{selector}'. Result: {result}");
+                    if (stopOnSuccess)
+                    {
+                        return (result, null);
+                    }
+                }
+                catch (Exception ex) // Exception during ExecuteScriptAsync for this selector
+                {
+                    lastError = $"Error executing JavaScript for selector '{selector}': {ex.Message}";
+                    Log($"{operationName} attempt failed: {lastError}\nStackTrace: {ex.StackTrace}");
+                    continue; // Try next selector
+                }
+            }
+
+            // If loop completes, all selectors failed
+            Log($"Failed to complete {operationName} after trying all selectors. Last error: {lastError}");
+            return (null, lastError);
+        }
+
         public static async Task<string> RetrieveTextFromWebViewAsync(WebView2 webView)
         {
             if (webView?.CoreWebView2 == null)
@@ -216,34 +350,24 @@ namespace Integrated_AI
 
             try
             {
-                string scriptFileContent = FileUtil.LoadScript("retrieveText.js");
-
                 string currentUrl = webView.Source?.ToString() ?? "";
-                string selector = _selectorMap.FirstOrDefault(x => currentUrl.StartsWith(x.Key)).Value ?? "textarea";
-                string escapedSelectorForJs = selector.Replace("'", "\\'"); // Escape for JS string
+                var (result, lastError) = await ExecuteScriptWithSelectors(
+                    webView,
+                    "retrieveText.js",
+                    currentUrl,
+                    "RetrieveText",
+                    "retrieveTextFromElement");
 
-                string scriptToExecute = $"{scriptFileContent}\nretrieveTextFromElement('{escapedSelectorForJs}');";
-                Log($"RetrieveText - Full scriptToExecute (first 500 chars of scriptFileContent):\n{scriptFileContent.Substring(0, Math.Min(scriptFileContent.Length, 500))}\nretrieveTextFromElement('{escapedSelectorForJs}');\n---END SCRIPT PREVIEW---");
-
-                string result = await webView.ExecuteScriptAsync(scriptToExecute);
-                Log($"Raw result from RetrieveText ExecuteScriptAsync: {(result == null ? "C# null" : $"\"{result}\"")}");
-                result = result?.Trim('"');
-
-                if (result == null || result == "null" || result.StartsWith("FAILURE:") || result.StartsWith("LoadScript ERROR:"))
+                if (result != null)
                 {
-                    string failureMessage = result ?? "Unknown error during script execution.";
-                    if (result == null) failureMessage = "ExecuteScriptAsync returned C# null (JS syntax error or severe issue).";
-                    else if (result == "null") failureMessage = "Script returned JavaScript 'null' or 'undefined' (e.g., function not defined, or element not found by function). Check JS console in WebView DevTools.";
-                    else if (result.StartsWith("FAILURE:")) failureMessage = result.Replace("FAILURE: ", "");
-                    else if (result.StartsWith("LoadScript ERROR:")) failureMessage = "Problem loading script file: " + result.Replace("LoadScript ERROR: ", "");
-
-                    Log($"Failed to retrieve text: {failureMessage}");
-                    return null;
+                    // Using StringUtilities.UnescapeJsonString for robust unescaping of the JSON string result
+                    result = StringUtil.UnescapeJsonString(result);
+                    return result;
                 }
 
-                result = result.Replace("\\n", "\n"); // Unescape newlines if ExecuteScriptAsync JSON-encoded them
-                Log("Text retrieved successfully from WebView.");
-                return result;
+                // If loop completes, all selectors failed
+                MessageBox.Show($"Could not retrieve text from AI: {lastError}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return null;
             }
             catch (Exception ex)
             {
@@ -264,113 +388,47 @@ namespace Integrated_AI
 
             try
             {
-                string scriptFileContent = FileUtil.LoadScript("injectText.js");
-
                 string currentUrl = webView.Source?.ToString() ?? "";
-                string selector = _selectorMap.FirstOrDefault(x => currentUrl.StartsWith(x.Key)).Value ?? "textarea";
-                Log($"Using selector: {selector} for URL: {currentUrl} (InjectText)");
+                // Case-insensitive check for chatgpt.com
+                bool isChatGpt = currentUrl.StartsWith("https://chatgpt.com", StringComparison.OrdinalIgnoreCase);
 
                 string preparedTextForJs;
-                bool isChatGpt = currentUrl.StartsWith("https://chatgpt.com");
-
                 if (isChatGpt)
                 {
-                    // For ChatGPT (contentEditable div), textToInject is HTML.
-                    // Ensure the HTML string itself is properly escaped for a JS string literal.
-                    string escapedHtml = textToInject.Replace("\\", "\\\\") // Escape backslashes in original text first
-                                                 .Replace("'", "\\'")   // Escape single quotes
-                                                 .Replace("`", "\\`")   // Escape backticks
-                                                 .Replace("\r", "")      // Remove \r
-                                                 .Replace("\n", "\\n");  // Escape \n to \\n for JS string
-
-                    var lines = escapedHtml.Split(new[] { "\\n" }, StringSplitOptions.None) // Split on the escaped newlines
-                        .Select(line => string.IsNullOrEmpty(line.Trim()) ? "<span></span>" : $"<span>{WebUtility.HtmlEncode(line)}</span>"); // HtmlEncode each line content
-                    preparedTextForJs = $"<div style=\\\"white-space: pre-wrap; line-height: 1.4;\\\">{string.Join("<br>", lines)}</div>";
-                    // The above preparedTextForJs is already escaped for JS string.
-                    // WebUtility.HtmlEncode is for the *content* of the spans, not the whole structure.
-                    // The outer string preparedTextForJs needs to be a valid JS string passed to injectTextIntoElement.
-                    // Let's re-evaluate how preparedTextForJs is built for ChatGPT more carefully.
-
-                    // Simpler approach for ChatGPT HTML:
-                    // 1. Build the desired HTML string.
-                    // 2. Escape that HTML string to be a valid JS string literal.
                     var htmlLines = textToInject.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n')
                         .Select(line => string.IsNullOrEmpty(line) ? "<span></span>" : $"<span>{WebUtility.HtmlEncode(line)}</span>");
                     string rawHtmlPayload = $"<div style=\"white-space: pre-wrap; line-height: 1.4;\">{string.Join("<br>", htmlLines)}</div>";
-
-                    preparedTextForJs = rawHtmlPayload
-                        .Replace("\\", "\\\\")
-                        .Replace("'", "\\'")
-                        .Replace("`", "\\`")
-                        .Replace("\r", "")
-                        .Replace("\n", "\\n"); // Escape newlines within the HTML structure for the JS string literal
+                    // Escape the HTML payload to be a valid JS string literal
+                    preparedTextForJs = rawHtmlPayload.Replace("\\", "\\\\").Replace("'", "\\'").Replace("`", "\\`").Replace("\r", "").Replace("\n", "\\n");
                 }
                 else
                 {
-                    // For regular textareas/inputs, escape the plain text for JS string literal
-                    preparedTextForJs = textToInject
-                        .Replace("\\", "\\\\")  // Backslashes first
-                        .Replace("'", "\\'")   // Single quotes
-                        .Replace("`", "\\`")   // Backticks
-                        .Replace("\r", "")      // Remove \r
-                        .Replace("\n", "\\n");  // Escape \n to \\n for JS string
+                    // Escape plain text for JS string literal
+                    preparedTextForJs = textToInject.Replace("\\", "\\\\").Replace("'", "\\'").Replace("`", "\\`").Replace("\r", "").Replace("\n", "\\n");
                 }
 
-                string escapedSelectorForJs = selector.Replace("'", "\\'");
+                var (result, lastError) = await ExecuteScriptWithSelectors(
+                    webView,
+                    "injectText.js",
+                    currentUrl,
+                    "InjectText",
+                    "injectTextIntoElement",
+                    true,
+                    isChatGpt,
+                    preparedTextForJs);
 
-                string scriptToExecute = $"{scriptFileContent}\ninjectTextIntoElement('{escapedSelectorForJs}', '{preparedTextForJs}', {isChatGpt.ToString().ToLowerInvariant()});";
-
-                Log($"InjectText - Full scriptToExecute (first 500 chars of scriptFileContent):\n{scriptFileContent.Substring(0, Math.Min(scriptFileContent.Length, 500))}\ninjectTextIntoElement('{escapedSelectorForJs}', '/* preparedTextForJs (see next log for full) */', {isChatGpt.ToString().ToLowerInvariant()});\n---END SCRIPT PREVIEW---");
-                Log($"InjectText - preparedTextForJs: {preparedTextForJs}"); // Log the potentially long string separately
-                // For extremely long text, you might only log a portion of preparedTextForJs
-
-                try
+                if (result == null)
                 {
-                    string result = await webView.CoreWebView2.ExecuteScriptAsync(scriptToExecute);
-                    Log($"Raw result from InjectText ExecuteScriptAsync: {(result == null ? "C# null" : $"\"{result}\"")}");
-                    result = result?.Trim('"');
-
-                    if (result == null || result == "null" || result.StartsWith("FAILURE:") || result.StartsWith("LoadScript ERROR:"))
-                    {
-                        string failureMessageDetail;
-                        if (result == null)
-                        {
-                            failureMessageDetail = "ExecuteScriptAsync returned C# null. This often indicates a JavaScript syntax error in the generated script (check the full script logged above, especially 'preparedTextForJs') or a problem with the WebView. Check JS console in WebView DevTools.";
-                        }
-                        else if (result == "null")
-                        {
-                            failureMessageDetail = "JavaScript execution returned 'null' or 'undefined'. This commonly means the function (e.g., 'injectTextIntoElement') was not defined (check 'scriptFileContent' was loaded and is correct, and no JS syntax errors in the .js file itself), or the script logic failed silently. Check JS console in WebView DevTools.";
-                        }
-                        else if (result.StartsWith("FAILURE:"))
-                        {
-                            failureMessageDetail = result.Replace("FAILURE: ", "");
-                        }
-                        else if (result.StartsWith("LoadScript ERROR:"))
-                        {
-                            failureMessageDetail = "Problem loading script file: " + result.Replace("LoadScript ERROR: ", "");
-                        }
-                        else
-                        {
-                            failureMessageDetail = result; // Should not happen based on current checks
-                        }
-
-                        string fullErrorMessage = $"Failed to append {sourceOfText}: {failureMessageDetail}";
-                        MessageBox.Show(fullErrorMessage, "Injection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        Log(fullErrorMessage);
-                    }
-                    else
-                    {
-                        Log($"InjectTextIntoWebViewAsync: {result}");
-                    }
+                    string fullErrorMessage = $"Failed to append {sourceOfText}: {lastError}";
+                    MessageBox.Show(fullErrorMessage, "Injection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Log(fullErrorMessage);
                 }
-                catch (Exception ex)
+                else
                 {
-                    string errorMsg = $"Error executing JavaScript in WebView for '{sourceOfText}': {ex.Message}";
-                    MessageBox.Show(errorMsg, "WebView Script Execution Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    Log(errorMsg + "\nStackTrace: " + ex.StackTrace);
+                    Log($"InjectTextIntoWebViewAsync: {result} (source: {sourceOfText})");
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) // General exception in preparation or other parts
             {
                 string errorMsg = $"Failed to prepare for text injection ('{sourceOfText}'). Problem: {ex.Message}";
                 MessageBox.Show(errorMsg, "Preparation Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -389,27 +447,44 @@ namespace Integrated_AI
             try
             {
                 string scriptFileContent = FileUtil.LoadScript("retrieveSelectedText.js");
+                if (scriptFileContent.StartsWith("LoadScript ERROR:"))
+                {
+                    string errorMessage = "Problem loading script file: " + scriptFileContent.Replace("LoadScript ERROR: ", "");
+                    Log($"Failed to retrieve selected text: {errorMessage}");
+                    MessageBox.Show(errorMessage, "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return null;
+                }
+
                 string scriptToExecute = $"{scriptFileContent}\nretrieveSelectedText();";
-                Log($"RetrieveSelectedText - Full scriptToExecute (first 500 chars of scriptFileContent):\n{scriptFileContent.Substring(0, Math.Min(scriptFileContent.Length, 500))}\nretrieveSelectedText();\n---END SCRIPT PREVIEW---");
+                Log($"RetrieveSelectedText - Full scriptToExecute (first 500 chars of scriptFileContent may be shown):\n{scriptFileContent.Substring(0, Math.Min(scriptFileContent.Length, 500))}\nretrieveSelectedText();\n---END SCRIPT PREVIEW---");
 
                 string result = await webView.ExecuteScriptAsync(scriptToExecute);
                 Log($"Raw result from RetrieveSelectedText ExecuteScriptAsync: {(result == null ? "C# null" : $"\"{result}\"")}");
 
                 result = result?.Trim('"');
-                if (result == null || result == "null" || result.StartsWith("FAILURE:") || result.StartsWith("LoadScript ERROR:"))
+                // Check for various failure conditions
+                if (result == null)
                 {
-                    string failureMessage = result ?? "Unknown error during script execution.";
-                    if (result == null) failureMessage = "ExecuteScriptAsync returned C# null (JS syntax error or severe issue).";
-                    else if (result == "null") failureMessage = "No text selected in the chat window. Please highlight text and try again.";
-                    else if (result.StartsWith("FAILURE:")) failureMessage = result.Replace("FAILURE: ", "");
-                    else if (result.StartsWith("LoadScript ERROR:")) failureMessage = "Problem loading script file: " + result.Replace("LoadScript ERROR: ", "");
-
-                    Log($"Failed to retrieve selected text: {failureMessage}");
-                    MessageBox.Show(failureMessage, "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Log("Failed to retrieve selected text: ExecuteScriptAsync returned C# null (JS syntax error or severe issue).");
+                    MessageBox.Show("Could not retrieve selected text: Script execution failed.", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return null;
                 }
+                if (result == "null") // JS 'null' or 'undefined' often means no text selected or function error
+                {
+                    Log("Failed to retrieve selected text: Script returned 'null'. This might mean no text is selected in the WebView, or the 'retrieveSelectedText' function had an issue.");
+                    MessageBox.Show("No text selected in the chat window, or unable to retrieve selection. Please highlight text and try again.", "Retrieval Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return null;
+                }
+                if (result.StartsWith("FAILURE:"))
+                {
+                    string failureMessage = result.Replace("FAILURE: ", "");
+                    Log($"Failed to retrieve selected text: {failureMessage}");
+                    MessageBox.Show($"Could not retrieve selected text: {failureMessage}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return null;
+                }
+                // LoadScript ERROR is already checked when loading scriptFileContent
 
-                // Unescape the JSON-encoded string
+                // Unescape the JSON-encoded string (handles \n, \t, \", \\, etc.)
                 result = StringUtil.UnescapeJsonString(result);
                 Log("Selected text retrieved successfully from WebView.");
                 return result;

@@ -53,13 +53,20 @@ namespace Integrated_AI.Utilities
             _sentContexts.RemoveAll(c => c.FilePath == filePath && c.AgeCounter >= MaxAgeCounter);
         }
 
-        //You know what this does
-        public static void ClearContextsForFile(string filePath)
+        // Can optionally clear contexts for a specific file, or all contexts if no file is specified
+        public static void ClearContexts(string filePath = null)
         {
-            _sentContexts.RemoveAll(c => c.FilePath == filePath);
+            if (string.IsNullOrEmpty(filePath))
+            {
+                _sentContexts.Clear(); // Clear all contexts if no filePath is provided
+            }
+            else
+            {
+                _sentContexts.RemoveAll(c => c.FilePath == filePath); // Clear contexts for the specified file
+            }
         }
 
-        //Includes contexts from all files
+        // Includes contexts from all files
         public static List<SentCodeContext> GetAllSentContexts()
         {
             return _sentContexts.ToList(); // Return a copy to avoid modifying the original

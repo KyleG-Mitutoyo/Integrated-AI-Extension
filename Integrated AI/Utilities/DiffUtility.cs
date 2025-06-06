@@ -1,4 +1,5 @@
-﻿using EnvDTE;
+﻿// Integrated AI/Utilities/DiffUtility.cs
+using EnvDTE;
 using EnvDTE80;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
@@ -44,14 +45,21 @@ namespace Integrated_AI.Utilities
             {
                 File.WriteAllText(context.TempCurrentFile, currentCode);
                 File.WriteAllText(context.TempAiFile, aiCodeFullFileContents);
+                WebViewUtilities.Log($"OpenDiffView: Created temp files - Current: {context.TempCurrentFile} (length: {currentCode.Length}), AI: {context.TempAiFile} (length: {aiCodeFullFileContents.Length}), ActiveDoc: {activeDoc.FullName}");
 
                 var diffService = Package.GetGlobalService(typeof(SVsDifferenceService)) as IVsDifferenceService;
                 if (diffService == null)
                 {
                     MessageBox.Show("Visual Studio Difference Service unavailable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    WebViewUtilities.Log("OpenDiffView: Diff service unavailable.");
                     return FileUtil.CleanUpTempFiles(context);
                 }
 
+                uint grfDiffOptions = (uint)(__VSDIFFSERVICEOPTIONS.VSDIFFOPT_LeftFileIsTemporary |
+                                            __VSDIFFSERVICEOPTIONS.VSDIFFOPT_RightFileIsTemporary |
+                                            __VSDIFFSERVICEOPTIONS.VSDIFFOPT_DoNotShow);
+
+                WebViewUtilities.Log($"OpenDiffView: Calling OpenComparisonWindow2 for {activeDoc.Name}, grfDiffOptions: {grfDiffOptions}");
                 context.DiffFrame = diffService.OpenComparisonWindow2(
                     leftFileMoniker: context.TempCurrentFile,
                     rightFileMoniker: context.TempAiFile,
@@ -61,24 +69,29 @@ namespace Integrated_AI.Utilities
                     rightLabel: "AI-Generated Code",
                     inlineLabel: "",
                     roles: "",
-                    grfDiffOptions: 0); // Remove LeftFileIsTemporary
+                    grfDiffOptions: grfDiffOptions);
 
                 if (context.DiffFrame == null)
                 {
                     MessageBox.Show("Failed to create diff window.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    WebViewUtilities.Log("OpenDiffView: Failed to create diff window.");
                     return FileUtil.CleanUpTempFiles(context);
                 }
 
+                WebViewUtilities.Log($"OpenDiffView: Diff frame created, showing window for {activeDoc.Name}.");
                 ErrorHandler.ThrowOnFailure(context.DiffFrame.Show());
+                WebViewUtilities.Log($"OpenDiffView: Diff window shown successfully for {activeDoc.Name}.");
                 return context;
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error opening diff view: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                WebViewUtilities.Log($"OpenDiffView: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
                 return FileUtil.CleanUpTempFiles(context);
             }
         }
 
+        
         public static void ApplyChanges(DTE2 dte, string aiCode)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
@@ -137,10 +150,12 @@ namespace Integrated_AI.Utilities
                 try
                 {
                     ErrorHandler.ThrowOnFailure(context.DiffFrame.CloseFrame((uint)__FRAMECLOSE.FRAMECLOSE_NoSave));
+                    WebViewUtilities.Log("CloseDiffAndReset: Diff frame closed successfully.");
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"Error closing diff frame: {ex.Message}");
+                    WebViewUtilities.Log($"CloseDiffAndReset: Exception closing diff frame - {ex.Message}");
                 }
                 context.DiffFrame = null;
             }

@@ -125,6 +125,12 @@ namespace Integrated_AI
 
         private async void HandleClipboardChange()
         {
+            //Prevent a clipboard change from being processed while a diff view is open
+            if (_diffContext != null)
+            {
+                return;
+            }
+
             // Run on UI thread
             await Dispatcher.InvokeAsync(async () =>
             {
@@ -158,6 +164,12 @@ namespace Integrated_AI
         
         private void PasteButton_ClickLogic(string aiCode)
         {
+            if(_diffContext != null)
+            {
+                WebViewUtilities.Log("PasteButton_ClickLogic: Diff window already open or opening. Aborting.");
+                return;
+            }
+
             ThreadHelper.Generic.BeginInvoke(() =>
             {
                 if (_dte == null)

@@ -12,7 +12,13 @@
         <TextBox x:Name="ContextTextBox" Grid.Row="0" IsReadOnly="True" 
                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" 
                  Margin="10" AcceptsReturn="True" AcceptsTab="True" FontFamily="Consolas"/>
-        <Button Grid.Row="1" Content="Close" Click="CloseButton_Click" 
-                HorizontalAlignment="Right" Margin="10" Width="100"/>
+        <StackPanel Orientation="Horizontal" Grid.Row="1" HorizontalAlignment="Center">
+            <Button Content="Populate context" Click="PopulateButton_Click"
+                    HorizontalAlignment="Right" Margin="10" Width="100"/>
+            <Button Content="Clear all" Click="ClearButton_Click"
+                    HorizontalAlignment="Right" Margin="10" Width="100"/>
+            <Button Content="Close" Click="CloseButton_Click" 
+                    HorizontalAlignment="Right" Margin="10" Width="100"/>
+        </StackPanel>
     </Grid>
 </Window>
