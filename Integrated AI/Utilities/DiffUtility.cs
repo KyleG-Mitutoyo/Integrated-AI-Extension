@@ -20,6 +20,7 @@ namespace Integrated_AI.Utilities
             public string TempAiFile { get; set; }
             public string AICodeBlock { get; set; }
             public IVsWindowFrame DiffFrame { get; set; }
+            public Document ActiveDocument { get; set; }
         }
 
         public static DiffContext OpenDiffView(Document activeDoc, string currentCode, string aiCodeFullFileContents, string aiCode)
@@ -40,6 +41,7 @@ namespace Integrated_AI.Utilities
             };
 
             context.AICodeBlock = aiCode;
+            context.ActiveDocument = activeDoc;
 
             try
             {
@@ -165,12 +167,12 @@ namespace Integrated_AI.Utilities
             context.TempAiFile = null;
         }
 
-        public static string GetActiveDocumentText(DTE2 dte)
+        public static string GetActiveDocumentText(Document activeDoc)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            if (dte?.ActiveDocument == null) return string.Empty;
+            if (activeDoc == null) return string.Empty;
 
-            var textDoc = dte.ActiveDocument.Object("TextDocument") as TextDocument;
+            var textDoc = activeDoc.Object("TextDocument") as TextDocument;
             return textDoc?.StartPoint.CreateEditPoint().GetText(textDoc.EndPoint) ?? string.Empty;
         }
     }

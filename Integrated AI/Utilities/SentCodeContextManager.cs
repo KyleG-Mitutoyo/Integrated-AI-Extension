@@ -15,18 +15,34 @@ namespace Integrated_AI.Utilities
             public string Code { get; set; }
             public string Type { get; set; } // "snippet", "function", or "file"
             public string FilePath { get; set; }
-            public int StartLine { get; set; }
-            public int EndLine { get; set; }
+            public string FunctionFullName { get; set; }
             public int AgeCounter { get; set; }
         }
 
         private static List<SentCodeContext> _sentContexts = new List<SentCodeContext>();
         private const int MaxAgeCounter = 5;
 
-        public static void AddSentContext(SentCodeContext context)
+        //Adds new contexts if not a duplicate
+        public static bool AddSentContext(SentCodeContext context)
         {
+            // Check for duplicate context based on FilePath, Type, and normalized Code
+            string normalizedNewCode = StringUtil.NormalizeCode(context.Code);
+            var existingContext = _sentContexts.FirstOrDefault(c =>
+                c.FilePath == context.FilePath &&
+                c.Type == context.Type &&
+                StringUtil.NormalizeCode(c.Code) == normalizedNewCode);
+
+            if (existingContext != null)
+            {
+                // Duplicate found, reset its AgeCounter instead of adding new context
+                //Not sure if I want to reset the AgeCounter here, so commenting out for now
+                //existingContext.AgeCounter = 0;
+                return false; // Indicate that no new context was added
+            }
+
             context.AgeCounter = 0; // Initialize counter
             _sentContexts.Add(context);
+            return true; // Indicate that a new context was added
         }
 
         public static List<SentCodeContext> GetContextsForFile(string filePath)
@@ -34,10 +50,8 @@ namespace Integrated_AI.Utilities
             return _sentContexts.Where(c => c.FilePath == filePath).ToList();
         }
 
-        public static void UpdateContextData(SentCodeContext context, int newStartLine, int newEndLine, string code)
+        public static void UpdateContextData(SentCodeContext context, string code)
         {
-            context.StartLine = newStartLine;
-            context.EndLine = newEndLine;
             context.Code = code;
             context.AgeCounter = 0; // Reset counter when context is used
         }
@@ -88,7 +102,7 @@ namespace Integrated_AI.Utilities
             //Unused for now
             const double MINIMUM_SIMILARITY = 0.5; // Adjust based on testing
 
-            foreach (var context in contexts.OrderByDescending(c => c.StartLine))
+            foreach (var context in contexts)
             {
                 // Normalize context code
                 string normalizedContextCode = StringUtil.NormalizeCode(context.Code);
@@ -122,48 +136,45 @@ namespace Integrated_AI.Utilities
         }
 
         // Integrated AI/Utilities/ChatWindowUtilities.cs
-        public static string ReplaceCodeInDocument(string currentCode, SentCodeContext context, string aiCode, Document activeDoc)
+        public static string ReplaceCodeInDocument(DTE2 dte, string currentCode, SentCodeContext context, string aiCode, Document activeDoc)
         {
-            var lines = currentCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
-
-            if (context != null)
+            if (context == null)
             {
-                if (context.Type == "file")
-                {
-                    return aiCode; // Replace entire document for "file" type
-                }
+                return StringUtil.InsertAtCursorOrAppend(currentCode, aiCode, activeDoc);
+            }
 
-                if (context.StartLine > 0 && context.EndLine >= context.StartLine && context.EndLine <= lines.Count)
+            if (context.Type == "file")
+            {
+                return aiCode; // Replace entire document for "file" type
+            }
+
+
+            if (context.Type == "function")
+            {
+                // For C# functions, find the function by name
+                var functions = FunctionSelectionUtilities.GetFunctionsFromActiveDocument(dte);
+                var targetFunction = functions.FirstOrDefault(f => f.FullName == context.FunctionFullName);
+
+                if (targetFunction != null)
                 {
-                    // Replace code within the context's line range
-                    lines.RemoveRange(context.StartLine - 1, context.EndLine - context.StartLine + 1);
-                    lines.Insert(context.StartLine - 1, aiCode);
-                    return string.Join("\n", lines);
+                    // Find the function's current code in the document
+                    int startIndex = currentCode.IndexOf(targetFunction.FullCode, StringComparison.Ordinal);
+                    if (startIndex >= 0)
+                    {
+                        return StringUtil.ReplaceCodeBlock(currentCode, startIndex, targetFunction.FullCode.Length, aiCode);
+                    }
                 }
             }
 
-            // Fallback: Insert aiCode at cursor position
-            if (activeDoc != null)
+            // For "Selection" or unmatched functions, use content-based matching
+            int matchIndex = StringUtil.FindBestMatchStartLine(currentCode, context.Code);
+            if (matchIndex >= 0)
             {
-                var selection = (TextSelection)activeDoc.Selection;
-                int cursorLine = selection.ActivePoint.Line;
-
-                if (cursorLine > 0 && cursorLine <= lines.Count + 1)
-                {
-                    lines.Insert(cursorLine - 1, aiCode); // Insert at cursor line
-                }
-                else
-                {
-                    lines.Add(aiCode); // Append to end if cursor position is invalid
-                }
-            }
-            else
-            {
-                // If no DTE or active document, append to end as last resort
-                lines.Add(aiCode);
+                return StringUtil.ReplaceCodeBlock(currentCode, matchIndex, context.Code.Length, aiCode);
             }
 
-            return string.Join("\n", lines);
+            // Fallback: Insert at cursor position or append
+            return StringUtil.InsertAtCursorOrAppend(currentCode, aiCode, activeDoc);
         }
 
         public static string FormatContextList(List<SentCodeContext> contexts)
@@ -183,8 +194,6 @@ namespace Integrated_AI.Utilities
                 builder.AppendLine($"Context {i + 1}:");
                 builder.AppendLine($"  FilePath: {context.FilePath}");
                 builder.AppendLine($"  Type: {context.Type}");
-                builder.AppendLine($"  StartLine: {context.StartLine}");
-                builder.AppendLine($"  EndLine: {context.EndLine}");
                 builder.AppendLine($"  AgeCounter: {context.AgeCounter}");
                 builder.AppendLine($"  Code:");
                 builder.AppendLine($"  {new string('-', 30)}");

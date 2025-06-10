@@ -128,6 +128,7 @@ namespace Integrated_AI
             //Prevent a clipboard change from being processed while a diff view is open
             if (_diffContext != null)
             {
+                MessageBox.Show("Clipboard change ignored: Diff view is open. Please accept or decline the changes first.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -139,7 +140,7 @@ namespace Integrated_AI
                     // Check if WebView is focused and clipboard write was programmatic
                     if (!_isWebViewInFocus || !await WebViewUtilities.IsProgrammaticCopyAsync(ChatWebView))
                     {
-                        //MessageBox.Show("Clipboard change ignored: WebView not focused or not a programmatic copy.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        MessageBox.Show("Clipboard change ignored: WebView not focused or not a programmatic copy.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         return; // Ignore if not focused or not a programmatic copy (e.g., Ctrl+C)
                     }
 
@@ -197,11 +198,11 @@ namespace Integrated_AI
                     //Warning: No contexts found for the active document. Using null for the context.
                 }
 
-                string currentCode = DiffUtility.GetActiveDocumentText(_dte);
+                string currentCode = DiffUtility.GetActiveDocumentText(activeDocument);
                 string modifiedCode = currentCode;
 
                 var context = SentCodeContextManager.FindMatchingContext(contexts, aiCode);
-                modifiedCode = SentCodeContextManager.ReplaceCodeInDocument(modifiedCode, context, aiCode, activeDocument);
+                modifiedCode = SentCodeContextManager.ReplaceCodeInDocument(_dte, modifiedCode, context, aiCode, activeDocument);
 
                 _diffContext = DiffUtility.OpenDiffView(activeDocument, currentCode, modifiedCode, aiCode);
 
@@ -325,23 +326,18 @@ namespace Integrated_AI
             }
 
             // Update context and apply changes
+            //Make sure to use the ActiveDocument from the diffcontext rather than the current active document!
             if (aiCodeFullFile != null && _dte != null)
             {
-                var activeDocument = _dte.ActiveDocument;
-                if (activeDocument != null)
+                if (contextToClose.ActiveDocument != null)
                 {
-                    var contexts = SentCodeContextManager.GetContextsForFile(activeDocument.FullName);
+                    var contexts = SentCodeContextManager.GetContextsForFile(contextToClose.ActiveDocument.FullName);
                     var context = SentCodeContextManager.FindMatchingContext(contexts, contextToClose.AICodeBlock);
                     if (context != null)
                     {
-                        // Calculate new line numbers based on the single code block
-                        int newStartLine = context.StartLine;
-                        int lineCount = contextToClose.AICodeBlock.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).Length;
-                        int newEndLine = newStartLine + lineCount - 1;
-
-                        SentCodeContextManager.UpdateContextData(context, newStartLine, newEndLine, contextToClose.AICodeBlock);
-                        SentCodeContextManager.IncrementContextAges(activeDocument.FullName, context);
-                        WebViewUtilities.Log($"Updated context: Type={context.Type}, File={context.FilePath}, Lines={newStartLine}-{newEndLine}, AgeCounter={context.AgeCounter}");
+                        SentCodeContextManager.UpdateContextData(context, contextToClose.AICodeBlock);
+                        SentCodeContextManager.IncrementContextAges(contextToClose.ActiveDocument.FullName, context);
+                        WebViewUtilities.Log($"Updated context: Type={context.Type}, File={context.FilePath}, AgeCounter={context.AgeCounter}");
                     }
                     else
                     {
@@ -357,7 +353,24 @@ namespace Integrated_AI
 
         private void ChooseButton_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Coming soon, be patient!");
+            //First close the existing diff view to make a new one
+            DiffUtility.CloseDiffAndReset(_diffContext);
+
+            string currentCode = DiffUtility.GetActiveDocumentText(_diffContext.ActiveDocument);
+            string modifiedCode = currentCode;
+
+            //Choose a new context or existing/new function or new file manually
+            SentCodeContextManager.SentCodeContext context = null;
+            //We can use diffcontext existing items since it still exists for now
+            modifiedCode = SentCodeContextManager.ReplaceCodeInDocument(_dte, modifiedCode, context, _diffContext.AICodeBlock, _diffContext.ActiveDocument);
+
+            _diffContext = DiffUtility.OpenDiffView(_diffContext.ActiveDocument, currentCode, modifiedCode, _diffContext.AICodeBlock);
+
+            //If opening the diff view had a problem, reset the buttons.
+            if (_diffContext == null)
+            {
+                UpdateDiffButtons(false);
+            }
         }
 
         private void DeclineButton_Click(object sender, RoutedEventArgs e)
@@ -398,18 +411,29 @@ namespace Integrated_AI
         // Integrated AI/ChatWindow.xaml.cs
         private void DebugButton_Click(object sender, RoutedEventArgs e)
         {
-            ThreadHelper.Generic.BeginInvoke(() =>
-            {
-                // Get all contexts (not just for the active document)
-                var allContexts = SentCodeContextManager.GetAllSentContexts(); // New method needed
-                var contextText = SentCodeContextManager.FormatContextList(allContexts);
+            //For future reference
+            //if (!(bool)AutoDiffToggle.IsChecked)
+            //{
+            //    MessageBox.Show("AutoDiff is true.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                
+            //}
+            //else
+            //{
+            //    MessageBox.Show("AutoDiff is false.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+            //}
 
-                var debugWindow = new DebugContextWindow(contextText)
+            ThreadHelper.Generic.BeginInvoke(() =>
                 {
-                    //Owner = this // Center relative to ChatWindow
-                };
-                debugWindow.ShowDialog();
-            });
+                    // Get all contexts (not just for the active document)
+                    var allContexts = SentCodeContextManager.GetAllSentContexts(); // New method needed
+                    var contextText = SentCodeContextManager.FormatContextList(allContexts);
+
+                    var debugWindow = new DebugContextWindow(contextText)
+                    {
+                        //Owner = this // Center relative to ChatWindow
+                    };
+                    debugWindow.ShowDialog();
+                });
         }
 
         private void RestoreButton_Click(object sender, RoutedEventArgs e)

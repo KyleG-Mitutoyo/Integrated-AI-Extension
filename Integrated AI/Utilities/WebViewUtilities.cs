@@ -167,11 +167,10 @@ namespace Integrated_AI
             string filePath = dte.ActiveDocument.FullName;
             string relativePath = FileUtil.GetRelativePath(solutionPath, filePath);
 
+            string functionFullName = null;
             string textToInject = null;
             string sourceDescription = "";
             string type = "";
-            int startLine = 1;
-            int endLine = 1;
 
             if (option == "Code -> AI")
             {
@@ -183,13 +182,11 @@ namespace Integrated_AI
                 }
                 textToInject = textSelection.Text;
                 type = "snippet";
-                startLine = textSelection.TopPoint.Line;
-                endLine = textSelection.BottomPoint.Line;
                 sourceDescription = $"---{relativePath} (partial code block)---\n{textToInject}\n---End code---\n\n";
             }
             else if (option == "File -> AI")
             {
-                var text = DiffUtility.GetActiveDocumentText(dte);
+                var text = DiffUtility.GetActiveDocumentText(dte.ActiveDocument);
                 if (string.IsNullOrEmpty(text))
                 {
                     MessageBox.Show("The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -204,7 +201,6 @@ namespace Integrated_AI
                 textToInject = text;
                 type = "file";
                 var textDoc = dte.ActiveDocument.Object("TextDocument") as TextDocument;
-                endLine = textDoc?.EndPoint.Line ?? 1;
                 sourceDescription = $"---{relativePath} (whole file contents)---\n{textToInject}\n---End code---\n\n";
             }
             else if (option == "Function -> AI")
@@ -222,9 +218,8 @@ namespace Integrated_AI
                 {
                     textToInject = functionSelectionWindow.SelectedFunction.FullCode;
                     type = "function";
-                    startLine = functionSelectionWindow.SelectedFunction.StartLine;
-                    endLine = functionSelectionWindow.SelectedFunction.EndLine;
-                    sourceDescription = $"---{relativePath} (function: {functionSelectionWindow.SelectedFunction.DisplayName})---\n{textToInject}\n---End code---\n\n";
+                    functionFullName = functionSelectionWindow.SelectedFunction.FullName;
+                    sourceDescription = $"---{relativePath} (function: {functionFullName})---\n{textToInject}\n---End code---\n\n";
                 }
                 else
                 {
@@ -239,8 +234,7 @@ namespace Integrated_AI
                     Code = textToInject,
                     Type = type,
                     FilePath = filePath,
-                    StartLine = startLine,
-                    EndLine = endLine,
+                    FunctionFullName = functionFullName,
                     AgeCounter = 0
                 };
                 SentCodeContextManager.AddSentContext(context);
