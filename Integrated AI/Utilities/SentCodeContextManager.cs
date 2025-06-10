@@ -50,11 +50,35 @@ namespace Integrated_AI.Utilities
             return _sentContexts.Where(c => c.FilePath == filePath).ToList();
         }
 
-        public static void UpdateContextData(SentCodeContext context, string code)
+public static void UpdateContextData(SentCodeContext context, string code)
+{
+    // Update function name if the type is a function
+    if (context.Type == "function" && !string.IsNullOrEmpty(context.FunctionFullName))
+    {
+        //FullName includes namespace and class, so we only need to change the function name part at the end
+        // Extract the basic function name from the AI response
+        string newFunctionName = StringUtil.ExtractFunctionName(code);
+        if (!string.IsNullOrEmpty(newFunctionName))
         {
-            context.Code = code;
-            context.AgeCounter = 0; // Reset counter when context is used
+            // Split the existing FunctionFullName to preserve namespace and class
+            string[] parts = context.FunctionFullName.Split('.');
+            if (parts.Length > 1)
+            {
+                // Replace the last part (function name) with the new name, keeping namespace/class
+                parts[parts.Length - 1] = newFunctionName;
+                context.FunctionFullName = string.Join(".", parts);
+            }
+            else
+            {
+                // Fallback: if no namespace/class, just use the new name
+                context.FunctionFullName = newFunctionName;
+            }
         }
+    }
+
+    context.Code = code;
+    context.AgeCounter = 0; // Reset counter when context is used
+}
 
         //Incrememnts the age counter for all contexts in the specified file, except the context that was used
         public static void IncrementContextAges(string filePath, SentCodeContext usedContext)
@@ -148,7 +172,6 @@ namespace Integrated_AI.Utilities
                 return aiCode; // Replace entire document for "file" type
             }
 
-
             if (context.Type == "function")
             {
                 // For C# functions, find the function by name
@@ -166,14 +189,20 @@ namespace Integrated_AI.Utilities
                 }
             }
 
-            // For "Selection" or unmatched functions, use content-based matching
-            int matchIndex = StringUtil.FindBestMatchStartLine(currentCode, context.Code);
-            if (matchIndex >= 0)
+            // For "Selection" or unmatched functions, check for highlighted text
+            var selection = activeDoc.Selection as TextSelection;
+            if (selection != null)
             {
-                return StringUtil.ReplaceCodeBlock(currentCode, matchIndex, context.Code.Length, aiCode);
+                if (!selection.IsEmpty) // Check if text is highlighted
+                {
+                    // Get the start and end points of the selection
+                    int startIndex = selection.TopPoint.AbsoluteCharOffset;
+                    int length = selection.BottomPoint.AbsoluteCharOffset - startIndex;
+                    return StringUtil.ReplaceCodeBlock(currentCode, startIndex, length, aiCode);
+                }
             }
 
-            // Fallback: Insert at cursor position or append
+            // Fallback: Insert at cursor position or append if selection was empty or other errors
             return StringUtil.InsertAtCursorOrAppend(currentCode, aiCode, activeDoc);
         }
 
@@ -194,6 +223,7 @@ namespace Integrated_AI.Utilities
                 builder.AppendLine($"Context {i + 1}:");
                 builder.AppendLine($"  FilePath: {context.FilePath}");
                 builder.AppendLine($"  Type: {context.Type}");
+                builder.AppendLine($"  FunctionFullName: {context.FunctionFullName ?? "N/A"}");
                 builder.AppendLine($"  AgeCounter: {context.AgeCounter}");
                 builder.AppendLine($"  Code:");
                 builder.AppendLine($"  {new string('-', 30)}");

@@ -359,6 +359,14 @@ namespace Integrated_AI
             string currentCode = DiffUtility.GetActiveDocumentText(_diffContext.ActiveDocument);
             string modifiedCode = currentCode;
 
+            //null currentCode must mean the button was clicked without an active document
+            if (currentCode == null)
+            {
+                UpdateDiffButtons(false);
+                MessageBox.Show("No active document or unable to retrieve current code.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             //Choose a new context or existing/new function or new file manually
             SentCodeContextManager.SentCodeContext context = null;
             //We can use diffcontext existing items since it still exists for now

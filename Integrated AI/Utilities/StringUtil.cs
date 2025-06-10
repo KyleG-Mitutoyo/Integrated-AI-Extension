@@ -132,25 +132,31 @@ namespace Integrated_AI.Utilities
             return 1.0 - (double)matrix[source.Length, target.Length] / maxLength;
         }
 
-        public static string ExtractFunctionFullName(string aiResponse)
+        public static string ExtractFunctionName(string aiResponse)
         {
-            // Parse function full name from AI response (adjust based on AI format)
-            // Example: Extract from method signature line
+            // Parse function name from AI response, expecting format like "static void functionname"
             var lines = aiResponse.Split('\n');
             foreach (var line in lines)
             {
-                if (line.Contains("(") && !line.StartsWith("//"))
+                // Ignore comments and empty lines
+                if (!string.IsNullOrWhiteSpace(line) && !line.StartsWith("//"))
                 {
-                    // Assume AI preserves enough of the signature to match FullName
-                    // This is approximate; refine based on your AI's output
-                    int start = line.IndexOf(' ') + 1;
-                    int end = line.IndexOf('(');
-                    if (start > 0 && end > start)
+                    // Split the line by whitespace to handle modifiers like "static void"
+                    string[] parts = line.Trim().Split(' ');
+                    foreach (string part in parts)
                     {
-                        string methodName = line.Substring(start, end - start).Trim();
-                        // FullName includes namespace/class, so we need context
-                        // Simplistic approach: return method name and rely on context matching
-                        return methodName;
+                        // Look for the part before any parameters, e.g., "functionname" in "functionname(int"
+                        int end = part.IndexOf('(');
+                        string candidate = end > 0 ? part.Substring(0, end).Trim() : part.Trim();
+                        if (!string.IsNullOrEmpty(candidate) && 
+                            !candidate.Equals("static", StringComparison.OrdinalIgnoreCase) && 
+                            !candidate.Equals("void", StringComparison.OrdinalIgnoreCase) && 
+                            !candidate.Equals("public", StringComparison.OrdinalIgnoreCase) && 
+                            !candidate.Equals("private", StringComparison.OrdinalIgnoreCase) && 
+                            !candidate.Equals("protected", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return candidate;
+                        }
                     }
                 }
             }
@@ -183,129 +189,6 @@ namespace Integrated_AI.Utilities
 
             return string.Join("\n", lines);
         }
-
-        // Integrated AI/Utilities/StringUtil.cs
-        public static int FindBestMatchStartLine(string documentContent, string targetContent)
-        {
-            // Log inputs for debugging
-            WebViewUtilities.Log($"FindBestMatchStartLine called. Document length: {documentContent?.Length}, Target length: {targetContent?.Length}");
-
-            if (string.IsNullOrEmpty(documentContent) || string.IsNullOrEmpty(targetContent))
-            {
-                WebViewUtilities.Log("Returning -1 due to null or empty input.");
-                return -1;
-            }
-
-            // Normalize inputs to reduce noise (e.g., whitespace differences)
-            string normalizedDocument = NormalizeCode(documentContent);
-            string normalizedTarget = NormalizeCode(targetContent);
-
-            // Log first 100 chars to diagnose exact match issues
-            WebViewUtilities.Log($"Document (first 100): {documentContent.Substring(0, Math.Min(100, documentContent.Length))}");
-            WebViewUtilities.Log($"Target (first 100): {targetContent.Substring(0, Math.Min(100, targetContent.Length))}");
-
-            // Check for exact match on normalized strings
-            int exactIndex = normalizedDocument.IndexOf(normalizedTarget, StringComparison.OrdinalIgnoreCase);
-            if (exactIndex >= 0)
-            {
-                WebViewUtilities.Log($"Exact match found at index: {exactIndex}");
-                return exactIndex;
-            }
-            WebViewUtilities.Log("No exact match found. Proceeding to line-based comparison.");
-
-            // Split document and target into lines
-            var documentLines = documentContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            var targetLines = targetContent.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            int targetLineCount = targetLines.Length;
-            if (targetLineCount == 0 || documentLines.Length < targetLineCount)
-            {
-                WebViewUtilities.Log($"Invalid line counts. Doc lines: {documentLines.Length}, Target lines: {targetLineCount}. Returning -1.");
-                return -1;
-            }
-
-            // Cache line offsets, accounting for actual line endings
-            int[] lineOffsets = new int[documentLines.Length];
-            int offset = 0;
-            for (int j = 0; j < documentLines.Length; j++)
-            {
-                lineOffsets[j] = offset;
-                offset += documentLines[j].Length + (j < documentLines.Length - 1 ? Environment.NewLine.Length : 0);
-            }
-
-            int bestIndex = -1;
-            double bestSimilarity = 0.7; // Minimum similarity threshold
-            int maxIterations = Math.Min(1000, documentLines.Length - targetLineCount + 1); // Cap iterations
-
-            WebViewUtilities.Log($"Starting line-based comparison. Document lines: {documentLines.Length}, Target lines: {targetLineCount}, Max iterations: {maxIterations}");
-
-            // Iterate through each line as the starting point
-            for (int i = 0; i < maxIterations; i++)
-            {
-                // Build a window of text with exactly the same number of lines as target
-                string[] windowLines = documentLines.Skip(i).Take(targetLineCount).ToArray();
-                if (windowLines.Length < targetLineCount)
-                    continue;
-                string window = string.Join(Environment.NewLine, windowLines);
-
-                // Check for exact line match
-                bool exactLineMatch = true;
-                for (int j = 0; j < targetLineCount; j++)
-                {
-                    if (windowLines[j].Trim() != targetLines[j].Trim())
-                    {
-                        exactLineMatch = false;
-                        break;
-                    }
-                }
-                if (exactLineMatch)
-                {
-                    WebViewUtilities.Log($"Exact line match at line {i}, index {lineOffsets[i]}");
-                    return lineOffsets[i];
-                }
-
-                // Calculate similarity only for the exact line count
-                double similarity = CalculateFastSimilarity(window, targetContent);
-                if (i % 100 == 0) // Log periodically to avoid flooding
-                {
-                    WebViewUtilities.Log($"Line {i}, Similarity: {similarity}, Best index so far: {bestIndex}, Best similarity: {bestSimilarity}");
-                }
-                if (similarity > bestSimilarity)
-                {
-                    bestSimilarity = similarity;
-                    bestIndex = lineOffsets[i];
-                    WebViewUtilities.Log($"New best match at line {i}, index {bestIndex}, similarity {similarity}");
-                }
-                // Early exit for near-perfect match
-                if (similarity > 0.95)
-                {
-                    WebViewUtilities.Log($"Early exit due to high similarity ({similarity}) at line {i}");
-                    break;
-                }
-            }
-
-            if (bestIndex == -1)
-            {
-                WebViewUtilities.Log("No suitable match found. Returning -1.");
-            }
-            else
-            {
-                WebViewUtilities.Log($"Line-based comparison complete. Best index: {bestIndex}, Best similarity: {bestSimilarity}");
-            }
-            return bestIndex;
-        }
-
-        // Helper method to detect actual line ending
-        private static string GetLineEnding(string content, int position)
-        {
-            if (position + 1 < content.Length && content[position] == '\r' && content[position + 1] == '\n')
-                return "\r\n";
-            if (position < content.Length && content[position] == '\n')
-                return "\n";
-            if (position < content.Length && content[position] == '\r')
-                return "\r";
-            return "";
-        }
-
 
         public static string ReplaceCodeBlock(string documentContent, int startIndex, int length, string newCode)
         {
