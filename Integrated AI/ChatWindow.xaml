@@ -38,7 +38,7 @@
                     </StackPanel>
                 </hc:SplitButton.DropDownContent>
             </hc:SplitButton>
-            <hc:SplitButton x:Name="ErrortoAISplitButton" 
+            <hc:SplitButton x:Name="ErrorToAISplitButton" 
                             Margin="5" 
                             Content="Error -> AI" 
                             Click="ErrorToAISplitButton_Click" 
@@ -63,7 +63,7 @@
                     </Border>
                 </hc:StatusSwitchElement.CheckedElement>
                 <Border Background="{DynamicResource PrimaryBrush}">
-                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="Auto" Foreground="{DynamicResource TextIconBrush}"/>
+                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="Auto" FontSize="10" Foreground="{DynamicResource TextIconBrush}"/>
                 </Border>
             </ToggleButton>
             <Button Click="DebugButton_Click" BorderThickness="0" BorderBrush="{StaticResource BorderBrush}" hc:BorderElement.CornerRadius="15" Width="10" Height="10" hc:IconElement.Geometry="{StaticResource InfoGeometry}" Margin="5" Padding="0" Visibility="Visible"/>

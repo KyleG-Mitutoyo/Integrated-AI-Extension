@@ -198,7 +198,7 @@ namespace Integrated_AI
                     //Warning: No contexts found for the active document. Using null for the context.
                 }
 
-                string currentCode = DiffUtility.GetActiveDocumentText(activeDocument);
+                string currentCode = DiffUtility.GetDocumentText(activeDocument);
                 string modifiedCode = currentCode;
 
                 var context = SentCodeContextManager.FindMatchingContext(contexts, aiCode);
@@ -212,7 +212,7 @@ namespace Integrated_AI
                     return;
                 }
 
-                UpdateDiffButtons(true);
+                UpdateButtonsForDiffView(true);
             });
         }
 
@@ -348,7 +348,7 @@ namespace Integrated_AI
                 }
             }
 
-            UpdateDiffButtons(false);
+            UpdateButtonsForDiffView(false);
         }
 
         private void ChooseButton_Click(object sender, RoutedEventArgs e)
@@ -356,28 +356,36 @@ namespace Integrated_AI
             //First close the existing diff view to make a new one
             DiffUtility.CloseDiffAndReset(_diffContext);
 
-            string currentCode = DiffUtility.GetActiveDocumentText(_diffContext.ActiveDocument);
+            string currentCode = DiffUtility.GetDocumentText(_diffContext.ActiveDocument);
             string modifiedCode = currentCode;
 
             //null currentCode must mean the button was clicked without an active document
             if (currentCode == null)
             {
-                UpdateDiffButtons(false);
+                UpdateButtonsForDiffView(false);
                 MessageBox.Show("No active document or unable to retrieve current code.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            //Choose a new context or existing/new function or new file manually
-            SentCodeContextManager.SentCodeContext context = null;
+            //Choose an existing/new function or existing/new file manually
+            // Shows the code replacement window and returns the selected item
+            var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, _diffContext.ActiveDocument);
+            //Need to make a new context with data from the selected item so it works in ReplaceCodeInDocument
+            SentCodeContextManager.SentCodeContext context = new SentCodeContextManager.SentCodeContext
+            {
+                FunctionFullName = selectedItem.FullName,
+                Code = selectedItem.FullCode,
+                Type = selectedItem.Type
+            };
+
             //We can use diffcontext existing items since it still exists for now
             modifiedCode = SentCodeContextManager.ReplaceCodeInDocument(_dte, modifiedCode, context, _diffContext.AICodeBlock, _diffContext.ActiveDocument);
-
             _diffContext = DiffUtility.OpenDiffView(_diffContext.ActiveDocument, currentCode, modifiedCode, _diffContext.AICodeBlock);
 
             //If opening the diff view had a problem, reset the buttons.
             if (_diffContext == null)
             {
-                UpdateDiffButtons(false);
+                UpdateButtonsForDiffView(false);
             }
         }
 
@@ -389,7 +397,7 @@ namespace Integrated_AI
                 _diffContext = null;
             }
 
-            UpdateDiffButtons(false);
+            UpdateButtonsForDiffView(false);
         }
 
         private void ErrorToAISplitButton_Click(object sender, RoutedEventArgs e)
@@ -397,10 +405,12 @@ namespace Integrated_AI
             // Placeholder for future implementation
         }
 
-        private void UpdateDiffButtons(bool showDiffButons)
+        private void UpdateButtonsForDiffView(bool showDiffButons)
         {
             if (showDiffButons)
             {
+                VSToAISplitButton.Visibility = Visibility.Collapsed;
+                ErrorToAISplitButton.Visibility = Visibility.Collapsed;
                 PasteButton.Visibility = Visibility.Collapsed;
                 AcceptButton.Visibility = Visibility.Visible;
                 ChooseButton.Visibility = Visibility.Visible;
@@ -409,6 +419,8 @@ namespace Integrated_AI
 
             else
             {
+                VSToAISplitButton.Visibility = Visibility.Visible;
+                ErrorToAISplitButton.Visibility = Visibility.Visible;
                 PasteButton.Visibility = Visibility.Visible;
                 AcceptButton.Visibility = Visibility.Collapsed;
                 ChooseButton.Visibility = Visibility.Collapsed;

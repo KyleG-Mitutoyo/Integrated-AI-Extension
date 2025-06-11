@@ -50,35 +50,35 @@ namespace Integrated_AI.Utilities
             return _sentContexts.Where(c => c.FilePath == filePath).ToList();
         }
 
-public static void UpdateContextData(SentCodeContext context, string code)
-{
-    // Update function name if the type is a function
-    if (context.Type == "function" && !string.IsNullOrEmpty(context.FunctionFullName))
-    {
-        //FullName includes namespace and class, so we only need to change the function name part at the end
-        // Extract the basic function name from the AI response
-        string newFunctionName = StringUtil.ExtractFunctionName(code);
-        if (!string.IsNullOrEmpty(newFunctionName))
+        public static void UpdateContextData(SentCodeContext context, string code)
         {
-            // Split the existing FunctionFullName to preserve namespace and class
-            string[] parts = context.FunctionFullName.Split('.');
-            if (parts.Length > 1)
+            // Update function name if the type is a function
+            if (context.Type == "function" && !string.IsNullOrEmpty(context.FunctionFullName))
             {
-                // Replace the last part (function name) with the new name, keeping namespace/class
-                parts[parts.Length - 1] = newFunctionName;
-                context.FunctionFullName = string.Join(".", parts);
+                //FullName includes namespace and class, so we only need to change the function name part at the end
+                // Extract the basic function name from the AI response
+                string newFunctionName = StringUtil.ExtractFunctionName(code);
+                if (!string.IsNullOrEmpty(newFunctionName))
+                {
+                    // Split the existing FunctionFullName to preserve namespace and class
+                    string[] parts = context.FunctionFullName.Split('.');
+                    if (parts.Length > 1)
+                    {
+                        // Replace the last part (function name) with the new name, keeping namespace/class
+                        parts[parts.Length - 1] = newFunctionName;
+                        context.FunctionFullName = string.Join(".", parts);
+                    }
+                    else
+                    {
+                        // Fallback: if no namespace/class, just use the new name
+                        context.FunctionFullName = newFunctionName;
+                    }
+                }
             }
-            else
-            {
-                // Fallback: if no namespace/class, just use the new name
-                context.FunctionFullName = newFunctionName;
-            }
-        }
-    }
 
-    context.Code = code;
-    context.AgeCounter = 0; // Reset counter when context is used
-}
+            context.Code = code;
+            context.AgeCounter = 0; // Reset counter when context is used
+        }
 
         //Incrememnts the age counter for all contexts in the specified file, except the context that was used
         public static void IncrementContextAges(string filePath, SentCodeContext usedContext)
@@ -175,7 +175,7 @@ public static void UpdateContextData(SentCodeContext context, string code)
             if (context.Type == "function")
             {
                 // For C# functions, find the function by name
-                var functions = FunctionSelectionUtilities.GetFunctionsFromActiveDocument(dte);
+                var functions = CodeSelectionUtilities.GetFunctionsFromDocument(activeDoc);
                 var targetFunction = functions.FirstOrDefault(f => f.FullName == context.FunctionFullName);
 
                 if (targetFunction != null)

@@ -167,7 +167,7 @@ namespace Integrated_AI.Utilities
             context.TempAiFile = null;
         }
 
-        public static string GetActiveDocumentText(Document activeDoc)
+        public static string GetDocumentText(Document activeDoc)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             if (activeDoc == null) return string.Empty;

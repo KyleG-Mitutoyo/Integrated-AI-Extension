@@ -1,3 +1,5 @@
+Please update the project structure file or create one if it doesn't exist. If it doesn't exist, here is an example for the formatting:
+
 # Project Structure
 
 ## Root Directory
@@ -19,8 +21,6 @@
 - `Integrated AI.csproj`
 - `Key.snk`
 - `source.extension.vsixmanifest`
-- `ChooseCodeWindow.xaml`
-- `ChooseCodeWindow.xaml.cs`
 - `VSPackage.resx`
 
 ### Integrated AI/bin/
@@ -45,7 +45,7 @@
 ### Integrated AI/Utilities/
 - `DiffUtility.cs`
 - `FileUtil.cs`
-- `CodeSelectionUtilities.cs`
+- `FunctionSelectionUtilities.cs`
 - `SentCodeContextManager.cs`
 - `StringUtil.cs`
 - `WebViewUtilities.cs`

@@ -186,7 +186,7 @@ namespace Integrated_AI
             }
             else if (option == "File -> AI")
             {
-                var text = DiffUtility.GetActiveDocumentText(dte.ActiveDocument);
+                var text = DiffUtility.GetDocumentText(dte.ActiveDocument);
                 if (string.IsNullOrEmpty(text))
                 {
                     MessageBox.Show("The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -205,7 +205,7 @@ namespace Integrated_AI
             }
             else if (option == "Function -> AI")
             {
-                var functions = FunctionSelectionUtilities.GetFunctionsFromActiveDocument(dte);
+                var functions = CodeSelectionUtilities.GetFunctionsFromDocument(dte.ActiveDocument);
                 if (!functions.Any())
                 {
                     MessageBox.Show("No functions found in the active document.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);

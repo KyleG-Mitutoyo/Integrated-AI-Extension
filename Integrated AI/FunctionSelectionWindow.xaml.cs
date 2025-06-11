@@ -32,7 +32,7 @@ namespace Integrated_AI
                 var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
                 _recentFunctionsFilePath = recentFunctionsFilePath;
                 _recentFunctions = FileUtil.LoadRecentFunctions(recentFunctionsFilePath);
-                FunctionListBox.ItemsSource = FunctionSelectionUtilities.PopulateFunctionList(functions, _recentFunctions, openedFile);
+                FunctionListBox.ItemsSource = CodeSelectionUtilities.PopulateFunctionList(functions, _recentFunctions, openedFile);
             }
 
             private void SelectButton_Click(object sender, RoutedEventArgs e)
