@@ -12,12 +12,14 @@
 - `AIChatCommandPackage.vsct`
 - `ChatWindow.xaml`
 - `ChatWindow.xaml.cs`
-- `DebugContextWindow.xaml`
-- `DebugContextWindow.xaml.cs`
+- `DebugWindow.xaml`
+- `DebugWindow.xaml.cs`
 - `FunctionSelectionWindow.xaml`
 - `FunctionSelectionWindow.xaml.cs`
 - `Integrated AI.csproj`
 - `Key.snk`
+- `RestoreSelectionWindow.xaml`
+- `RestoreSelectionWindow.xaml.cs`
 - `source.extension.vsixmanifest`
 - `ChooseCodeWindow.xaml`
 - `ChooseCodeWindow.xaml.cs`
@@ -45,7 +47,7 @@
 ### Integrated AI/Utilities/
 - `DiffUtility.cs`
 - `FileUtil.cs`
+- `BackupUtilities.cs`
 - `CodeSelectionUtilities.cs`
-- `SentCodeContextManager.cs`
 - `StringUtil.cs`
 - `WebViewUtilities.cs`

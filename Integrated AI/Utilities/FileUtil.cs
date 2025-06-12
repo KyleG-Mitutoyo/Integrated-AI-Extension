@@ -17,6 +17,7 @@ namespace Integrated_AI.Utilities
     {
         //Used with LoadScript to prevent repeated file reads for the same script
         private static readonly Dictionary<string, string> _scriptCache = new Dictionary<string, string>();
+        public static string _recentFunctionsFilePath = null;
 
         public static List<string> LoadRecentFunctions(string recentFunctionsFilePath)
         {
@@ -143,7 +144,7 @@ namespace Integrated_AI.Utilities
                 return string.Empty;
             }
         }
-        //t
+        
         public static string LoadScript(string scriptName)
         {
             if (_scriptCache.TryGetValue(scriptName, out string cachedScript))

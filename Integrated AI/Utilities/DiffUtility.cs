@@ -94,10 +94,10 @@ namespace Integrated_AI.Utilities
         }
 
         
-        public static void ApplyChanges(DTE2 dte, string aiCode)
+        public static void ApplyChanges(DTE2 dte, Document activeDoc, string aiCode)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            if (dte == null || dte.ActiveDocument == null)
+            if (dte == null || activeDoc == null)
             {
                 MessageBox.Show("No active document or DTE unavailable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 WebViewUtilities.Log("ApplyChanges: DTE or active document is null.");
@@ -111,7 +111,6 @@ namespace Integrated_AI.Utilities
                 return;
             }
 
-            var activeDoc = dte.ActiveDocument;
             var textDoc = activeDoc.Object("TextDocument") as TextDocument;
             if (textDoc == null)
             {

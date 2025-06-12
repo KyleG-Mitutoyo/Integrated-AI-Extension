@@ -37,7 +37,9 @@ namespace Integrated_AI
             new UrlOption { DisplayName = "ChatGPT", Url = "https://chatgpt.com" }
         };
 
-        private readonly string _userDataFolder;
+        private readonly string _webViewDataFolder;
+        private readonly string _appDataFolder;
+        private readonly string _backupsFolder;
         private string _selectedOption = "Method -> AI";
         private bool _executeCommandOnClick = true;
         private readonly DTE2 _dte;
@@ -69,14 +71,25 @@ namespace Integrated_AI
             _isWebViewInFocus = false;
             _isClipboardListenerRegistered = false;
 
-            _userDataFolder = Path.Combine(
+            // Define base folder for the extension
+            var baseFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "AIChatExtension",
                 Environment.UserName);
-            Directory.CreateDirectory(_userDataFolder);
+            Directory.CreateDirectory(baseFolder);
+
+            // Define separate folders for WebView2, app data, and backups
+            _webViewDataFolder = Path.Combine(baseFolder, "WebViewData");
+            _appDataFolder = Path.Combine(baseFolder, "AppData");
+            _backupsFolder = Path.Combine(baseFolder, "Backups");
+            Directory.CreateDirectory(_webViewDataFolder);
+            Directory.CreateDirectory(_appDataFolder);
+            Directory.CreateDirectory(_backupsFolder);
+
+            FileUtil._recentFunctionsFilePath = Path.Combine(_appDataFolder, "recent_functions.txt");
 
             // Initialize WebView2
-            WebViewUtilities.InitializeWebView2Async(ChatWebView, _userDataFolder, _urlOptions, UrlSelector);
+            WebViewUtilities.InitializeWebView2Async(ChatWebView, _webViewDataFolder, _urlOptions, UrlSelector);
 
             // Register for window messages when the control is loaded
             Loaded += ChatWindow_Loaded;
@@ -289,7 +302,7 @@ namespace Integrated_AI
         {
             if (_executeCommandOnClick)
             {
-                await WebViewUtilities.ExecuteCommandAsync(_selectedOption, _dte, ChatWebView, _userDataFolder);
+                await WebViewUtilities.ExecuteCommandAsync(_selectedOption, _dte, ChatWebView, _webViewDataFolder);
             }
             _executeCommandOnClick = true;
         }
@@ -316,7 +329,7 @@ namespace Integrated_AI
             {
                 _selectedOption = option;
                 VSToAISplitButton.Content = option;
-                await WebViewUtilities.ExecuteCommandAsync(option, _dte, ChatWebView, _userDataFolder);
+                await WebViewUtilities.ExecuteCommandAsync(option, _dte, ChatWebView, _webViewDataFolder);
             }
         }
 
@@ -366,16 +379,16 @@ namespace Integrated_AI
                 _diffContext = null;
             }
 
-            // Update context and apply changes
             //Make sure to use the ActiveDocument from the diffcontext rather than the current active document!
             if (aiCodeFullFile != null && _dte != null)
             {
                 if (contextToClose.ActiveDocument != null)
                 {
-                    DiffUtility.ApplyChanges(_dte, aiCodeFullFile);
+                    DiffUtility.ApplyChanges(_dte, contextToClose.ActiveDocument, aiCodeFullFile);
                 }
             }
 
+            BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder);
             UpdateButtonsForDiffView(false);
             _lastClipboardText = null;
         }
@@ -468,7 +481,16 @@ namespace Integrated_AI
 
         private void RestoreButton_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Coming soon!");
+            var restoreWindow = new RestoreSelectionWindow(_backupsFolder);
+            bool? result = restoreWindow.ShowDialog();
+            if (result == true && restoreWindow.SelectedBackup != null)
+            {
+                string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
+                if (BackupUtilities.RestoreSolution(_dte, restoreWindow.SelectedBackup.FolderPath, solutionDir))
+                {
+                    System.Windows.MessageBox.Show("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                }
+            }
         }
     }
 }

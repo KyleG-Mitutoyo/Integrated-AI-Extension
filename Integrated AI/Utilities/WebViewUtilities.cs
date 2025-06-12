@@ -38,8 +38,6 @@ namespace Integrated_AI
             // Add other URLs and their selectors here
         };
 
-        public static string _recentFunctionsFilePath = null;
-
         // Helper method to get selectors for a given URL, finding the most specific match
         private static List<string> GetSelectorsForUrl(string url)
         {
@@ -214,8 +212,7 @@ namespace Integrated_AI
                     return;
                 }
 
-                _recentFunctionsFilePath = Path.Combine(userDataFolder, "recent_functions.txt");
-                var functionSelectionWindow = new FunctionSelectionWindow(functions, _recentFunctionsFilePath, relativePath);
+                var functionSelectionWindow = new FunctionSelectionWindow(functions, FileUtil._recentFunctionsFilePath, relativePath);
                 if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
                 {
                     textToInject = functionSelectionWindow.SelectedFunction.FullCode;

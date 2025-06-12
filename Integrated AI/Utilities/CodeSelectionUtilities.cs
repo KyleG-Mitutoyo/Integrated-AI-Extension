@@ -105,7 +105,7 @@ namespace Integrated_AI
             });
 
 
-            var recentFunctions = FileUtil.LoadRecentFunctions(WebViewUtilities._recentFunctionsFilePath);
+            var recentFunctions = FileUtil.LoadRecentFunctions(FileUtil._recentFunctionsFilePath);
             var activeFunctions = CodeSelectionUtilities.GetFunctionsFromDocument(activeDoc);
             var matchedRecentFunctions = activeFunctions.Where(func => recentFunctions != null && 
                                             recentFunctions.Contains(func.DisplayName)).ToList();
