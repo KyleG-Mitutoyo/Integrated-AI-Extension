@@ -26,7 +26,7 @@
                       DisplayMemberPath="DisplayName" SelectedValuePath="Url" SelectedIndex="0"/>
             <hc:SplitButton x:Name="VSToAISplitButton" 
                             Margin="5" 
-                            Content="Code -> AI" 
+                            Content="Method -> AI" 
                             Click="SplitButton_Click" 
                             PreviewMouseDown="SplitButton_PreviewMouseDown"
                             HorizontalAlignment="Stretch">
@@ -34,7 +34,7 @@
                     <StackPanel>
                         <MenuItem Header="File -> AI" Click="MenuItem_Click" Tag="File -> AI"/>
                         <MenuItem Header="Code -> AI" Click="MenuItem_Click" Tag="Code -> AI"/>
-                        <MenuItem Header="Function -> AI" Click="MenuItem_Click" Tag="Function -> AI"/>
+                        <MenuItem Header="Method -> AI" Click="MenuItem_Click" Tag="Method -> AI"/>
                     </StackPanel>
                 </hc:SplitButton.DropDownContent>
             </hc:SplitButton>
@@ -56,7 +56,7 @@
             <Button x:Name="ChooseButton" Content="Choose code" Click="ChooseButton_Click" Style="{StaticResource ButtonWarning}" hc:BorderElement.CornerRadius="0" Margin="0" Visibility="Collapsed"/>
             <Button x:Name="DeclineButton" Content="Decline" Style="{StaticResource ButtonDanger}" Click="DeclineButton_Click" hc:BorderElement.CornerRadius="0,5,5,0" Margin="0,0,5,0" Visibility="Collapsed"/>
             <Button Content="Restore" Click="RestoreButton_Click" Margin="5"/>
-            <ToggleButton x:Name="AutoDiffToggle" BorderThickness="0" IsChecked="True" Margin="5,0,5,0" Style="{StaticResource ToggleButtonFlip}" ToolTip="Auto Diff Compare" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000">
+            <ToggleButton x:Name="AutoDiffToggle" BorderThickness="0" IsChecked="False" Margin="5,0,5,0" Style="{StaticResource ToggleButtonFlip}" ToolTip="Toggle Auto Diff Mode" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000">
                 <hc:StatusSwitchElement.CheckedElement>
                     <Border Background="{DynamicResource SecondaryBorderBrush}">
                         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="Off" Foreground="{DynamicResource TextIconBrush}"/>
@@ -66,7 +66,7 @@
                     <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="Auto" FontSize="10" Foreground="{DynamicResource TextIconBrush}"/>
                 </Border>
             </ToggleButton>
-            <Button Click="DebugButton_Click" BorderThickness="0" BorderBrush="{StaticResource BorderBrush}" hc:BorderElement.CornerRadius="15" Width="10" Height="10" hc:IconElement.Geometry="{StaticResource InfoGeometry}" Margin="5" Padding="0" Visibility="Visible"/>
+            <Button Click="DebugButton_Click" BorderThickness="0" BorderBrush="{StaticResource BorderBrush}" hc:BorderElement.CornerRadius="15" Width="10" Height="10" hc:IconElement.Geometry="{StaticResource InfoGeometry}" Margin="5" Padding="0" Visibility="Collapsed"/>
             
         </StackPanel>
         <wpf:WebView2 x:Name="ChatWebView" Grid.Row="1" Source="https://grok.com"/>

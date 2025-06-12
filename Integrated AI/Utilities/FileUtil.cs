@@ -20,6 +20,12 @@ namespace Integrated_AI.Utilities
 
         public static List<string> LoadRecentFunctions(string recentFunctionsFilePath)
         {
+            if (string.IsNullOrEmpty(recentFunctionsFilePath))
+            {
+                // If the file doesn't exist, return null
+                return null;
+            }
+
             var recentFunctions = new List<string>();
             if (File.Exists(recentFunctionsFilePath))
             {
@@ -70,6 +76,52 @@ namespace Integrated_AI.Utilities
                 DeleteTempFile(context.TempAiFile);
             }
             return null;
+        }
+
+        public static string CreateTempFile(string content, string extension)
+        {
+            // Ensure extension starts with a dot
+            if (!extension.StartsWith("."))
+            {
+                extension = "." + extension;
+            }
+
+            string tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + extension);
+            try
+            {
+                // Handle null content
+                File.WriteAllText(tempPath, content ?? string.Empty);
+                if (!File.Exists(tempPath))
+                {
+                    System.Diagnostics.Debug.WriteLine($"Temp file not created: {tempPath}");
+                    MessageBox.Show($"Temp file not created: {tempPath}", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return null;
+                }
+
+                // Verify file is accessible
+                File.ReadAllText(tempPath); // Test read access
+                System.Diagnostics.Debug.WriteLine($"Temp file created successfully: {tempPath}");
+                MessageBox.Show($"Temp file created successfully: {tempPath}", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                return tempPath;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to create temp file {tempPath}: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                MessageBox.Show($"Failed to create temp file {tempPath}: {ex.Message}", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Error);
+                if (File.Exists(tempPath))
+                {
+                    try
+                    {
+                        File.Delete(tempPath);
+                    }
+                    catch (Exception deleteEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to delete temp file {tempPath}: {deleteEx.Message}");
+                        MessageBox.Show($"Failed to delete temp file {tempPath}: {deleteEx.Message}", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+                return null; // Return null instead of rethrowing to simplify caller handling
+            }
         }
 
         public static string GetAICode(string tempAiFile)

@@ -19,8 +19,7 @@ namespace Integrated_AI
 
         private void ClearButton_Click(object sender, RoutedEventArgs e)
         {
-            SentCodeContextManager.ClearContexts();
-            ContextTextBox.Text = "Contexts cleared.";
+            //It used to clear the textbox
         }
 
         private void PopulateButton_Click(object sender, RoutedEventArgs e)

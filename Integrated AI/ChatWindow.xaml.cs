@@ -38,13 +38,15 @@ namespace Integrated_AI
         };
 
         private readonly string _userDataFolder;
-        private string _selectedOption = "Code -> AI";
+        private string _selectedOption = "Method -> AI";
         private bool _executeCommandOnClick = true;
         private readonly DTE2 _dte;
         private DiffUtility.DiffContext _diffContext;
         private static bool _isWebViewInFocus;
         private IntPtr _hwndSource; // Handle for the window
         private bool _isClipboardListenerRegistered;
+        private string _lastClipboardText; // Tracks last processed clipboard content
+        private string _currentClipboardText; // Tracks clipboard content for current burst of events
 
         // Windows API declarations
         private const int WM_CLIPBOARDUPDATE = 0x031D;
@@ -125,33 +127,61 @@ namespace Integrated_AI
 
         private async void HandleClipboardChange()
         {
-            //Prevent a clipboard change from being processed while a diff view is open
-            if (_diffContext != null)
-            {
-                MessageBox.Show("Clipboard change ignored: Diff view is open. Please accept or decline the changes first.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
             // Run on UI thread
             await Dispatcher.InvokeAsync(async () =>
             {
                 try
                 {
+                    // Get clipboard text
+                    string clipboardText = null;
+                    if (Clipboard.ContainsText())
+                    {
+                        clipboardText = Clipboard.GetText();
+                        // Check if this is a duplicate event in the current burst
+                        if (!string.IsNullOrEmpty(clipboardText) && clipboardText == _currentClipboardText)
+                        {
+                            return; // Ignore duplicate event in this burst
+                        }
+                        // Update current clipboard text for this burst
+                        if (!string.IsNullOrEmpty(clipboardText))
+                        {
+                            _currentClipboardText = clipboardText;
+                        }
+                    }
+
+                    // Prevent a clipboard change from being processed while a diff view is open
+                    if (_diffContext != null)
+                    {
+                        MessageBox.Show("Clipboard change ignored: Diff view is open. Please accept or decline the changes first.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        // Track ignored content to prevent reprocessing later
+                        if (!string.IsNullOrEmpty(clipboardText))
+                        {
+                            _lastClipboardText = clipboardText;
+                        }
+                        return;
+                    }
+
                     // Check if WebView is focused and clipboard write was programmatic
                     if (!_isWebViewInFocus || !await WebViewUtilities.IsProgrammaticCopyAsync(ChatWebView))
                     {
-                        MessageBox.Show("Clipboard change ignored: WebView not focused or not a programmatic copy.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        //MessageBox.Show("Clipboard change ignored: WebView not focused or not a programmatic copy.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        // Track ignored content to prevent reprocessing later
+                        if (!string.IsNullOrEmpty(clipboardText))
+                        {
+                            _lastClipboardText = clipboardText;
+                        }
                         return; // Ignore if not focused or not a programmatic copy (e.g., Ctrl+C)
                     }
 
-                    // Get clipboard text
-                    if (Clipboard.ContainsText())
+                    // Process clipboard text if valid and not previously processed
+                    if (!string.IsNullOrEmpty(clipboardText) && clipboardText != _lastClipboardText)
                     {
-                        string clipboardText = Clipboard.GetText();
-                        if (!string.IsNullOrEmpty(clipboardText))
+                        // Trigger the PasteButton_Click logic
+                        PasteButton_ClickLogic(clipboardText);
+                        // Update _lastClipboardText only if diff view was opened successfully
+                        if (_diffContext != null)
                         {
-                            // Trigger the PasteButton_Click logic
-                            PasteButton_ClickLogic(clipboardText);
+                            _lastClipboardText = clipboardText;
                         }
                     }
                 }
@@ -159,8 +189,13 @@ namespace Integrated_AI
                 {
                     WebViewUtilities.Log($"Clipboard change handling error: {ex.Message}");
                 }
+                finally
+                {
+                    // Reset _currentClipboardText after processing this burst
+                    _currentClipboardText = null;
+                }
             });
-        }
+        }        
 
         
         private void PasteButton_ClickLogic(string aiCode)
@@ -192,17 +227,23 @@ namespace Integrated_AI
                     return;
                 }
 
-                var contexts = SentCodeContextManager.GetContextsForFile(activeDocument.FullName);
-                if (!contexts.Any())
-                {
-                    //Warning: No contexts found for the active document. Using null for the context.
-                }
-
                 string currentCode = DiffUtility.GetDocumentText(activeDocument);
                 string modifiedCode = currentCode;
+                ChooseCodeWindow.ReplacementItem selectedItem = null;
 
-                var context = SentCodeContextManager.FindMatchingContext(contexts, aiCode);
-                modifiedCode = SentCodeContextManager.ReplaceCodeInDocument(_dte, modifiedCode, context, aiCode, activeDocument);
+                // If in "off" or "manual" mode, we need to bring up the selection window
+                if ((bool)AutoDiffToggle.IsChecked)
+                {
+                    selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
+                    if (selectedItem == null)
+                    {
+                        //MessageBox.Show("No code selection made.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        _lastClipboardText = null;
+                        return;
+                    }
+                }
+
+                modifiedCode = StringUtil.ReplaceOrAddCode(_dte, modifiedCode, aiCode, activeDocument, selectedItem);
 
                 _diffContext = DiffUtility.OpenDiffView(activeDocument, currentCode, modifiedCode, aiCode);
 
@@ -331,24 +372,12 @@ namespace Integrated_AI
             {
                 if (contextToClose.ActiveDocument != null)
                 {
-                    var contexts = SentCodeContextManager.GetContextsForFile(contextToClose.ActiveDocument.FullName);
-                    var context = SentCodeContextManager.FindMatchingContext(contexts, contextToClose.AICodeBlock);
-                    if (context != null)
-                    {
-                        SentCodeContextManager.UpdateContextData(context, contextToClose.AICodeBlock);
-                        SentCodeContextManager.IncrementContextAges(contextToClose.ActiveDocument.FullName, context);
-                        WebViewUtilities.Log($"Updated context: Type={context.Type}, File={context.FilePath}, AgeCounter={context.AgeCounter}");
-                    }
-                    else
-                    {
-                        WebViewUtilities.Log("No matching context found for AI code; applied at cursor position.");
-                    }
-
                     DiffUtility.ApplyChanges(_dte, aiCodeFullFile);
                 }
             }
 
             UpdateButtonsForDiffView(false);
+            _lastClipboardText = null;
         }
 
         private void ChooseButton_Click(object sender, RoutedEventArgs e)
@@ -363,23 +392,23 @@ namespace Integrated_AI
             if (currentCode == null)
             {
                 UpdateButtonsForDiffView(false);
-                MessageBox.Show("No active document or unable to retrieve current code.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                //MessageBox.Show("No active document or unable to retrieve current code.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _lastClipboardText = null;
                 return;
             }
 
             //Choose an existing/new function or existing/new file manually
             // Shows the code replacement window and returns the selected item
             var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, _diffContext.ActiveDocument);
-            //Need to make a new context with data from the selected item so it works in ReplaceCodeInDocument
-            SentCodeContextManager.SentCodeContext context = new SentCodeContextManager.SentCodeContext
+            if (selectedItem == null)
             {
-                FunctionFullName = selectedItem.FullName,
-                Code = selectedItem.FullCode,
-                Type = selectedItem.Type
-            };
+                //MessageBox.Show("No code selection made.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                _lastClipboardText = null;
+                return;
+            }
 
             //We can use diffcontext existing items since it still exists for now
-            modifiedCode = SentCodeContextManager.ReplaceCodeInDocument(_dte, modifiedCode, context, _diffContext.AICodeBlock, _diffContext.ActiveDocument);
+            modifiedCode = StringUtil.ReplaceOrAddCode(_dte, modifiedCode, _diffContext.AICodeBlock, _diffContext.ActiveDocument, selectedItem);
             _diffContext = DiffUtility.OpenDiffView(_diffContext.ActiveDocument, currentCode, modifiedCode, _diffContext.AICodeBlock);
 
             //If opening the diff view had a problem, reset the buttons.
@@ -387,6 +416,8 @@ namespace Integrated_AI
             {
                 UpdateButtonsForDiffView(false);
             }
+
+            _lastClipboardText = null;
         }
 
         private void DeclineButton_Click(object sender, RoutedEventArgs e)
@@ -398,6 +429,7 @@ namespace Integrated_AI
             }
 
             UpdateButtonsForDiffView(false);
+            _lastClipboardText = null;
         }
 
         private void ErrorToAISplitButton_Click(object sender, RoutedEventArgs e)
@@ -431,29 +463,7 @@ namespace Integrated_AI
         // Integrated AI/ChatWindow.xaml.cs
         private void DebugButton_Click(object sender, RoutedEventArgs e)
         {
-            //For future reference
-            //if (!(bool)AutoDiffToggle.IsChecked)
-            //{
-            //    MessageBox.Show("AutoDiff is true.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                
-            //}
-            //else
-            //{
-            //    MessageBox.Show("AutoDiff is false.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-            //}
-
-            ThreadHelper.Generic.BeginInvoke(() =>
-                {
-                    // Get all contexts (not just for the active document)
-                    var allContexts = SentCodeContextManager.GetAllSentContexts(); // New method needed
-                    var contextText = SentCodeContextManager.FormatContextList(allContexts);
-
-                    var debugWindow = new DebugContextWindow(contextText)
-                    {
-                        //Owner = this // Center relative to ChatWindow
-                    };
-                    debugWindow.ShowDialog();
-                });
+            //Kept for future use, maybe to show debug info
         }
 
         private void RestoreButton_Click(object sender, RoutedEventArgs e)

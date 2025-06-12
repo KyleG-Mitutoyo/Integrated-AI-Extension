@@ -38,6 +38,8 @@ namespace Integrated_AI
             // Add other URLs and their selectors here
         };
 
+        public static string _recentFunctionsFilePath = null;
+
         // Helper method to get selectors for a given URL, finding the most specific match
         private static List<string> GetSelectorsForUrl(string url)
         {
@@ -203,7 +205,7 @@ namespace Integrated_AI
                 var textDoc = dte.ActiveDocument.Object("TextDocument") as TextDocument;
                 sourceDescription = $"---{relativePath} (whole file contents)---\n{textToInject}\n---End code---\n\n";
             }
-            else if (option == "Function -> AI")
+            else if (option == "Method -> AI")
             {
                 var functions = CodeSelectionUtilities.GetFunctionsFromDocument(dte.ActiveDocument);
                 if (!functions.Any())
@@ -212,8 +214,8 @@ namespace Integrated_AI
                     return;
                 }
 
-                string recentFunctionsFilePath = Path.Combine(userDataFolder, "recent_functions.txt");
-                var functionSelectionWindow = new FunctionSelectionWindow(functions, recentFunctionsFilePath, relativePath);
+                _recentFunctionsFilePath = Path.Combine(userDataFolder, "recent_functions.txt");
+                var functionSelectionWindow = new FunctionSelectionWindow(functions, _recentFunctionsFilePath, relativePath);
                 if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
                 {
                     textToInject = functionSelectionWindow.SelectedFunction.FullCode;
@@ -229,15 +231,6 @@ namespace Integrated_AI
 
             if (textToInject != null)
             {
-                var context = new SentCodeContextManager.SentCodeContext
-                {
-                    Code = textToInject,
-                    Type = type,
-                    FilePath = filePath,
-                    FunctionFullName = functionFullName,
-                    AgeCounter = 0
-                };
-                SentCodeContextManager.AddSentContext(context);
                 await InjectTextIntoWebViewAsync(chatWebView, sourceDescription, option);
             }
         }
