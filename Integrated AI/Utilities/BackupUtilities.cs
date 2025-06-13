@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using EnvDTE;
@@ -161,6 +162,98 @@ namespace Integrated_AI.Utilities
             string uniqueSolutionFolder = $"{parentDir}_{solutionName}"; // e.g., "ClientA_MySolution"
 
             return uniqueSolutionFolder;
+        }
+
+        // Retrieves a list of available restore points (backup folders) for the current solution
+        public static List<string> GetRestorePoints(DTE2 dte, string backupRootPath)
+        {
+            try
+            {
+                if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName))
+                {
+                    return new List<string>();
+                }
+
+                string uniqueSolutionFolder = GetUniqueSolutionFolder(dte);
+                string backupPath = Path.Combine(backupRootPath, uniqueSolutionFolder);
+
+                if (!Directory.Exists(backupPath))
+                {
+                    return new List<string>();
+                }
+
+                // Get all dated folders (yyyy-MM-dd_HH-mm-ss format)
+                var restorePoints = Directory.GetDirectories(backupPath)
+                    .Select(Path.GetFileName)
+                    .Where(name => name.Contains("_") && DateTime.TryParseExact(
+                        name, 
+                        "yyyy-MM-dd_HH-mm-ss", 
+                        System.Globalization.CultureInfo.InvariantCulture, 
+                        System.Globalization.DateTimeStyles.None, 
+                        out _))
+                    .OrderByDescending(name => name)
+                    .ToList();
+
+                return restorePoints;
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Error retrieving restore points: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                return new List<string>();
+            }
+        }
+
+        // Retrieves file paths and contents from a specific backup folder
+        public static Dictionary<string, string> GetRestoreFiles(DTE2 dte, string backupRootPath, string restorePoint)
+        {
+            try
+            {
+                if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName) || string.IsNullOrEmpty(restorePoint))
+                {
+                    return null;
+                }
+
+                string uniqueSolutionFolder = GetUniqueSolutionFolder(dte);
+                string backupPath = Path.Combine(backupRootPath, uniqueSolutionFolder, restorePoint);
+
+                if (!Directory.Exists(backupPath))
+                {
+                    return null;
+                }
+
+                var files = new Dictionary<string, string>();
+                string solutionDir = Path.GetDirectoryName(dte.Solution.FullName);
+
+                // Recursively get all files in the backup folder
+                CollectFiles(backupPath, solutionDir, files);
+
+                return files;
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Error retrieving restore files: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                return null;
+            }
+        }
+
+        // Recursively collects file paths and contents, mapping to solution-relative paths
+        private static void CollectFiles(string sourceDir, string solutionDir, Dictionary<string, string> files)
+        {
+            foreach (string file in Directory.GetFiles(sourceDir))
+            {
+                // Compute the solution-relative path
+                string relativePath = file.Substring(sourceDir.Length).Trim(Path.DirectorySeparatorChar);
+                string solutionRelativePath = Path.Combine(solutionDir, relativePath);
+
+                // Read file content
+                string content = File.ReadAllText(file);
+                files[solutionRelativePath] = content;
+            }
+
+            foreach (string dir in Directory.GetDirectories(sourceDir))
+            {
+                CollectFiles(dir, solutionDir, files);
+            }
         }
     }
 }

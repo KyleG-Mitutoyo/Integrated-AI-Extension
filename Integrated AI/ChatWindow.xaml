@@ -55,7 +55,7 @@
             <Button x:Name="AcceptButton" Content="Accept" Style="{StaticResource ButtonSuccess}" Click="AcceptButton_Click" hc:BorderElement.CornerRadius="5,0,0,5" Margin="5,0,0,0" Visibility="Collapsed"/>
             <Button x:Name="ChooseButton" Content="Choose code" Click="ChooseButton_Click" Style="{StaticResource ButtonWarning}" hc:BorderElement.CornerRadius="0" Margin="0" Visibility="Collapsed"/>
             <Button x:Name="DeclineButton" Content="Decline" Style="{StaticResource ButtonDanger}" Click="DeclineButton_Click" hc:BorderElement.CornerRadius="0,5,5,0" Margin="0,0,5,0" Visibility="Collapsed"/>
-            <Button Content="Restore" Click="RestoreButton_Click" Margin="5"/>
+            <Button x:Name="RestoreButton" Content="Restore" Click="RestoreButton_Click" Margin="5"/>
             <ToggleButton x:Name="AutoDiffToggle" BorderThickness="0" IsChecked="False" Margin="5,0,5,0" Style="{StaticResource ToggleButtonFlip}" ToolTip="Toggle Auto Diff Mode" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000">
                 <hc:StatusSwitchElement.CheckedElement>
                     <Border Background="{DynamicResource SecondaryBorderBrush}">

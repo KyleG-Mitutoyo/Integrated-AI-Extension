@@ -247,6 +247,7 @@ namespace Integrated_AI
                 // If in "off" or "manual" mode, we need to bring up the selection window
                 if ((bool)AutoDiffToggle.IsChecked)
                 {
+                    MessageBox.Show("Code replacement window opening...", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                     selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
                     if (selectedItem == null)
                     {
@@ -257,12 +258,13 @@ namespace Integrated_AI
                 }
 
                 modifiedCode = StringUtil.ReplaceOrAddCode(_dte, modifiedCode, aiCode, activeDocument, selectedItem);
-
+                MessageBox.Show("Opening diff view...", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                 _diffContext = DiffUtility.OpenDiffView(activeDocument, currentCode, modifiedCode, aiCode);
 
                 //If opening the diff view had a problem, we don't want to show the accept/decline buttons.
                 if (_diffContext == null)
                 {
+                    _lastClipboardText = null;
                     return;
                 }
 
@@ -458,6 +460,7 @@ namespace Integrated_AI
                 VSToAISplitButton.Visibility = Visibility.Collapsed;
                 ErrorToAISplitButton.Visibility = Visibility.Collapsed;
                 PasteButton.Visibility = Visibility.Collapsed;
+                RestoreButton.Visibility = Visibility.Collapsed;
                 AcceptButton.Visibility = Visibility.Visible;
                 ChooseButton.Visibility = Visibility.Visible;
                 DeclineButton.Visibility = Visibility.Visible;
@@ -468,6 +471,7 @@ namespace Integrated_AI
                 VSToAISplitButton.Visibility = Visibility.Visible;
                 ErrorToAISplitButton.Visibility = Visibility.Visible;
                 PasteButton.Visibility = Visibility.Visible;
+                RestoreButton.Visibility = Visibility.Visible;
                 AcceptButton.Visibility = Visibility.Collapsed;
                 ChooseButton.Visibility = Visibility.Collapsed;
                 DeclineButton.Visibility = Visibility.Collapsed;

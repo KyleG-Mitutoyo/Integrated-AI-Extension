@@ -20,7 +20,6 @@
         </Grid.RowDefinitions>
         <TextBlock Grid.Row="0" Text="Select a backup to restore:" Style="{StaticResource TextBlockDefaultBold}" Margin="0,0,0,10"/>
         <ListBox Grid.Row="1" x:Name="BackupListBox" SelectionMode="Single" 
-                 MouseDoubleClick="BackupListBox_MouseDoubleClick"
                  hc:ListBoxAttach.IsOddEvenRow="True" AlternationCount="2">
             <ListBox.ItemTemplate>
                 <DataTemplate>
@@ -30,6 +29,7 @@
         </ListBox>
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
             <Button Content="Restore" Style="{StaticResource ButtonPrimary}" Width="80" Margin="0,0,10,0" Click="RestoreButton_Click"/>
+            <Button Content="Compare" Width="80" Margin="0,0,10,0" Click="CompareButton_Click"/>
             <Button Content="Delete All Backups" Style="{StaticResource ButtonDanger}" Width="130" Margin="0,0,10,0" Click="DeleteButton_Click"/>
             <Button Content="Cancel" Width="80" Click="CancelButton_Click"/>
         </StackPanel>

@@ -100,13 +100,24 @@ namespace Integrated_AI.Utilities
             if (string.IsNullOrWhiteSpace(code))
                 return string.Empty;
 
-            // Split into lines, trim, remove empty lines and comments
+            // Remove multiline comments (/* ... */)
+            code = Regex.Replace(code, @"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/", string.Empty);
+
+            // Split into lines, trim, remove empty lines, single-line comments, and inline comments
             var lines = code.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None)
-                .Select(line => line.Trim())
-                .Where(line => !string.IsNullOrEmpty(line) && !line.StartsWith("'") && !line.StartsWith("//"))
+                .Select(line =>
+                {
+                    // Remove inline comments (// ...)
+                    int commentIndex = line.IndexOf("//");
+                    if (commentIndex >= 0)
+                        line = line.Substring(0, commentIndex);
+                    return line.Trim();
+                })
+                .Where(line => !string.IsNullOrEmpty(line) && !line.StartsWith("'"))
                 .ToArray();
 
-            return string.Join(" ", lines).Replace("  ", " ");
+            // Join with newlines to preserve structure
+            return string.Join("\n", lines);
         }
 
         // Helper method to calculate similarity (Levenshtein distance-based)
@@ -197,7 +208,62 @@ namespace Integrated_AI.Utilities
 
         public static string ReplaceCodeBlock(string documentContent, int startIndex, int length, string newCode)
         {
-            return documentContent.Remove(startIndex, length).Insert(startIndex, newCode);
+            // Extract the original code block to analyze its structure
+            string originalBlock = documentContent.Substring(startIndex, length);
+            string[] originalLines = originalBlock.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+    
+            // Find the function signature line by looking for the first non-empty line
+            string signatureLine = "";
+            foreach (var line in originalLines)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    signatureLine = line;
+                    break;
+                }
+            }
+            // Fallback to the first line if no non-empty line is found
+            if (string.IsNullOrEmpty(signatureLine))
+            {
+                signatureLine = originalLines.FirstOrDefault() ?? "";
+            }
+    
+            // Use the indentation of the function signature
+            string baseIndentation = new string(signatureLine.TakeWhile(char.IsWhiteSpace).ToArray());
+
+            // Split newCode into lines
+            string[] newCodeLines = newCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+    
+            // Find the minimum indentation in newCode (excluding empty lines) to preserve relative structure
+            int minIndent = int.MaxValue;
+            foreach (var line in newCodeLines)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    int indentCount = line.TakeWhile(char.IsWhiteSpace).Count();
+                    minIndent = Math.Min(minIndent, indentCount);
+                }
+            }
+            if (minIndent == int.MaxValue) minIndent = 0; // Handle case where newCode is empty or all lines are empty
+
+            // Adjust newCode: apply baseIndentation to all lines, preserving relative indentation
+            for (int i = 0; i < newCodeLines.Length; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(newCodeLines[i]))
+                {
+                    // Remove only the minimum indentation to preserve relative structure
+                    string trimmedLine = newCodeLines[i].Substring(Math.Min(minIndent, newCodeLines[i].Length));
+                    newCodeLines[i] = baseIndentation + trimmedLine;
+                }
+                else
+                {
+                    newCodeLines[i] = ""; // Preserve empty lines without indentation
+                }
+            }
+            string adjustedNewCode = string.Join(Environment.NewLine, newCodeLines);
+
+            // Perform the replacement
+            return documentContent.Remove(startIndex, length).Insert(startIndex, adjustedNewCode);
         }
 
         public static double CalculateFastSimilarity(string source, string target)
@@ -293,9 +359,7 @@ namespace Integrated_AI.Utilities
 
             if (dte == null || activeDoc == null || string.IsNullOrEmpty(code))
             {
-                // Log error for debugging
                 System.Diagnostics.Debug.WriteLine("Invalid input: DTE, Document, or code is null/empty.");
-                //MessageBox.Show("Invalid input: DTE, Document, or code is null/empty.", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Error);
                 return (false, null, false);
             }
 
@@ -303,87 +367,90 @@ namespace Integrated_AI.Utilities
             {
                 // Determine language based on file extension
                 string extension = Path.GetExtension(activeDoc.FullName)?.ToLowerInvariant() ?? ".cs";
-                System.Diagnostics.Debug.WriteLine($"Processing file with extension: {extension}");
-
                 if (extension != ".cs")
                 {
                     System.Diagnostics.Debug.WriteLine($"Unsupported file extension: {extension}");
-                    //MessageBox.Show($"Unsupported file extension: {extension}", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return (false, null, false);
                 }
 
-                // Normalize code for analysis
-                string normalizedCode = Regex.Replace(code, @"\s+", " ").Trim();
-                System.Diagnostics.Debug.WriteLine($"Normalized code length: {normalizedCode.Length}");
-
-                // Check for full file by detecting class with proper braces
-                bool isFullFile = false;
-                var classRegex = new Regex(@"\bclass\s+\w+\s*\{([^{}]+|\{[^{}]*\})*\}", RegexOptions.Singleline);
-                if (classRegex.IsMatch(code))
+                string normalizedCode = NormalizeCode(code);
+                if (string.IsNullOrEmpty(normalizedCode))
                 {
-                    isFullFile = true;
-                    System.Diagnostics.Debug.WriteLine("Detected full file with class definition.");
+                    return (false, null, false);
                 }
 
-                // Detect methods (functions in C#)
-                var methodRegex = new Regex(
-                    @"\b(public|private|protected|internal)?\s*(static)?\s*(\w+\s+|\w+\<\w+\>\s+)?(\w+)\s*\([^)]*\)\s*\{",
-                    RegexOptions.Multiline);
-                var methodMatches = methodRegex.Matches(code);
+                // --- Improved Full File Detection ---
+                // A full file is likely to have using statements, a namespace, or be a complete class/struct/interface block.
+                string trimmedNormalizedCode = normalizedCode.Trim();
+                bool hasUsing = trimmedNormalizedCode.StartsWith("using ");
+                bool hasNamespace = trimmedNormalizedCode.Contains("namespace "); // Check for "namespace " to avoid false positives
+        
+                // Check for top-level type definitions
+                bool hasTopLevelType = trimmedNormalizedCode.StartsWith("public class") ||
+                                        trimmedNormalizedCode.StartsWith("internal class") ||
+                                        trimmedNormalizedCode.StartsWith("class ") ||
+                                        trimmedNormalizedCode.StartsWith("public struct") ||
+                                        trimmedNormalizedCode.StartsWith("public interface");
 
-                int methodCount = methodMatches.Count;
-                System.Diagnostics.Debug.WriteLine($"Found {methodCount} methods in code.");
-
-                // Log analysis results
-                string debugInfo = $"File analysis:\n" +
-                                 $"Class detected: {isFullFile}\n" +
-                                 $"Method count: {methodCount}\n" +
-                                 $"Is full file: {isFullFile}";
-                System.Diagnostics.Debug.WriteLine(debugInfo);
-                //MessageBox.Show(debugInfo, "Debug Info", MessageBoxButton.OK, MessageBoxImage.Information);
-
-                // Handle single method
-                if (!isFullFile && methodCount >= 1)
+                // Check for balanced braces to ensure it's a complete block of code
+                int braceCount = 0;
+                foreach (char c in normalizedCode)
                 {
+                    if (c == '{') braceCount++;
+                    else if (c == '}') braceCount--;
+                }
+        
+                // A full file is a complete block that contains strong indicators like namespace/using or is a top-level type.
+                if (braceCount == 0 && (hasNamespace || hasUsing || hasTopLevelType))
+                {
+                    System.Diagnostics.Debug.WriteLine("Detected full file based on using/namespace/class and balanced braces.");
+                    // This is a full file, so it's not a single function. Return immediately.
+                    return (false, null, true);
+                }
+
+                // --- Method Detection ---
+                // If we got here, it's not a full file. Now, check if it's a method.
+                // NOTE: Use the original 'code' for regex, as normalization can sometimes affect complex signatures.
+                var methodRegex = new Regex(
+                    // Matches access modifier, static, return type, method name, and parameters.
+                    @"^\s*(public|private|protected|internal|protected internal|private protected)?\s*(static)?\s*([\w\.<>\[\]\?]+)\s+([\w\d_]+)\s*\([^)]*\)\s*\{",
+                    RegexOptions.Multiline);
+            
+                MatchCollection methodMatches = methodRegex.Matches(code);
+
+                if (methodMatches.Count > 0)
+                {
+                    // We consider it a "function" context if it looks like one or more complete methods.
+                    // For simplicity, we'll analyze the first one found.
                     var match = methodMatches[0];
                     string methodName = match.Groups[4].Value;
 
-                    // Validate method name is not a keyword
-                    if (CSharpKeywords.Contains(methodName, StringComparer.OrdinalIgnoreCase))
+                    // Simple validation to avoid matching control structures like `if () {`
+                    if (!CSharpKeywords.Contains(methodName, StringComparer.OrdinalIgnoreCase))
                     {
-                        System.Diagnostics.Debug.WriteLine($"Invalid method name detected (keyword): {methodName}");
-                        //MessageBox.Show($"Invalid method name detected: {methodName}", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return (false, null, false);
-                    }
+                         // Check for balanced braces on the whole snippet to confirm it's likely a complete method
+                        int methodBraceCount = 0;
+                        foreach (char c in code)
+                        {
+                            if (c == '{') methodBraceCount++;
+                            else if (c == '}') methodBraceCount--;
+                        }
 
-                    if (methodCount == 1)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Single method detected: {methodName}");
+                        if (methodBraceCount == 0)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Detected single/primary method: {methodName}");
+                            return (true, methodName, false);
+                        }
                     }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Multiple methods detected, using first: {methodName}");
-                        System.Diagnostics.Debug.WriteLine($"List of methods: {string.Join(", ", methodMatches)}");
-                    }
-
-                    return (true, methodName, false);
                 }
 
-                // Check for full file or snippet. Only gets here if it wasn't a function
-                if (isFullFile)
-                {
-                    return (false, null, isFullFile);
-                }
-                else
-                {
-                    return (false, null, false);
-                }
+                // If it's neither a full file nor a recognized method, it's a snippet.
+                System.Diagnostics.Debug.WriteLine("Code is not a full file or a recognized method. Treating as a snippet.");
+                return (false, null, false);
             }
             catch (Exception ex)
             {
-                // Log other exceptions with stack trace
                 System.Diagnostics.Debug.WriteLine($"Exception in AnalyzeCodeBlock: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                //MessageBox.Show($"Exception: {ex.Message}", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Error);
                 return (false, null, false);
             }
         }

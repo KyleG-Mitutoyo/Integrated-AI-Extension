@@ -47,7 +47,7 @@ namespace Integrated_AI
                     {
                         backups.Add(new BackupItem
                         {
-                            DisplayName = backupTime.ToString("yyyy-MM-dd hh:mm:ss tt"),
+                            DisplayName = backupTime.ToString("MM-dd-yyyy hh:mm:ss tt"),
                             FolderPath = dir.FullName,
                             BackupTime = backupTime
                         });
@@ -58,16 +58,6 @@ namespace Integrated_AI
         }
 
         private void RestoreButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (BackupListBox.SelectedItem is BackupItem selected)
-            {
-                SelectedBackup = selected;
-                DialogResult = true;
-                Close();
-            }
-        }
-
-        private void BackupListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (BackupListBox.SelectedItem is BackupItem selected)
             {
@@ -105,6 +95,11 @@ namespace Integrated_AI
         {
             DialogResult = false;
             Close();
+        }
+
+        private void CompareButton_Click(object sender, RoutedEventArgs e)
+        {
+            
         }
     }
 }

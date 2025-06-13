@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.TextManager.Interop;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -93,6 +94,101 @@ namespace Integrated_AI.Utilities
             }
         }
 
+        // Opens diff views for multiple files in a restore compared to current project files
+        public static List<DiffContext> OpenMultiFileDiffView(DTE2 dte, Dictionary<string, string> restoreFiles)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (dte == null || restoreFiles == null || restoreFiles.Count == 0)
+            {
+                MessageBox.Show("Invalid input: DTE or restore files are null or empty.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return null;
+            }
+
+            var diffContexts = new List<DiffContext>();
+
+            foreach (var restoreFile in restoreFiles)
+            {
+                string filePath = restoreFile.Key;
+                string restoreContent = restoreFile.Value;
+
+                // Check if the file exists in the current project
+                ProjectItem projectItem = null;
+                try
+                {
+                    projectItem = dte.Solution.FindProjectItem(filePath);
+                }
+                catch (Exception ex)
+                {
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: Error finding project item for {filePath}: {ex.Message}");
+                    continue;
+                }
+
+                if (projectItem == null)
+                {
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: File {filePath} not found in solution.");
+                    continue;
+                }
+
+                // Open the document to get its current content
+                Document doc = null;
+                try
+                {
+                    projectItem.Open(EnvDTE.Constants.vsViewKindCode);
+                    doc = projectItem.Document;
+                    if (doc == null)
+                    {
+                        WebViewUtilities.Log($"OpenMultiFileDiffView: Could not open document for {filePath}.");
+                        continue;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: Exception opening document for {filePath}: {ex.Message}");
+                    continue;
+                }
+
+                // Get current content
+                string currentContent = null;
+                try
+                {
+                    var textDocument = (TextDocument)doc.Object("TextDocument");
+                    currentContent = textDocument.StartPoint.CreateEditPoint().GetText(textDocument.EndPoint);
+                }
+                catch (Exception ex)
+                {
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: Error reading content for {filePath}: {ex.Message}");
+                    continue;
+                }
+
+                // Compare only if content has changed
+                if (currentContent == restoreContent)
+                {
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: No changes detected for {filePath}. Skipping diff.");
+                    continue;
+                }
+
+                // Open diff view for this file
+                var context = OpenDiffView(doc, currentContent, restoreContent, restoreContent);
+                if (context != null)
+                {
+                    diffContexts.Add(context);
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: Diff view opened for {filePath}.");
+                }
+                else
+                {
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: Failed to open diff view for {filePath}.");
+                }
+            }
+
+            if (diffContexts.Count == 0)
+            {
+                MessageBox.Show("No differences found or unable to open diff views for the selected restore.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                return null;
+            }
+
+            return diffContexts;
+        }
+
         
         public static void ApplyChanges(DTE2 dte, Document activeDoc, string aiCode)
         {
@@ -133,6 +229,10 @@ namespace Integrated_AI.Utilities
                 startPoint.Delete(endPoint);
                 startPoint.Insert(aiCode);
                 WebViewUtilities.Log($"ApplyChanges: Successfully applied changes to '{activeDoc.FullName}'.");
+
+                // Save the document after applying changes
+                //activeDoc.Save();
+                WebViewUtilities.Log($"ApplyChanges: Successfully saved '{activeDoc.FullName}'.");
             }
             catch (Exception ex)
             {
@@ -140,6 +240,8 @@ namespace Integrated_AI.Utilities
                 WebViewUtilities.Log($"ApplyChanges: Exception for '{activeDoc.FullName}': {ex}");
             }
         }
+
+
 
         public static void CloseDiffAndReset(DiffContext context)
         {
