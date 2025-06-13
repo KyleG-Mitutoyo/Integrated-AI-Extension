@@ -388,6 +388,7 @@ namespace Integrated_AI
                 }
             }
 
+            // A backup of the solution files are created for every accept button click.
             BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder);
             UpdateButtonsForDiffView(false);
             _lastClipboardText = null;
@@ -481,7 +482,8 @@ namespace Integrated_AI
 
         private void RestoreButton_Click(object sender, RoutedEventArgs e)
         {
-            var restoreWindow = new RestoreSelectionWindow(_backupsFolder);
+            var solutionBackupsFolder = Path.Combine(_backupsFolder, BackupUtilities.GetUniqueSolutionFolder(_dte));
+            var restoreWindow = new RestoreSelectionWindow(solutionBackupsFolder);
             bool? result = restoreWindow.ShowDialog();
             if (result == true && restoreWindow.SelectedBackup != null)
             {

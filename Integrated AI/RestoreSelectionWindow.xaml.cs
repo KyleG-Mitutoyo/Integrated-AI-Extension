@@ -79,7 +79,7 @@ namespace Integrated_AI
 
         private void DeleteButton_Click(object sender, RoutedEventArgs e)
         {
-            var result = MessageBox.Show("Are you sure you want to delete all backup folders?", 
+            var result = MessageBox.Show("Are you sure you want to delete all backups for the current solution?", 
                 "Confirm Delete All", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (result == MessageBoxResult.Yes)
             {

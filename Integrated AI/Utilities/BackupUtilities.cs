@@ -2,26 +2,31 @@
 using System.IO;
 using System.Linq;
 using EnvDTE;
+using EnvDTE80;
 
 namespace Integrated_AI.Utilities
 {
     public static class BackupUtilities
     {
-        // Creates a backup of the entire solution in a dated folder
-        public static string CreateSolutionBackup(DTE dte, string backupRootPath)
+        // Creates a backup of the entire solution in a dated folder, within the solution's folder
+        public static string CreateSolutionBackup(DTE2 dte, string backupRootPath)
         {
             try
             {
                 if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName))
+                {
                     return null;
+                }
 
-                // Create backup folder with datetime stamp
+                string solutionDir = Path.GetDirectoryName(dte.Solution.FullName);
+                string uniqueSolutionFolder = GetUniqueSolutionFolder(dte);
+
+                // Create backup folder with unique solution folder and datetime stamp
                 string backupFolderName = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-                string backupPath = Path.Combine(backupRootPath, backupFolderName);
+                string backupPath = Path.Combine(backupRootPath, uniqueSolutionFolder, backupFolderName);
                 Directory.CreateDirectory(backupPath);
 
                 // Copy solution file
-                string solutionDir = Path.GetDirectoryName(dte.Solution.FullName);
                 string solutionFileName = Path.GetFileName(dte.Solution.FullName);
                 File.Copy(dte.Solution.FullName, Path.Combine(backupPath, solutionFileName));
 
@@ -145,6 +150,17 @@ namespace Integrated_AI.Utilities
                 string targetSubDir = Path.Combine(targetDir, Path.GetFileName(dir));
                 CopyDirectory(dir, targetSubDir);
             }
+        }
+
+        public static string GetUniqueSolutionFolder(DTE2 dte)
+        {
+            // Get the solution name and parent directory for unique folder naming
+            string solutionName = Path.GetFileNameWithoutExtension(dte.Solution.FullName); // e.g., "MySolution"
+            string solutionDir = Path.GetDirectoryName(dte.Solution.FullName); // e.g., "C:\Projects\ClientA"
+            string parentDir = Path.GetFileName(solutionDir); // e.g., "ClientA"
+            string uniqueSolutionFolder = $"{parentDir}_{solutionName}"; // e.g., "ClientA_MySolution"
+
+            return uniqueSolutionFolder;
         }
     }
 }
