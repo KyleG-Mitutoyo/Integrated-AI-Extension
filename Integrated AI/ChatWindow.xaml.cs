@@ -49,6 +49,7 @@ namespace Integrated_AI
         private bool _isClipboardListenerRegistered;
         private string _lastClipboardText; // Tracks last processed clipboard content
         private string _currentClipboardText; // Tracks clipboard content for current burst of events
+        private bool _isOpeningCodeWindow = false;
 
         // Windows API declarations
         private const int WM_CLIPBOARDUPDATE = 0x031D;
@@ -213,9 +214,10 @@ namespace Integrated_AI
         
         private void PasteButton_ClickLogic(string aiCode)
         {
-            if(_diffContext != null)
+            // Check if a diff window or code window is already open or opening
+            if (_diffContext != null || _isOpeningCodeWindow)
             {
-                WebViewUtilities.Log("PasteButton_ClickLogic: Diff window already open or opening. Aborting.");
+                WebViewUtilities.Log("PasteButton_ClickLogic: Diff window or code window already open or opening. Aborting.");
                 return;
             }
 
@@ -247,21 +249,32 @@ namespace Integrated_AI
                 // If in "off" or "manual" mode, we need to bring up the selection window
                 if ((bool)AutoDiffToggle.IsChecked)
                 {
-                    MessageBox.Show("Code replacement window opening...", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
-                    if (selectedItem == null)
+                    try
                     {
-                        //MessageBox.Show("No code selection made.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                        _lastClipboardText = null;
-                        return;
+                        // Set flag to prevent multiple windows
+                        _isOpeningCodeWindow = true;
+                        //MessageBox.Show("Code replacement window opening...", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
+                        if (selectedItem == null)
+                        {
+                            //MessageBox.Show("No code selection made.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                            _lastClipboardText = null;
+                            _isOpeningCodeWindow = false; // Reset flag
+                            return;
+                        }
+                    }
+                    finally
+                    {
+                        // Reset flag after window is closed
+                        _isOpeningCodeWindow = false;
                     }
                 }
 
                 modifiedCode = StringUtil.ReplaceOrAddCode(_dte, modifiedCode, aiCode, activeDocument, selectedItem);
-                MessageBox.Show("Opening diff view...", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                //MessageBox.Show("Opening diff view...", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                 _diffContext = DiffUtility.OpenDiffView(activeDocument, currentCode, modifiedCode, aiCode);
 
-                //If opening the diff view had a problem, we don't want to show the accept/decline buttons.
+                // If opening the diff view had a problem, we don't want to show the accept/decline buttons.
                 if (_diffContext == null)
                 {
                     _lastClipboardText = null;
@@ -391,7 +404,13 @@ namespace Integrated_AI
             }
 
             // A backup of the solution files are created for every accept button click.
+            // TODO: also store the contextToClose.AICodeBlock in a mapped data file for later retrieval.
             BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder);
+
+            //// Save the document after making the backup
+            //contextToClose.ActiveDocument?.Save();
+            //WebViewUtilities.Log($"ApplyChanges: Successfully saved '{contextToClose.ActiveDocument.FullName}'.");
+
             UpdateButtonsForDiffView(false);
             _lastClipboardText = null;
         }

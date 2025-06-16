@@ -196,5 +196,45 @@ namespace Integrated_AI.Utilities
                 return $"console.error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}'); throw new Error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}');";
             }
         }
+
+        // Recursively collects file paths and contents, mapping to solution-relative paths
+        // Only used for restore compare functionality
+        public static void CollectFiles(string sourceDir, Dictionary<string, string> files)
+        {
+            try
+            {
+                foreach (string file in Directory.GetFiles(sourceDir))
+                {
+                    try
+                    {
+                        // Calculate the solution-relative path
+                        string relativePath = file.Substring(sourceDir.Length).TrimStart(Path.DirectorySeparatorChar);
+                        string solutionRelativePath = relativePath; // Use relative path directly
+
+
+                        // Read file content
+                        string content = File.ReadAllText(file);
+                        files[solutionRelativePath] = content;
+
+                        //WebViewUtilities.Log($"Collecting file: {solutionRelativePath} with contents: {content}");
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error for specific file but continue processing others
+                        System.Windows.MessageBox.Show($"Error reading file {file}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    }
+                }
+
+                foreach (string dir in Directory.GetDirectories(sourceDir))
+                {
+                    CollectFiles(dir, files);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log directory-level error but continue processing
+                System.Windows.MessageBox.Show($"Error processing directory {sourceDir}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            }
+        }
     }
 }

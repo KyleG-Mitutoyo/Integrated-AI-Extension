@@ -223,10 +223,9 @@ namespace Integrated_AI.Utilities
                 }
 
                 var files = new Dictionary<string, string>();
-                string solutionDir = Path.GetDirectoryName(dte.Solution.FullName);
 
                 // Recursively get all files in the backup folder
-                CollectFiles(backupPath, solutionDir, files);
+                FileUtil.CollectFiles(backupPath, files);
 
                 if (files.Count == 0)
                 {
@@ -239,45 +238,6 @@ namespace Integrated_AI.Utilities
             {
                 System.Windows.MessageBox.Show($"Error retrieving restore files: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return new Dictionary<string, string>(); // Return empty dictionary instead of null
-            }
-        }
-
-        // Recursively collects file paths and contents, mapping to solution-relative paths
-        private static void CollectFiles(string sourceDir, string solutionDir, Dictionary<string, string> files)
-        {
-            try
-            {
-                foreach (string file in Directory.GetFiles(sourceDir))
-                {
-                    try
-                    {
-                        // Calculate the solution-relative path
-                        string relativePath = file.Substring(sourceDir.Length).TrimStart(Path.DirectorySeparatorChar);
-                        string solutionRelativePath = relativePath; // Use relative path directly
-
-                        
-                        // Read file content
-                        string content = File.ReadAllText(file);
-                        files[solutionRelativePath] = content;
-
-                        //WebViewUtilities.Log($"Collecting file: {solutionRelativePath} with contents: {content}");
-                    }
-                    catch (Exception ex)
-                    {
-                        // Log error for specific file but continue processing others
-                        System.Windows.MessageBox.Show($"Error reading file {file}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
-                    }
-                }
-
-                foreach (string dir in Directory.GetDirectories(sourceDir))
-                {
-                    CollectFiles(dir, solutionDir, files);
-                }
-            }
-            catch (Exception ex)
-            {
-                // Log directory-level error but continue processing
-                System.Windows.MessageBox.Show($"Error processing directory {sourceDir}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
             }
         }
     }

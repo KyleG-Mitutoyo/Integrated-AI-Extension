@@ -252,10 +252,6 @@ namespace Integrated_AI.Utilities
                 startPoint.Delete(endPoint);
                 startPoint.Insert(aiCode);
                 WebViewUtilities.Log($"ApplyChanges: Successfully applied changes to '{activeDoc.FullName}'.");
-
-                // Save the document after applying changes
-                //activeDoc.Save();
-                WebViewUtilities.Log($"ApplyChanges: Successfully saved '{activeDoc.FullName}'.");
             }
             catch (Exception ex)
             {

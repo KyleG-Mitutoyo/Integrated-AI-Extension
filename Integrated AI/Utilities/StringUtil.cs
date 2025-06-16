@@ -282,6 +282,7 @@ namespace Integrated_AI.Utilities
             return (double)commonCount / Math.Max(source.Length, target.Length);
         }
 
+        // Integrated AI/Utilities/StringUtil.cs
         public static string ReplaceOrAddCode(DTE2 dte, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null)
         {
             var (isFunction, functionName, isFullFile) = (false, string.Empty, false);
@@ -291,7 +292,6 @@ namespace Integrated_AI.Utilities
             {
                 (isFunction, functionName, isFullFile) = AnalyzeCodeBlock(dte, activeDoc, aiCode);
             }
-
             else
             {
                 isFunction = chosenItem?.Type == "function" || chosenItem?.Type == "new_function";
@@ -316,13 +316,15 @@ namespace Integrated_AI.Utilities
                     int startIndex = currentCode.IndexOf(targetFunction.FullCode, StringComparison.Ordinal);
                     if (startIndex >= 0)
                     {
+                        // Remove comments (C# // or VB ' or REM) above the function definition
+                        aiCode = RemoveCommentsAboveFunction(aiCode);
                         return StringUtil.ReplaceCodeBlock(currentCode, startIndex, targetFunction.FullCode.Length, aiCode);
                     }
                 }
             }
 
             // For "Selection" or unmatched functions, check for highlighted text
-            //But first it may be a chosenItem that is a new function or new file, which gets special handling
+            // But first it may be a chosenItem that is a new function or new file, which gets special handling
             if (chosenItem != null && (chosenItem.Type == "new_function" || chosenItem.Type == "new_file"))
             {
                 //TODO: special handling for new function or file
@@ -344,6 +346,69 @@ namespace Integrated_AI.Utilities
 
             // Fallback: Insert at cursor position or append if selection was empty or other errors
             return StringUtil.InsertAtCursorOrAppend(currentCode, aiCode, activeDoc);
+        }
+
+        // Helper method to remove comments above function definition
+        private static string RemoveCommentsAboveFunction(string code)
+        {
+            // Split code into lines
+            var lines = code.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
+            if (lines.Count == 0) return code;
+
+            // Find the function signature (simplified: look for "function", "sub", or access modifiers like "public", "private")
+            int functionStartIndex = -1;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                string trimmedLine = lines[i].TrimStart();
+                if (trimmedLine.StartsWith("public ") || trimmedLine.StartsWith("private ") ||
+                    trimmedLine.StartsWith("protected ") || trimmedLine.StartsWith("Function ") ||
+                    trimmedLine.StartsWith("Sub "))
+                {
+                    functionStartIndex = i;
+                    break;
+                }
+            }
+
+            // If no function signature found, return original code
+            if (functionStartIndex == -1) return code;
+
+            // Remove comments (C# // or VB ' or REM) above the function signature
+            var cleanedLines = new List<string>();
+            bool inCommentBlock = false;
+            for (int i = 0; i < lines.Count; i++)
+            {
+                string trimmedLine = lines[i].TrimStart();
+
+                // Skip if we're before the function and it's a comment
+                if (i < functionStartIndex)
+                {
+                    if (trimmedLine.StartsWith("//") || trimmedLine.StartsWith("'") ||
+                        trimmedLine.StartsWith("REM ", StringComparison.OrdinalIgnoreCase) ||
+                        string.IsNullOrWhiteSpace(trimmedLine))
+                    {
+                        continue; // Skip single-line comments or empty lines
+                    }
+                    if (trimmedLine.StartsWith("/*"))
+                    {
+                        inCommentBlock = true;
+                        continue;
+                    }
+                    if (inCommentBlock)
+                    {
+                        if (trimmedLine.Contains("*/"))
+                        {
+                            inCommentBlock = false;
+                        }
+                        continue;
+                    }
+                }
+
+                // Add non-comment lines or lines after function signature
+                cleanedLines.Add(lines[i]);
+            }
+
+            // Rejoin lines and return
+            return string.Join(Environment.NewLine, cleanedLines);
         }
 
         private static readonly string[] CSharpKeywords = 
