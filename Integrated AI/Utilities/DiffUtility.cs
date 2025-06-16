@@ -105,27 +105,49 @@ namespace Integrated_AI.Utilities
             }
 
             var diffContexts = new List<DiffContext>();
+    
+            // Log restoreFiles content for debugging
+            WebViewUtilities.Log($"OpenMultiFileDiffView: Processing {restoreFiles.Count} files.");
+
+            // Get solution directory for path normalization (if needed)
+            string solutionDir = System.IO.Path.GetDirectoryName(dte.Solution.FullName);
+            if (string.IsNullOrEmpty(solutionDir))
+            {
+                WebViewUtilities.Log("OpenMultiFileDiffView: Could not determine solution directory.");
+                MessageBox.Show("Unable to determine solution directory.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return null;
+            }
 
             foreach (var restoreFile in restoreFiles)
             {
                 string filePath = restoreFile.Key;
                 string restoreContent = restoreFile.Value;
 
-                // Check if the file exists in the current project
+                // Use solution-relative path
+                string normalizedPath = filePath;
+
+                // Check if file exists in the solution
                 ProjectItem projectItem = null;
                 try
                 {
-                    projectItem = dte.Solution.FindProjectItem(filePath);
+                    projectItem = dte.Solution.FindProjectItem(normalizedPath);
+                    if (projectItem == null)
+                    {
+                        // Try absolute path as fallback
+                        normalizedPath = System.IO.Path.Combine(solutionDir, filePath);
+                        normalizedPath = System.IO.Path.GetFullPath(normalizedPath);
+                        projectItem = dte.Solution.FindProjectItem(normalizedPath);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: Error finding project item for {filePath}: {ex.Message}");
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: Error finding project item for {normalizedPath}: {ex.Message}");
                     continue;
                 }
 
                 if (projectItem == null)
                 {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: File {filePath} not found in solution.");
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: File {normalizedPath} not found in solution.");
                     continue;
                 }
 
@@ -137,13 +159,13 @@ namespace Integrated_AI.Utilities
                     doc = projectItem.Document;
                     if (doc == null)
                     {
-                        WebViewUtilities.Log($"OpenMultiFileDiffView: Could not open document for {filePath}.");
+                        WebViewUtilities.Log($"OpenMultiFileDiffView: Could not open document for {normalizedPath}.");
                         continue;
                     }
                 }
                 catch (Exception ex)
                 {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: Exception opening document for {filePath}: {ex.Message}");
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: Exception opening document for {normalizedPath}: {ex.Message}");
                     continue;
                 }
 
@@ -156,27 +178,28 @@ namespace Integrated_AI.Utilities
                 }
                 catch (Exception ex)
                 {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: Error reading content for {filePath}: {ex.Message}");
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: Error reading content for {normalizedPath}: {ex.Message}");
                     continue;
                 }
 
                 // Compare only if content has changed
                 if (currentContent == restoreContent)
                 {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: No changes detected for {filePath}. Skipping diff.");
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: No changes detected for {normalizedPath}. Skipping diff.");
                     continue;
                 }
 
                 // Open diff view for this file
-                var context = OpenDiffView(doc, currentContent, restoreContent, restoreContent);
+                //MessageBox.Show($"Opening diff view for {normalizedPath}.\n\nCurrent content length: {currentContent.Length}\nRestore content length: {restoreContent.Length}", "Diff View", MessageBoxButton.OK, MessageBoxImage.Information);
+                var context = OpenDiffView(doc, restoreContent, currentContent, restoreContent);
                 if (context != null)
                 {
                     diffContexts.Add(context);
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: Diff view opened for {filePath}.");
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: Diff view opened for {normalizedPath}.");
                 }
                 else
                 {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: Failed to open diff view for {filePath}.");
+                    WebViewUtilities.Log($"OpenMultiFileDiffView: Failed to open diff view for {normalizedPath}.");
                 }
             }
 

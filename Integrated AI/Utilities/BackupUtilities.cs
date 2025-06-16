@@ -210,15 +210,16 @@ namespace Integrated_AI.Utilities
             {
                 if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName) || string.IsNullOrEmpty(restorePoint))
                 {
-                    return null;
+                    System.Windows.MessageBox.Show("Invalid input: Solution or restore point is missing.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return new Dictionary<string, string>(); // Return empty dictionary instead of null
                 }
 
-                string uniqueSolutionFolder = GetUniqueSolutionFolder(dte);
-                string backupPath = Path.Combine(backupRootPath, uniqueSolutionFolder, restorePoint);
+                string backupPath = Path.Combine(backupRootPath, restorePoint);
 
                 if (!Directory.Exists(backupPath))
                 {
-                    return null;
+                    System.Windows.MessageBox.Show($"Backup directory does not exist: {backupPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return new Dictionary<string, string>(); // Return empty dictionary instead of null
                 }
 
                 var files = new Dictionary<string, string>();
@@ -227,32 +228,56 @@ namespace Integrated_AI.Utilities
                 // Recursively get all files in the backup folder
                 CollectFiles(backupPath, solutionDir, files);
 
+                if (files.Count == 0)
+                {
+                    System.Windows.MessageBox.Show($"No files found in backup directory: {backupPath}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                }
+
                 return files;
             }
             catch (Exception ex)
             {
                 System.Windows.MessageBox.Show($"Error retrieving restore files: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
-                return null;
+                return new Dictionary<string, string>(); // Return empty dictionary instead of null
             }
         }
 
         // Recursively collects file paths and contents, mapping to solution-relative paths
         private static void CollectFiles(string sourceDir, string solutionDir, Dictionary<string, string> files)
         {
-            foreach (string file in Directory.GetFiles(sourceDir))
+            try
             {
-                // Compute the solution-relative path
-                string relativePath = file.Substring(sourceDir.Length).Trim(Path.DirectorySeparatorChar);
-                string solutionRelativePath = Path.Combine(solutionDir, relativePath);
+                foreach (string file in Directory.GetFiles(sourceDir))
+                {
+                    try
+                    {
+                        // Calculate the solution-relative path
+                        string relativePath = file.Substring(sourceDir.Length).TrimStart(Path.DirectorySeparatorChar);
+                        string solutionRelativePath = relativePath; // Use relative path directly
 
-                // Read file content
-                string content = File.ReadAllText(file);
-                files[solutionRelativePath] = content;
+                        
+                        // Read file content
+                        string content = File.ReadAllText(file);
+                        files[solutionRelativePath] = content;
+
+                        //WebViewUtilities.Log($"Collecting file: {solutionRelativePath} with contents: {content}");
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error for specific file but continue processing others
+                        System.Windows.MessageBox.Show($"Error reading file {file}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    }
+                }
+
+                foreach (string dir in Directory.GetDirectories(sourceDir))
+                {
+                    CollectFiles(dir, solutionDir, files);
+                }
             }
-
-            foreach (string dir in Directory.GetDirectories(sourceDir))
+            catch (Exception ex)
             {
-                CollectFiles(dir, solutionDir, files);
+                // Log directory-level error but continue processing
+                System.Windows.MessageBox.Show($"Error processing directory {sourceDir}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
             }
         }
     }

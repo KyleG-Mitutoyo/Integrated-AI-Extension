@@ -487,7 +487,7 @@ namespace Integrated_AI
         private void RestoreButton_Click(object sender, RoutedEventArgs e)
         {
             var solutionBackupsFolder = Path.Combine(_backupsFolder, BackupUtilities.GetUniqueSolutionFolder(_dte));
-            var restoreWindow = new RestoreSelectionWindow(solutionBackupsFolder);
+            var restoreWindow = new RestoreSelectionWindow(_dte, solutionBackupsFolder);
             bool? result = restoreWindow.ShowDialog();
             if (result == true && restoreWindow.SelectedBackup != null)
             {

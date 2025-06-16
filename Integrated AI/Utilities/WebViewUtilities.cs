@@ -167,7 +167,7 @@ namespace Integrated_AI
             string filePath = dte.ActiveDocument.FullName;
             string relativePath = FileUtil.GetRelativePath(solutionPath, filePath);
 
-            string functionFullName = null;
+            string functionName = null;
             string textToInject = null;
             string sourceDescription = "";
             string type = "";
@@ -217,8 +217,8 @@ namespace Integrated_AI
                 {
                     textToInject = functionSelectionWindow.SelectedFunction.FullCode;
                     type = "function";
-                    functionFullName = functionSelectionWindow.SelectedFunction.FullName;
-                    sourceDescription = $"---{relativePath} (function: {functionFullName})---\n{textToInject}\n---End code---\n\n";
+                    functionName = functionSelectionWindow.SelectedFunction.DisplayName;
+                    sourceDescription = $"---{relativePath} (function: {functionName})---\n{textToInject}\n---End code---\n\n";
                 }
                 else
                 {

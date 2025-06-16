@@ -5,8 +5,10 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using EnvDTE80;
 using HandyControl.Controls;
 using Integrated_AI.Utilities;
+using Microsoft.VisualStudio.Shell;
 using MessageBox = System.Windows.MessageBox;
 using Window = System.Windows.Window;
 
@@ -23,12 +25,14 @@ namespace Integrated_AI
 
         public BackupItem SelectedBackup { get; private set; }
         private readonly string _backupRootPath;
+        private DTE2 _dte;
 
-        public RestoreSelectionWindow(string backupRootPath)
+        public RestoreSelectionWindow(DTE2 dte, string backupRootPath)
         {
             InitializeComponent();
             var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
             _backupRootPath = backupRootPath;
+            _dte = dte;
             PopulateBackupList();
         }
 
@@ -99,7 +103,49 @@ namespace Integrated_AI
 
         private void CompareButton_Click(object sender, RoutedEventArgs e)
         {
-            
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (BackupListBox.SelectedItem == null)
+            {
+                MessageBox.Show("Please select a restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            try
+            {
+                // Get selected restore point (yyyy-MM-dd_HH-mm-ss)
+                if (BackupListBox.SelectedItem is BackupItem selected)
+                {
+                    string selectedRestore = selected.BackupTime.ToString("yyyy-MM-dd_HH-mm-ss");
+
+                    // Retrieve restore files (Dictionary<string, string> of file paths and contents)
+                    var restoreFiles = BackupUtilities.GetRestoreFiles(_dte, _backupRootPath, selectedRestore);
+                    if (restoreFiles == null || restoreFiles.Count == 0)
+                    {
+                        MessageBox.Show("No files found for the selected restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+
+                    // Open diff views for all changed files
+                    var diffContexts = DiffUtility.OpenMultiFileDiffView(_dte, restoreFiles);
+                    if (diffContexts == null || diffContexts.Count == 0)
+                    {
+                        // Message already shown in OpenMultiFileDiffView
+                        return;
+                    }
+
+                    // Close the window after opening diff views
+                    Close();
+                }
+                else
+                {
+                    MessageBox.Show("Invalid restore point selected.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error opening diff views: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                WebViewUtilities.Log($"RestoreSelectionWindow.CompareButton_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
+            }
         }
     }
 }
