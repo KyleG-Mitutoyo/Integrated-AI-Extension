@@ -270,9 +270,11 @@ namespace Integrated_AI
                     }
                 }
 
-                modifiedCode = StringUtil.ReplaceOrAddCode(_dte, modifiedCode, aiCode, activeDocument, selectedItem);
+                // Need to define diffcontext here to use it in replaceOrAddCode
+                _diffContext = new DiffUtility.DiffContext { };
+                modifiedCode = StringUtil.ReplaceOrAddCode(_dte, modifiedCode, aiCode, activeDocument, selectedItem, _diffContext);
                 //MessageBox.Show("Opening diff view...", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                _diffContext = DiffUtility.OpenDiffView(activeDocument, currentCode, modifiedCode, aiCode);
+                _diffContext = DiffUtility.OpenDiffView(activeDocument, currentCode, modifiedCode, aiCode, _diffContext);
 
                 // If opening the diff view had a problem, we don't want to show the accept/decline buttons.
                 if (_diffContext == null)
@@ -367,7 +369,6 @@ namespace Integrated_AI
             PasteButton_ClickLogic(aiCode);
         }
 
-        // Integrated AI/ChatWindow.xaml.cs
         private void AcceptButton_Click(object sender, RoutedEventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
@@ -394,7 +395,7 @@ namespace Integrated_AI
                 _diffContext = null;
             }
 
-            //Make sure to use the ActiveDocument from the diffcontext rather than the current active document!
+            // Make sure to use the ActiveDocument from the diffcontext rather than the current active document!
             if (aiCodeFullFile != null && _dte != null)
             {
                 if (contextToClose.ActiveDocument != null)
@@ -410,6 +411,32 @@ namespace Integrated_AI
             // Save the document after making the backup
             contextToClose.ActiveDocument?.Save();
             WebViewUtilities.Log($"ApplyChanges: Successfully saved '{contextToClose.ActiveDocument.FullName}'.");
+
+            // Scroll to the added code section start
+            // Right now it actually just scrolls to where you left off before opening the diff view.
+            if (contextToClose?.ActiveDocument != null && contextToClose.NewCodeStartIndex >= 0)
+            {
+                try
+                {
+                    var textDocument = (TextDocument)contextToClose.ActiveDocument.Object("TextDocument");
+                    var selection = textDocument.Selection;
+                    var editPoint = textDocument.CreateEditPoint(textDocument.StartPoint);
+
+                    // Move to the character index and get the line and column
+                    editPoint.MoveToAbsoluteOffset(contextToClose.NewCodeStartIndex + 1); // +1 because DTE uses 1-based indexing
+                    int line = editPoint.Line;
+                    int column = editPoint.LineCharOffset;
+
+                    // Move the cursor to the start of the new code
+                    selection.MoveTo(line, column);
+                    selection.ActivePoint.TryToShow(vsPaneShowHow.vsPaneShowTop, null); // Scroll to top of the view
+                    WebViewUtilities.Log($"Scrolled to line {line}, column {column} at index {contextToClose.NewCodeStartIndex}.");
+                }
+                catch (Exception ex)
+                {
+                    WebViewUtilities.Log($"Error scrolling to index {contextToClose.NewCodeStartIndex}: {ex.Message}");
+                }
+            }
 
             UpdateButtonsForDiffView(false);
             _lastClipboardText = null;

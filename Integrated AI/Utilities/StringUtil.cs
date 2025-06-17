@@ -303,7 +303,7 @@ namespace Integrated_AI.Utilities
         }
 
         // Integrated AI/Utilities/StringUtil.cs
-        public static string ReplaceOrAddCode(DTE2 dte, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null)
+        public static string ReplaceOrAddCode(DTE2 dte, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
         {
             var (isFunction, functionName, isFullFile) = (false, string.Empty, false);
 
@@ -340,6 +340,7 @@ namespace Integrated_AI.Utilities
                     {
                         // Remove comments (C# // or VB ' or REM) above the function definition
                         aiCode = RemoveCommentsAboveFunction(aiCode);
+                        context.NewCodeStartIndex = startIndex;
                         return StringUtil.ReplaceCodeBlock(currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode);
                     }
                 }
@@ -363,6 +364,7 @@ namespace Integrated_AI.Utilities
                     int startIndex = selection.TopPoint.AbsoluteCharOffset;
                     int length = selection.BottomPoint.AbsoluteCharOffset - startIndex;
                     // Pass -1 to ignore base indentation, as we are replacing the selected text directly
+                    context.NewCodeStartIndex = startIndex;
                     return StringUtil.ReplaceCodeBlock(currentCode, startIndex, -1, length, aiCode);
                 }
             }

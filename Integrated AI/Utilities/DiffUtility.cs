@@ -22,9 +22,10 @@ namespace Integrated_AI.Utilities
             public string AICodeBlock { get; set; }
             public IVsWindowFrame DiffFrame { get; set; }
             public Document ActiveDocument { get; set; }
+            public int NewCodeStartIndex { get; set; } = -1;
         }
 
-        public static DiffContext OpenDiffView(Document activeDoc, string currentCode, string aiCodeFullFileContents, string aiCode)
+        public static DiffContext OpenDiffView(Document activeDoc, string currentCode, string aiCodeFullFileContents, string aiCode, DiffContext existingContext = null)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             if (activeDoc == null || currentCode == null || aiCodeFullFileContents == null)
@@ -34,13 +35,20 @@ namespace Integrated_AI.Utilities
             }
 
             string extension = Path.GetExtension(activeDoc.FullName) ?? ".txt";
+            var context = new DiffContext { };
 
-            var context = new DiffContext
+            // Use the existing context if provided, otherwise create a new one
+            if (existingContext == null)
             {
-                TempCurrentFile = Path.Combine(Path.GetTempPath(), $"Current_{Guid.NewGuid()}{extension}"),
-                TempAiFile = Path.Combine(Path.GetTempPath(), $"AI_{Guid.NewGuid()}{extension}")
-            };
+                context = new DiffContext();
+            }
+            else
+            {
+                context = existingContext;
+            }
 
+            context.TempCurrentFile = Path.Combine(Path.GetTempPath(), $"Current_{Guid.NewGuid()}{extension}");
+            context.TempAiFile = Path.Combine(Path.GetTempPath(), $"AI_{Guid.NewGuid()}{extension}");
             context.AICodeBlock = aiCode;
             context.ActiveDocument = activeDoc;
 
