@@ -407,9 +407,9 @@ namespace Integrated_AI
             // TODO: also store the contextToClose.AICodeBlock in a mapped data file for later retrieval.
             BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder);
 
-            //// Save the document after making the backup
-            //contextToClose.ActiveDocument?.Save();
-            //WebViewUtilities.Log($"ApplyChanges: Successfully saved '{contextToClose.ActiveDocument.FullName}'.");
+            // Save the document after making the backup
+            contextToClose.ActiveDocument?.Save();
+            WebViewUtilities.Log($"ApplyChanges: Successfully saved '{contextToClose.ActiveDocument.FullName}'.");
 
             UpdateButtonsForDiffView(false);
             _lastClipboardText = null;
@@ -500,7 +500,7 @@ namespace Integrated_AI
         // Integrated AI/ChatWindow.xaml.cs
         private void DebugButton_Click(object sender, RoutedEventArgs e)
         {
-            //Kept for future use, maybe to show debug info
+            MessageBox.Show(StringUtil.GetIndentPosition("        private void RestoreButton_Click(object sender, RoutedEventArgs e)").ToString(), "Debug", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void RestoreButton_Click(object sender, RoutedEventArgs e)

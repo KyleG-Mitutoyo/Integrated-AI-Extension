@@ -206,41 +206,50 @@ namespace Integrated_AI.Utilities
             return string.Join("\n", lines);
         }
 
-        public static string ReplaceCodeBlock(string documentContent, int startIndex, int length, string newCode)
+        public static string ReplaceCodeBlock(string documentContent, int startIndex, int startLine, int length, string newCode)
         {
-            // Extract the original code block to analyze its structure
-            string originalBlock = documentContent.Substring(startIndex, length);
-            string[] originalLines = originalBlock.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-    
-            // Find the function signature line by looking for the first non-empty line
-            string signatureLine = "";
-            foreach (var line in originalLines)
+            // Get the text of the line at startLine to determine base indentation
+            int baseIndentation = 0;
+            if (startLine > 0)
             {
-                if (!string.IsNullOrWhiteSpace(line))
+                // Find the start of the line by counting line breaks
+                int lineCount = 0;
+                int lineStartIndex = 0;
+                for (int i = 0; i < documentContent.Length; i++)
                 {
-                    signatureLine = line;
-                    break;
+                    if (documentContent[i] == '\n')
+                    {
+                        lineCount++;
+                        if (lineCount == startLine)
+                        {
+                            lineStartIndex = i + 1;
+                            break;
+                        }
+                    }
+                }
+
+                // Extract the line text
+                if (lineCount == startLine && lineStartIndex < documentContent.Length)
+                {
+                    int lineEndIndex = documentContent.IndexOf('\n', lineStartIndex);
+                    if (lineEndIndex == -1) lineEndIndex = documentContent.Length;
+                    string lineText = documentContent.Substring(lineStartIndex, lineEndIndex - lineStartIndex).TrimEnd('\r');
+                    baseIndentation = GetIndentPosition(lineText);
                 }
             }
-            // Fallback to the first line if no non-empty line is found
-            if (string.IsNullOrEmpty(signatureLine))
-            {
-                signatureLine = originalLines.FirstOrDefault() ?? "";
-            }
-    
-            // Use the indentation of the function signature
-            string baseIndentation = new string(signatureLine.TakeWhile(char.IsWhiteSpace).ToArray());
+
+            WebViewUtilities.Log($"Base indentation for replacement: {baseIndentation} spaces");
 
             // Split newCode into lines
             string[] newCodeLines = newCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-    
+
             // Find the minimum indentation in newCode (excluding empty lines) to preserve relative structure
             int minIndent = int.MaxValue;
             foreach (var line in newCodeLines)
             {
                 if (!string.IsNullOrWhiteSpace(line))
                 {
-                    int indentCount = line.TakeWhile(char.IsWhiteSpace).Count();
+                    int indentCount = GetIndentPosition(line);
                     minIndent = Math.Min(minIndent, indentCount);
                 }
             }
@@ -253,7 +262,18 @@ namespace Integrated_AI.Utilities
                 {
                     // Remove only the minimum indentation to preserve relative structure
                     string trimmedLine = newCodeLines[i].Substring(Math.Min(minIndent, newCodeLines[i].Length));
-                    newCodeLines[i] = baseIndentation + trimmedLine;
+                    // Prepend baseIndentation as spaces
+                    string indentString = new string(' ', baseIndentation);
+
+                    // Preserve first line's indentation
+                    if (i == 0)
+                    {
+                        indentString = ""; // Keep the first line's indentation as is
+                    }
+
+                    newCodeLines[i] = indentString + trimmedLine;
+                    // Optional debug: Log indentation for verification (remove in production)
+                    // System.Diagnostics.Debug.WriteLine($"Line {i}: OriginalIndent={GetIndentPosition(newCodeLines[i])}, NewIndent={GetIndentPosition(indentString + trimmedLine)}");
                 }
                 else
                 {
@@ -314,11 +334,13 @@ namespace Integrated_AI.Utilities
                 {
                     // Find the function's current code in the document
                     int startIndex = currentCode.IndexOf(targetFunction.FullCode, StringComparison.Ordinal);
+                    int startLine = targetFunction.StartPoint.Line;
+                    
                     if (startIndex >= 0)
                     {
                         // Remove comments (C# // or VB ' or REM) above the function definition
                         aiCode = RemoveCommentsAboveFunction(aiCode);
-                        return StringUtil.ReplaceCodeBlock(currentCode, startIndex, targetFunction.FullCode.Length, aiCode);
+                        return StringUtil.ReplaceCodeBlock(currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode);
                     }
                 }
             }
@@ -340,7 +362,8 @@ namespace Integrated_AI.Utilities
                     // Get the start and end points of the selection
                     int startIndex = selection.TopPoint.AbsoluteCharOffset;
                     int length = selection.BottomPoint.AbsoluteCharOffset - startIndex;
-                    return StringUtil.ReplaceCodeBlock(currentCode, startIndex, length, aiCode);
+                    // Pass -1 to ignore base indentation, as we are replacing the selected text directly
+                    return StringUtil.ReplaceCodeBlock(currentCode, startIndex, -1, length, aiCode);
                 }
             }
 
@@ -532,6 +555,36 @@ namespace Integrated_AI.Utilities
                 case "XAML": return ".xaml";
                 default: return ".txt";
             }
+        }
+
+        // Calculates the indent position of a line based on leading whitespace.
+        // Each tab is counted as 4 spaces for consistency.
+        // Returns the total indent position as an integer.
+        public static int GetIndentPosition(string line)
+        {
+            if (string.IsNullOrEmpty(line))
+            {
+                return 0;
+            }
+
+            int indent = 0;
+            foreach (char c in line)
+            {
+                if (c == ' ')
+                {
+                    indent++;
+                }
+                else if (c == '\t')
+                {
+                    indent += 4; // Assume tab equals 4 spaces
+                }
+                else
+                {
+                    break; // Stop at first non-whitespace character
+                }
+            }
+
+            return indent;
         }
     }
 }

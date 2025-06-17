@@ -44,8 +44,8 @@ namespace Integrated_AI
                     FullName = fullName,
                     Function = codeFunction,
                     FullCode = functionCode,
-                    //StartLine = codeFunction.StartPoint.Line, 
-                    //EndLine = codeFunction.EndPoint.Line      
+                    StartPoint = codeFunction.StartPoint, 
+                    EndPoint = codeFunction.EndPoint      
                 });
             }
 

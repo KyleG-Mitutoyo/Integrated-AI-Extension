@@ -20,6 +20,9 @@ namespace Integrated_AI
                 public string FullName { get; set; }
                 public CodeFunction Function { get; set; }
                 public string FullCode { get; set; }
+                public TextPoint StartPoint { get; set; }
+                public TextPoint EndPoint { get; set; }
+
             }
 
             public FunctionItem SelectedFunction { get; private set; }
