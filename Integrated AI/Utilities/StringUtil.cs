@@ -341,8 +341,17 @@ namespace Integrated_AI.Utilities
                         // Remove comments (C# // or VB ' or REM) above the function definition
                         aiCode = RemoveCommentsAboveFunction(aiCode);
                         context.NewCodeStartIndex = startIndex;
-                        return StringUtil.ReplaceCodeBlock(currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode);
+                        return ReplaceCodeBlock(currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode);
                     }
+                }
+
+                else
+                {
+                    ChooseCodeWindow.ReplacementItem newFunctionItem = new ChooseCodeWindow.ReplacementItem {};
+                    chosenItem = newFunctionItem; // Create a new item for the function
+                    chosenItem.Type = "new_function"; // If function not found, treat as new function
+                    WebViewUtilities.Log($"Function '{functionName}' not found in the document. It will be added as a new function.");
+                    //MessageBox.Show($"Function '{functionName}' not found in the document. It will be added as a new function.", "Function Not Found", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
 
@@ -380,14 +389,18 @@ namespace Integrated_AI.Utilities
             var lines = code.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
             if (lines.Count == 0) return code;
 
-            // Find the function signature (simplified: look for "function", "sub", or access modifiers like "public", "private")
+            // Find the function signature (look for function/sub keywords or access modifiers)
             int functionStartIndex = -1;
             for (int i = 0; i < lines.Count; i++)
             {
                 string trimmedLine = lines[i].TrimStart();
-                if (trimmedLine.StartsWith("public ") || trimmedLine.StartsWith("private ") ||
-                    trimmedLine.StartsWith("protected ") || trimmedLine.StartsWith("Function ") ||
-                    trimmedLine.StartsWith("Sub "))
+                // Use case-insensitive comparison for keywords to support both C# and VB
+                if (trimmedLine.StartsWith("public ", StringComparison.OrdinalIgnoreCase) || 
+                    trimmedLine.StartsWith("private ", StringComparison.OrdinalIgnoreCase) ||
+                    trimmedLine.StartsWith("protected ", StringComparison.OrdinalIgnoreCase) || 
+                    trimmedLine.StartsWith("internal ", StringComparison.OrdinalIgnoreCase) ||
+                    trimmedLine.StartsWith("Function ", StringComparison.OrdinalIgnoreCase) ||
+                    trimmedLine.StartsWith("Sub ", StringComparison.OrdinalIgnoreCase))
                 {
                     functionStartIndex = i;
                     break;
@@ -416,6 +429,11 @@ namespace Integrated_AI.Utilities
                     if (trimmedLine.StartsWith("/*"))
                     {
                         inCommentBlock = true;
+                        // Continue if the entire block is on one line and ends here
+                        if (trimmedLine.Contains("*/")) 
+                        {
+                            inCommentBlock = false;
+                        }
                         continue;
                     }
                     if (inCommentBlock)
@@ -428,20 +446,83 @@ namespace Integrated_AI.Utilities
                     }
                 }
 
-                // Add non-comment lines or lines after function signature
-                cleanedLines.Add(lines[i]);
+                // Add non-comment lines or lines at/after the function signature
+                // But also check if we are exiting a comment block on the same line we are adding
+                if (inCommentBlock && trimmedLine.Contains("*/"))
+                {
+                    inCommentBlock = false;
+                }
+
+                // Only add the line if we are not inside a comment block
+                if (!inCommentBlock)
+                {
+                    cleanedLines.Add(lines[i]);
+                }
             }
 
             // Rejoin lines and return
             return string.Join(Environment.NewLine, cleanedLines);
         }
 
-        private static readonly string[] CSharpKeywords = 
+        #region Code Analysis Regex and Keywords
+
+        // A set of C# keywords that can precede a parenthesis, to avoid matching control flow blocks as functions.
+        private static readonly HashSet<string> CSharpKeywords = new HashSet<string>(StringComparer.Ordinal)
         {
-            "if", "else", "while", "for", "foreach", "switch", "case", "do", 
-            "return", "break", "continue", "try", "catch", "finally", "throw", 
-            "new", "class", "struct", "interface", "enum", "namespace", "using"
+            "if", "for", "foreach", "while", "do", "switch", "case", "lock", "using", "fixed", "catch", "finally"
         };
+
+        // A set of VB.NET keywords for the same purpose.
+        private static readonly HashSet<string> VbKeywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "If", "For", "ForEach", "While", "Do", "Select", "Case", "SyncLock", "Using", "Catch", "Finally", "With"
+        };
+
+        /// <summary>
+        /// A robust Regex for C# method detection.
+        /// It uses a positive lookahead to find the method's structure (name, parameters, opening brace)
+        /// without trying to parse the complex return types and modifiers, which was the point of failure.
+        /// It then captures the name for validation.
+        /// </summary>
+        private static readonly Regex CSharpMethodRegex = new Regex(
+            @"
+            ^                                       # Start of a line (in Multiline mode)
+            \s*                                     # Leading whitespace
+            # Lookahead to find a pattern that looks like a method signature on the current line
+            (?=
+                .*                                  # Allow any modifiers, return type, etc.
+                \b(?<MethodName>[\w_][\w\d_]*)\b    # Capture a valid identifier as the method name
+                \s*
+                (?:<.*?>)?                          # Optional generic parameters on the method itself, e.g., <T>
+                \s*
+                \(.*?\)                             # The parameter list (non-greedy)
+                \s*
+                (?:where\s.*?)?                     # Optional 'where' constraints for generics
+                \s*
+                \{                                  # Must be followed by an opening brace
+            )
+            ",
+            RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace | RegexOptions.Compiled);
+
+        /// <summary>
+        /// A Regex for VB.NET Sub/Function detection.
+        /// This is more straightforward than C# because we can anchor the search on the 'Function' or 'Sub' keyword.
+        /// </summary>
+        private static readonly Regex VbMethodRegex = new Regex(
+            @"
+            ^                                       # Start of a line (in Multiline mode)
+            \s*
+            (?:<[\w\s=""',.]*>\s*)*                  # Optional attributes like <TestMethod()>
+            (?:(Public|Private|Protected|Friend|Shared|Async|Overrides|Overridable|MustOverride|Iterator)\s+)* # Modifiers
+            (?:Function|Sub)\s+                     # The 'Function' or 'Sub' keyword is mandatory
+            \b(?<MethodName>[\w_][\w\d_]*)\b        # Capture the method name
+            \s*
+            \(.*?\)                                 # The parameter list
+            ",
+            RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.IgnorePatternWhitespace | RegexOptions.Compiled);
+
+        #endregion
+
 
         public static (bool IsFunction, string FunctionName, bool IsFullFile) AnalyzeCodeBlock(DTE2 dte, Document activeDoc, string code)
         {
@@ -449,98 +530,104 @@ namespace Integrated_AI.Utilities
 
             if (dte == null || activeDoc == null || string.IsNullOrEmpty(code))
             {
-                System.Diagnostics.Debug.WriteLine("Invalid input: DTE, Document, or code is null/empty.");
+                WebViewUtilities.Log("AnalyzeCodeBlock: Invalid input (DTE, Document, or code is null/empty).");
                 return (false, null, false);
             }
 
             try
             {
-                // Determine language based on file extension
-                string extension = Path.GetExtension(activeDoc.FullName)?.ToLowerInvariant() ?? ".cs";
-                if (extension != ".cs")
+                string extension = Path.GetExtension(activeDoc.FullName)?.ToLowerInvariant();
+                bool isCSharp = extension == ".cs";
+                bool isVB = extension == ".vb";
+
+                if (!isCSharp && !isVB)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Unsupported file extension: {extension}");
+                    WebViewUtilities.Log($"AnalyzeCodeBlock: Unsupported file extension: {extension}");
                     return (false, null, false);
                 }
 
-                string normalizedCode = NormalizeCode(code);
-                if (string.IsNullOrEmpty(normalizedCode))
+                // --- Stricter Full File Detection ---
+                string trimmedCode = code.Trim();
+
+                // THE FIX: Use Regex anchored to the start (^) for all top-level keyword checks.
+                // This prevents matching keywords that appear inside a method body.
+                bool hasImportsOrUsing = isCSharp
+                    ? new Regex(@"^\s*using\s+").IsMatch(trimmedCode)
+                    : new Regex(@"^\s*Imports\s+", RegexOptions.IgnoreCase).IsMatch(trimmedCode);
+
+                bool hasNamespace = new Regex(@"^\s*namespace\s+").IsMatch(trimmedCode);
+
+                bool hasTopLevelType = false;
+                if (isCSharp)
                 {
-                    return (false, null, false);
+                    hasTopLevelType = new Regex(@"^\s*(public|internal)?\s*(abstract|sealed|static)?\s*(class|struct|interface|enum)\s+").IsMatch(trimmedCode);
+                }
+                else if (isVB)
+                {
+                    hasTopLevelType = new Regex(@"^\s*(Public|Friend)?\s*(Shared|MustInherit|NotInheritable)?\s*(Class|Structure|Interface|Enum|Module)\s+", RegexOptions.IgnoreCase).IsMatch(trimmedCode);
                 }
 
-                // --- Improved Full File Detection ---
-                // A full file is likely to have using statements, a namespace, or be a complete class/struct/interface block.
-                string trimmedNormalizedCode = normalizedCode.Trim();
-                bool hasUsing = trimmedNormalizedCode.StartsWith("using ");
-                bool hasNamespace = trimmedNormalizedCode.Contains("namespace "); // Check for "namespace " to avoid false positives
-        
-                // Check for top-level type definitions
-                bool hasTopLevelType = trimmedNormalizedCode.StartsWith("public class") ||
-                                        trimmedNormalizedCode.StartsWith("internal class") ||
-                                        trimmedNormalizedCode.StartsWith("class ") ||
-                                        trimmedNormalizedCode.StartsWith("public struct") ||
-                                        trimmedNormalizedCode.StartsWith("public interface");
+                // A full file must have a balanced structure.
+                int openBraces = code.Count(c => c == '{');
+                int closeBraces = code.Count(c => c == '}');
+                // A valid C# file/class block must contain at least one brace pair and be balanced.
+                bool bracesBalanced = openBraces > 0 && openBraces == closeBraces;
 
-                // Check for balanced braces to ensure it's a complete block of code
-                int braceCount = 0;
-                foreach (char c in normalizedCode)
+                bool vbStructureBalanced = true;
+                if (isVB)
                 {
-                    if (c == '{') braceCount++;
-                    else if (c == '}') braceCount--;
+                    int startCount = Regex.Matches(code, @"\b(Class|Module|Structure|Enum|Interface)\b", RegexOptions.IgnoreCase).Count;
+                    int endCount = Regex.Matches(code, @"\bEnd\s+(Class|Module|Structure|Enum|Interface)\b", RegexOptions.IgnoreCase).Count;
+                    // A valid VB structure must have at least one container and they must be balanced.
+                    vbStructureBalanced = startCount > 0 && startCount == endCount;
                 }
-        
-                // A full file is a complete block that contains strong indicators like namespace/using or is a top-level type.
-                if (braceCount == 0 && (hasNamespace || hasUsing || hasTopLevelType))
+
+                if (((isCSharp && bracesBalanced) || (isVB && vbStructureBalanced)) && (hasImportsOrUsing || hasNamespace || hasTopLevelType))
                 {
-                    System.Diagnostics.Debug.WriteLine("Detected full file based on using/namespace/class and balanced braces.");
-                    // This is a full file, so it's not a single function. Return immediately.
+                    WebViewUtilities.Log("AnalyzeCodeBlock: Detected full file based on structure and keywords.");
                     return (false, null, true);
                 }
 
+
                 // --- Method Detection ---
-                // If we got here, it's not a full file. Now, check if it's a method.
-                // NOTE: Use the original 'code' for regex, as normalization can sometimes affect complex signatures.
-                var methodRegex = new Regex(
-                    // Matches access modifier, static, return type, method name, and parameters.
-                    @"^\s*(public|private|protected|internal|protected internal|private protected)?\s*(static)?\s*([\w\.<>\[\]\?]+)\s+([\w\d_]+)\s*\([^)]*\)\s*\{",
-                    RegexOptions.Multiline);
-            
-                MatchCollection methodMatches = methodRegex.Matches(code);
+                // If it's not a full file, check if it's a function.
+                Regex regex = isCSharp ? CSharpMethodRegex : VbMethodRegex;
+                var matches = regex.Matches(code);
 
-                if (methodMatches.Count > 0)
+                if (matches.Count > 0)
                 {
-                    // We consider it a "function" context if it looks like one or more complete methods.
-                    // For simplicity, we'll analyze the first one found.
-                    var match = methodMatches[0];
-                    string methodName = match.Groups[4].Value;
+                    var match = matches[0];
+                    string methodName = match.Groups["MethodName"].Value;
+                    bool isKeyword = isCSharp ? CSharpKeywords.Contains(methodName) : VbKeywords.Contains(methodName);
 
-                    // Simple validation to avoid matching control structures like `if () {`
-                    if (!CSharpKeywords.Contains(methodName, StringComparer.OrdinalIgnoreCase))
+                    if (!string.IsNullOrEmpty(methodName) && !isKeyword)
                     {
-                         // Check for balanced braces on the whole snippet to confirm it's likely a complete method
-                        int methodBraceCount = 0;
-                        foreach (char c in code)
+                        if (isCSharp)
                         {
-                            if (c == '{') methodBraceCount++;
-                            else if (c == '}') methodBraceCount--;
+                            // A single function should also have balanced braces.
+                            if (bracesBalanced)
+                            {
+                                WebViewUtilities.Log($"AnalyzeCodeBlock: Detected C# method: {methodName}");
+                                return (true, methodName, false);
+                            }
                         }
-
-                        if (methodBraceCount == 0)
+                        else if (isVB)
                         {
-                            System.Diagnostics.Debug.WriteLine($"Detected single/primary method: {methodName}");
-                            return (true, methodName, false);
+                            if (Regex.IsMatch(code, @"\bEnd\s+(Function|Sub)\b", RegexOptions.IgnoreCase))
+                            {
+                                WebViewUtilities.Log($"AnalyzeCodeBlock: Detected VB method: {methodName}");
+                                return (true, methodName, false);
+                            }
                         }
                     }
                 }
 
-                // If it's neither a full file nor a recognized method, it's a snippet.
-                System.Diagnostics.Debug.WriteLine("Code is not a full file or a recognized method. Treating as a snippet.");
+                WebViewUtilities.Log("AnalyzeCodeBlock: Code is not a full file or a recognized method. Treating as a snippet.");
                 return (false, null, false);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Exception in AnalyzeCodeBlock: {ex.Message}\nStackTrace: {ex.StackTrace}");
+                WebViewUtilities.Log($"Exception in AnalyzeCodeBlock: {ex.Message}\nStackTrace: {ex.StackTrace}");
                 return (false, null, false);
             }
         }
