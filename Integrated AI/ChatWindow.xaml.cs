@@ -376,6 +376,7 @@ namespace Integrated_AI
 
             string aiCodeFullFile = null;
             var contextToClose = _diffContext;
+            var documentToModify = _dte.Documents.Item(contextToClose.ActiveDocumentPath);
 
             if (contextToClose?.TempAiFile != null && File.Exists(contextToClose.TempAiFile))
             {
@@ -400,9 +401,9 @@ namespace Integrated_AI
             // Make sure to use the ActiveDocument from the diffcontext rather than the current active document!
             if (aiCodeFullFile != null && _dte != null)
             {
-                if (contextToClose.ActiveDocument != null)
+                if (contextToClose.ActiveDocumentPath != null)
                 {
-                    DiffUtility.ApplyChanges(_dte, contextToClose.ActiveDocument, aiCodeFullFile);
+                    DiffUtility.ApplyChanges(_dte, documentToModify, aiCodeFullFile);
                 }
             }
 
@@ -411,16 +412,15 @@ namespace Integrated_AI
             BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder);
 
             // Save the document after making the backup
-            contextToClose.ActiveDocument?.Save();
-            WebViewUtilities.Log($"ApplyChanges: Successfully saved '{contextToClose.ActiveDocument.FullName}'.");
+            documentToModify?.Save();
+            WebViewUtilities.Log($"ApplyChanges: Successfully saved '{contextToClose.ActiveDocumentPath}'.");
 
             // Scroll to the added code section start
-            // Right now it actually just scrolls to where you left off before opening the diff view.
-            if (contextToClose?.ActiveDocument != null && contextToClose.NewCodeStartIndex >= 0)
+            if (contextToClose?.ActiveDocumentPath != null && contextToClose.NewCodeStartIndex >= 0)
             {
                 try
                 {
-                    var textDocument = (TextDocument)contextToClose.ActiveDocument.Object("TextDocument");
+                    var textDocument = (TextDocument)documentToModify.Object("TextDocument");
                     var selection = textDocument.Selection;
                     var editPoint = textDocument.CreateEditPoint(textDocument.StartPoint);
 
@@ -448,45 +448,76 @@ namespace Integrated_AI
 
         private void ChooseButton_Click(object sender, RoutedEventArgs e)
         {
-            //First close the existing diff view to make a new one
+            // Capture necessary data from the existing context before it gets reset.
+            if (_diffContext == null || _diffContext.ActiveDocumentPath == null || string.IsNullOrEmpty(_diffContext.AICodeBlock))
+            {
+                // Not enough info to proceed. Reset UI and state.
+                UpdateButtonsForDiffView(false);
+                _isProcessingClipboardAction = false;
+                _lastClipboardText = null;
+                if (_diffContext != null)
+                {
+                    DiffUtility.CloseDiffAndReset(_diffContext);
+                    _diffContext = null;
+                }
+                return;
+            }
+
+            string originalDocPath = _diffContext.ActiveDocumentPath;
+            string aiCode = _diffContext.AICodeBlock;
+
+            // First, close the existing diff view. This will invalidate the old _diffContext.ActiveDocument reference.
             DiffUtility.CloseDiffAndReset(_diffContext);
 
-            string currentCode = DiffUtility.GetDocumentText(_diffContext.ActiveDocument);
-            string modifiedCode = currentCode;
+            // Now that the diff view is closed, we must get a fresh handle to the document.
+            var activeDocument = _dte.Documents.Item(originalDocPath);
+            if (activeDocument == null) {
+                MessageBox.Show($"Could not re-acquire a handle to document: {originalDocPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                UpdateButtonsForDiffView(false);
+                _isProcessingClipboardAction = false;
+                _lastClipboardText = null;
+                return;
+            }
+            activeDocument.Activate(); // Good practice to ensure it's the active document.
 
-            //null currentCode must mean the button was clicked without an active document
+            string currentCode = DiffUtility.GetDocumentText(activeDocument);
             if (currentCode == null)
             {
+                MessageBox.Show("Unable to retrieve current code from document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 UpdateButtonsForDiffView(false);
                 _isProcessingClipboardAction = false;
                 _lastClipboardText = null;
-                //MessageBox.Show("No active document or unable to retrieve current code.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            //Choose an existing/new function or existing/new file manually
-            // Shows the code replacement window and returns the selected item
-            var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, _diffContext.ActiveDocument);
+            // Show the code replacement window. This now uses a valid Document object, which prevents the freeze.
+            var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
             if (selectedItem == null)
             {
-                //MessageBox.Show("No code selection made.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                // User cancelled the selection. Reset UI and state.
                 UpdateButtonsForDiffView(false);
                 _isProcessingClipboardAction = false;
                 _lastClipboardText = null;
                 return;
             }
 
-            //We can use diffcontext existing items since it still exists for now
-            modifiedCode = StringUtil.ReplaceOrAddCode(_dte, modifiedCode, _diffContext.AICodeBlock, _diffContext.ActiveDocument, selectedItem);
-            _diffContext = DiffUtility.OpenDiffView(_diffContext.ActiveDocument, currentCode, modifiedCode, _diffContext.AICodeBlock);
+            // Create a new context for the new diff view, following the pattern in PasteButton_ClickLogic.
+            var newDiffContext = new DiffUtility.DiffContext { };
 
-            //If opening the diff view had a problem, reset the buttons.
+            // Calculate the modified code based on user's selection, passing the new context to be populated.
+            string modifiedCode = StringUtil.ReplaceOrAddCode(_dte, currentCode, aiCode, activeDocument, selectedItem, newDiffContext);
+
+            // Open a new diff view and assign the fully populated context to our member field.
+            _diffContext = DiffUtility.OpenDiffView(activeDocument, currentCode, modifiedCode, aiCode, newDiffContext);
+
+            // If opening the diff view failed, reset the UI.
             if (_diffContext == null)
             {
                 UpdateButtonsForDiffView(false);
                 _isProcessingClipboardAction = false;
                 _lastClipboardText = null;
             }
+            // If successful, the UI remains in the "diff view open" state with the new diff.
         }
 
         private void DeclineButton_Click(object sender, RoutedEventArgs e)

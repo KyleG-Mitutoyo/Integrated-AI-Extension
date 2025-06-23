@@ -21,7 +21,7 @@ namespace Integrated_AI.Utilities
             public string TempAiFile { get; set; }
             public string AICodeBlock { get; set; }
             public IVsWindowFrame DiffFrame { get; set; }
-            public Document ActiveDocument { get; set; }
+            public string ActiveDocumentPath { get; set; }
             public int NewCodeStartIndex { get; set; } = -1;
         }
 
@@ -50,7 +50,7 @@ namespace Integrated_AI.Utilities
             context.TempCurrentFile = Path.Combine(Path.GetTempPath(), $"Current_{Guid.NewGuid()}{extension}");
             context.TempAiFile = Path.Combine(Path.GetTempPath(), $"AI_{Guid.NewGuid()}{extension}");
             context.AICodeBlock = aiCode;
-            context.ActiveDocument = activeDoc;
+            context.ActiveDocumentPath = activeDoc.FullName;
 
             try
             {
