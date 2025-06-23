@@ -50,6 +50,7 @@ namespace Integrated_AI
         private string _lastClipboardText; // Tracks last processed clipboard content
         private string _currentClipboardText; // Tracks clipboard content for current burst of events
         private bool _isOpeningCodeWindow = false;
+        private bool _isProcessingClipboardAction = false;
 
         // Windows API declarations
         private const int WM_CLIPBOARDUPDATE = 0x031D;
@@ -141,6 +142,12 @@ namespace Integrated_AI
 
         private async void HandleClipboardChange()
         {
+            // A single, robust lock to prevent re-entrancy and race conditions
+            if (_isProcessingClipboardAction)
+            {
+                return;
+            }
+
             // Run on UI thread
             await Dispatcher.InvokeAsync(async () =>
             {
@@ -151,87 +158,82 @@ namespace Integrated_AI
                     if (Clipboard.ContainsText())
                     {
                         clipboardText = Clipboard.GetText();
-                        // Check if this is a duplicate event in the current burst
-                        if (!string.IsNullOrEmpty(clipboardText) && clipboardText == _currentClipboardText)
-                        {
-                            return; // Ignore duplicate event in this burst
-                        }
-                        // Update current clipboard text for this burst
-                        if (!string.IsNullOrEmpty(clipboardText))
-                        {
-                            _currentClipboardText = clipboardText;
-                        }
+                    }
+
+                    // Ignore if there's no text or if it's the same as the last processed text
+                    if (string.IsNullOrEmpty(clipboardText) || clipboardText == _lastClipboardText)
+                    {
+                        return;
                     }
 
                     // Prevent a clipboard change from being processed while a diff view is open
                     if (_diffContext != null)
                     {
                         MessageBox.Show("Clipboard change ignored: Diff view is open. Please accept or decline the changes first.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                        // Track ignored content to prevent reprocessing later
-                        if (!string.IsNullOrEmpty(clipboardText))
-                        {
-                            _lastClipboardText = clipboardText;
-                        }
                         return;
                     }
 
                     // Check if WebView is focused and clipboard write was programmatic
                     if (!_isWebViewInFocus || !await WebViewUtilities.IsProgrammaticCopyAsync(ChatWebView))
                     {
-                        //MessageBox.Show("Clipboard change ignored: WebView not focused or not a programmatic copy.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                        // Track ignored content to prevent reprocessing later
-                        if (!string.IsNullOrEmpty(clipboardText))
-                        {
-                            _lastClipboardText = clipboardText;
-                        }
                         return; // Ignore if not focused or not a programmatic copy (e.g., Ctrl+C)
                     }
 
-                    // Process clipboard text if valid and not previously processed
-                    if (!string.IsNullOrEmpty(clipboardText) && clipboardText != _lastClipboardText)
-                    {
-                        // Trigger the PasteButton_Click logic
-                        PasteButton_ClickLogic(clipboardText);
-                        // Update _lastClipboardText only if diff view was opened successfully
-                        if (_diffContext != null)
-                        {
-                            _lastClipboardText = clipboardText;
-                        }
-                    }
+                    // Set the lock BEFORE starting the background operation
+                    _isProcessingClipboardAction = true; 
+
+                    // Process clipboard text
+                    PasteButton_ClickLogic(clipboardText);
+
+                    // Update _lastClipboardText immediately to prevent reprocessing this specific text
+                    // This is safe to do here now because the _isProcessingClipboardAction lock is active.
+                    _lastClipboardText = clipboardText;
+
                 }
                 catch (Exception ex)
                 {
                     WebViewUtilities.Log($"Clipboard change handling error: {ex.Message}");
+                    // Ensure the lock is released on error
+                    _isProcessingClipboardAction = false; 
                 }
-                finally
-                {
-                    // Reset _currentClipboardText after processing this burst
-                    _currentClipboardText = null;
-                }
+                // Note: The lock is NOT released in a `finally` block here.
+                // It will be released by the methods that conclude the action (Accept, Decline, or an abort in PasteButton_ClickLogic).
             });
         }        
 
         
         private void PasteButton_ClickLogic(string aiCode)
         {
-            // Check if a diff window or code window is already open or opening
-            if (_diffContext != null || _isOpeningCodeWindow)
+            // Check if a diff window is already open. The new _isProcessingClipboardAction handles the race condition.
+            if (_diffContext != null)
             {
-                WebViewUtilities.Log("PasteButton_ClickLogic: Diff window or code window already open or opening. Aborting.");
+                WebViewUtilities.Log("PasteButton_ClickLogic: Diff window already open. Aborting.");
+                _isProcessingClipboardAction = false; // Release the lock
                 return;
             }
 
             ThreadHelper.Generic.BeginInvoke(() =>
             {
+                Action abortAction = () =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        _isProcessingClipboardAction = false;
+                        _lastClipboardText = null;
+                    });
+                };
+
                 if (_dte == null)
                 {
                     MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    abortAction();
                     return;
                 }
 
                 if (string.IsNullOrEmpty(aiCode))
                 {
                     MessageBox.Show("No code retrieved from clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    abortAction();
                     return;
                 }
 
@@ -239,6 +241,7 @@ namespace Integrated_AI
                 if (activeDocument == null)
                 {
                     MessageBox.Show("No active document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    abortAction();
                     return;
                 }
 
@@ -246,44 +249,42 @@ namespace Integrated_AI
                 string modifiedCode = currentCode;
                 ChooseCodeWindow.ReplacementItem selectedItem = null;
 
-                // If in "off" or "manual" mode, we need to bring up the selection window
                 if ((bool)AutoDiffToggle.IsChecked)
                 {
+                    // Use _isOpeningCodeWindow as a sub-lock for just this window, which is fine
+                    _isOpeningCodeWindow = true;
                     try
                     {
-                        // Set flag to prevent multiple windows
-                        _isOpeningCodeWindow = true;
-                        //MessageBox.Show("Code replacement window opening...", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
                         if (selectedItem == null)
                         {
-                            //MessageBox.Show("No code selection made.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                            _lastClipboardText = null;
-                            _isOpeningCodeWindow = false; // Reset flag
+                            abortAction(); // User cancelled, so abort and release the main lock
                             return;
                         }
                     }
                     finally
                     {
-                        // Reset flag after window is closed
                         _isOpeningCodeWindow = false;
                     }
                 }
 
-                // Need to define diffcontext here to use it in replaceOrAddCode
                 _diffContext = new DiffUtility.DiffContext { };
                 modifiedCode = StringUtil.ReplaceOrAddCode(_dte, modifiedCode, aiCode, activeDocument, selectedItem, _diffContext);
-                //MessageBox.Show("Opening diff view...", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                 _diffContext = DiffUtility.OpenDiffView(activeDocument, currentCode, modifiedCode, aiCode, _diffContext);
 
-                // If opening the diff view had a problem, we don't want to show the accept/decline buttons.
                 if (_diffContext == null)
                 {
-                    _lastClipboardText = null;
+                    // If diff view failed to open, abort and release the lock
+                    abortAction();
                     return;
                 }
 
-                UpdateButtonsForDiffView(true);
+                // If diff view opened successfully, the lock remains active.
+                // Update UI on the main thread.
+                Dispatcher.Invoke(() =>
+                {
+                    UpdateButtonsForDiffView(true);
+                });
             });
         }
 
@@ -389,6 +390,7 @@ namespace Integrated_AI
                 WebViewUtilities.Log("AcceptButton_Click: No valid diff context or temp file.");
             }
 
+
             if (contextToClose != null)
             {
                 DiffUtility.CloseDiffAndReset(contextToClose);
@@ -439,6 +441,8 @@ namespace Integrated_AI
             }
 
             UpdateButtonsForDiffView(false);
+
+            _isProcessingClipboardAction = false;
             _lastClipboardText = null;
         }
 
@@ -454,8 +458,9 @@ namespace Integrated_AI
             if (currentCode == null)
             {
                 UpdateButtonsForDiffView(false);
-                //MessageBox.Show("No active document or unable to retrieve current code.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _isProcessingClipboardAction = false;
                 _lastClipboardText = null;
+                //MessageBox.Show("No active document or unable to retrieve current code.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -465,6 +470,8 @@ namespace Integrated_AI
             if (selectedItem == null)
             {
                 //MessageBox.Show("No code selection made.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                UpdateButtonsForDiffView(false);
+                _isProcessingClipboardAction = false;
                 _lastClipboardText = null;
                 return;
             }
@@ -477,9 +484,9 @@ namespace Integrated_AI
             if (_diffContext == null)
             {
                 UpdateButtonsForDiffView(false);
+                _isProcessingClipboardAction = false;
+                _lastClipboardText = null;
             }
-
-            _lastClipboardText = null;
         }
 
         private void DeclineButton_Click(object sender, RoutedEventArgs e)
@@ -491,6 +498,8 @@ namespace Integrated_AI
             }
 
             UpdateButtonsForDiffView(false);
+
+            _isProcessingClipboardAction = false;
             _lastClipboardText = null;
         }
 
