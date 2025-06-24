@@ -23,6 +23,7 @@ namespace Integrated_AI.Utilities
             public IVsWindowFrame DiffFrame { get; set; }
             public string ActiveDocumentPath { get; set; }
             public int NewCodeStartIndex { get; set; } = -1;
+            public bool IsNewFile { get; set; } = false;
         }
 
         public static DiffContext OpenDiffView(Document activeDoc, string currentCode, string aiCodeFullFileContents, string aiCode, DiffContext existingContext = null)
@@ -45,6 +46,12 @@ namespace Integrated_AI.Utilities
             else
             {
                 context = existingContext;
+
+                if (context.IsNewFile)
+                {
+                    WebViewUtilities.Log("OpenDiffView: Not showing diff view for new file");
+                    return null;
+                }
             }
 
             context.TempCurrentFile = Path.Combine(Path.GetTempPath(), $"Current_{Guid.NewGuid()}{extension}");

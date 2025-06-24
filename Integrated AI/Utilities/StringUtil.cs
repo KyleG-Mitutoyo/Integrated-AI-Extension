@@ -265,8 +265,9 @@ namespace Integrated_AI.Utilities
                     // Prepend baseIndentation as spaces
                     string indentString = new string(' ', baseIndentation);
 
-                    // Preserve first line's indentation
-                    if (i == 0)
+                    // Preserve first line's indentation, only if it's an existing function replacement
+                    // Should technically fix function replacement start index instead of this
+                    if (i == 0 && length > 1)
                     {
                         indentString = ""; // Keep the first line's indentation as is
                     }
@@ -302,10 +303,14 @@ namespace Integrated_AI.Utilities
             return (double)commonCount / Math.Max(source.Length, target.Length);
         }
 
-        // Integrated AI/Utilities/StringUtil.cs
         public static string ReplaceOrAddCode(DTE2 dte, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
         {
             var (isFunction, functionName, isFullFile) = (false, string.Empty, false);
+
+            // Determine the language based on the active document's extension
+            string extension = Path.GetExtension(activeDoc.FullName).ToLowerInvariant();
+            bool isVB = extension == ".vb";
+            bool isCS = extension == ".cs";
 
             // Analyze the code block to determine its type, if there is no chosen item provided
             if (chosenItem == null)
@@ -319,14 +324,14 @@ namespace Integrated_AI.Utilities
                 functionName = chosenItem?.Function?.Name ?? string.Empty;
             }
 
-            if (isFullFile)
+            if (chosenItem == null && isFullFile)
             {
                 return aiCode; // Replace entire document for "file" type
             }
 
             if (isFunction)
             {
-                // For C# functions, find the function by name (not the FullName)
+                // For C# or VB functions, find the function by name (not the FullName)
                 var functions = CodeSelectionUtilities.GetFunctionsFromDocument(activeDoc);
                 var targetFunction = functions.FirstOrDefault(f => f.DisplayName == functionName);
 
@@ -335,16 +340,15 @@ namespace Integrated_AI.Utilities
                     // Find the function's current code in the document
                     int startIndex = currentCode.IndexOf(targetFunction.FullCode, StringComparison.Ordinal);
                     int startLine = targetFunction.StartPoint.Line;
-                    
+
                     if (startIndex >= 0)
                     {
                         // Remove comments (C# // or VB ' or REM) above the function definition
-                        aiCode = RemoveCommentsAboveFunction(aiCode);
+                        aiCode = RemoveHeaderFooterComments(aiCode);
                         context.NewCodeStartIndex = startIndex;
                         return ReplaceCodeBlock(currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode);
                     }
                 }
-
                 else
                 {
                     ChooseCodeWindow.ReplacementItem newFunctionItem = new ChooseCodeWindow.ReplacementItem {};
@@ -355,15 +359,62 @@ namespace Integrated_AI.Utilities
                 }
             }
 
-            // For "Selection" or unmatched functions, check for highlighted text
-            // But first it may be a chosenItem that is a new function or new file, which gets special handling
+            // Handle new function or new file cases
             if (chosenItem != null && (chosenItem.Type == "new_function" || chosenItem.Type == "new_file"))
             {
-                //TODO: special handling for new function or file
-                //New function will get the last existing function in the activeDoc and insert the new function after it
-                //New file will create a new file in a user-selected location within the solution where aiCode will be inserted
+                if (chosenItem.Type == "new_function")
+                {
+                    // Get all functions in the document
+                    var functions = CodeSelectionUtilities.GetFunctionsFromDocument(activeDoc);
+                    if (functions.Any())
+                    {
+                        // Find the last function
+                        var lastFunction = functions.OrderByDescending(f => f.StartPoint.Line).First();
+                        int startIndex = currentCode.IndexOf(lastFunction.FullCode, StringComparison.Ordinal) + lastFunction.FullCode.Length;
+                        int startLine = lastFunction.StartPoint.Line;
+
+                        // Ensure two newlines after the last function if needed
+                        if (startIndex < currentCode.Length)
+                        {
+                            currentCode = currentCode.Insert(startIndex, Environment.NewLine);
+                            currentCode = currentCode.Insert(startIndex, Environment.NewLine);
+                            startIndex += (Environment.NewLine.Length + Environment.NewLine.Length);
+                        }
+
+                        // Remove comments above the new function code
+                        aiCode = RemoveHeaderFooterComments(aiCode);
+
+                        // Use ReplaceCodeBlock to insert the new function with correct indentation
+                        context.NewCodeStartIndex = startIndex;
+                        return ReplaceCodeBlock(currentCode, startIndex, startLine, 1, aiCode);
+                    }
+                    else
+                    {
+                        // No functions in the document, append at the end with default indentation
+                        WebViewUtilities.Log("No functions found in the document. Appending new function at the end.");
+                        return InsertAtCursorOrAppend(currentCode, aiCode, activeDoc);
+                    }
+                }
+                else if (chosenItem.Type == "new_file")
+                {
+                    // Prompt user to select a location and file name
+                    string newFilePath = PromptForNewFilePath(dte, isVB ? "vb" : "cs");
+                    if (string.IsNullOrEmpty(newFilePath))
+                    {
+                        WebViewUtilities.Log("New file creation cancelled by user.");
+                        return currentCode; // Return unchanged if cancelled
+                    }
+
+                    // Create and add the new file to the solution
+                    CreateNewFileInSolution(dte, newFilePath, aiCode);
+                    context.IsNewFile = true; // Indicate that a new file was created
+
+                    // Since it's a new file, we don't modify the current document
+                    return currentCode;
+                }
             }
 
+            // For "Selection" or unmatched functions, check for highlighted text
             var selection = activeDoc.Selection as TextSelection;
             if (selection != null)
             {
@@ -374,7 +425,7 @@ namespace Integrated_AI.Utilities
                     int length = selection.BottomPoint.AbsoluteCharOffset - startIndex;
                     // Pass -1 to ignore base indentation, as we are replacing the selected text directly
                     context.NewCodeStartIndex = startIndex;
-                    return StringUtil.ReplaceCodeBlock(currentCode, startIndex, -1, length, aiCode);
+                    return ReplaceCodeBlock(currentCode, startIndex, -1, length, aiCode);
                 }
             }
 
@@ -382,8 +433,8 @@ namespace Integrated_AI.Utilities
             return StringUtil.InsertAtCursorOrAppend(currentCode, aiCode, activeDoc);
         }
 
-        // Helper method to remove comments above function definition
-        private static string RemoveCommentsAboveFunction(string code)
+        // Helper method to remove comments above function definition and header/footer
+        private static string RemoveHeaderFooterComments(string code)
         {
             // Split code into lines
             var lines = code.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
@@ -422,6 +473,7 @@ namespace Integrated_AI.Utilities
                 {
                     if (trimmedLine.StartsWith("//") || trimmedLine.StartsWith("'") ||
                         trimmedLine.StartsWith("REM ", StringComparison.OrdinalIgnoreCase) ||
+                        trimmedLine.StartsWith("---") ||
                         string.IsNullOrWhiteSpace(trimmedLine))
                     {
                         continue; // Skip single-line comments or empty lines
@@ -451,6 +503,12 @@ namespace Integrated_AI.Utilities
                 if (inCommentBlock && trimmedLine.Contains("*/"))
                 {
                     inCommentBlock = false;
+                }
+
+                // Remove footer comments (e.g., "---") only if they are the last line
+                if (i == lines.Count - 1 && trimmedLine.StartsWith("---"))
+                {
+                    continue;
                 }
 
                 // Only add the line if we are not inside a comment block
@@ -674,6 +732,86 @@ namespace Integrated_AI.Utilities
             }
 
             return indent;
+        }
+
+        // Prompt user for a new file path using a dialog
+        private static string PromptForNewFilePath(DTE2 dte, string language = "cs")
+        {
+            // Use Windows Forms SaveFileDialog for simplicity
+            using (var dialog = new System.Windows.Forms.SaveFileDialog())
+            {
+                if (language == "vb")
+                {
+                    dialog.Filter = "VB Files (*.vb)|*.vb|All Files (*.*)|*.*";
+                    dialog.DefaultExt = "vb";
+                }
+                else
+                {
+                    dialog.Filter = "C# Files (*.cs)|*.cs|All Files (*.*)|*.*";
+                    dialog.DefaultExt = "cs";
+                }
+                dialog.Title = "Select Location for New File";
+                dialog.InitialDirectory = Path.GetDirectoryName(dte.Solution.FullName); // Start in solution directory
+
+                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    return dialog.FileName;
+                }
+            }
+            return null; // Return null if cancelled
+        }
+
+        // Create a new file in the solution and add AI-generated code
+        private static void CreateNewFileInSolution(DTE2 dte, string filePath, string aiCode)
+        {
+            try
+            {
+                // Ensure the directory exists
+                string directory = Path.GetDirectoryName(filePath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                // Write the AI-generated code to the new file
+                File.WriteAllText(filePath, aiCode);
+
+                // Add the file to the solution
+                Project project = FindProjectForPath(dte, directory);
+                if (project != null)
+                {
+                    project.ProjectItems.AddFromFile(filePath);
+                    WebViewUtilities.Log($"New file '{filePath}' added to project '{project.Name}'.");
+                }
+                else
+                {
+                    // Fallback: Add to the solution's Miscellaneous Files
+                    dte.ItemOperations.OpenFile(filePath);
+                    WebViewUtilities.Log($"New file '{filePath}' added as a miscellaneous file.");
+                }
+
+                // Open the new file in the editor
+                dte.ItemOperations.OpenFile(filePath);
+            }
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log($"Error creating new file: {ex.Message}");
+                //MessageBox.Show($"Error creating new file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Find the appropriate project for the given directory
+        private static Project FindProjectForPath(DTE2 dte, string directory)
+        {
+            foreach (Project project in dte.Solution.Projects)
+            {
+                string projectDir = Path.GetDirectoryName(project.FullName);
+                if (directory.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    return project;
+                }
+            }
+            return null; // No matching project found
         }
     }
 }

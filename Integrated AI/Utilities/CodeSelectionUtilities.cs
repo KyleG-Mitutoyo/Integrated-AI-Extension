@@ -66,7 +66,7 @@ namespace Integrated_AI
             // Add recent functions and their header if any exist
             if (recentFunctions.Any())
             {
-                items.Add(new FunctionSelectionWindow.FunctionItem { ListBoxDisplayName = "----- Recent Functions -----", FullName = $"Recent functions used for {openedFile}" });
+                items.Add(new FunctionSelectionWindow.FunctionItem { ListBoxDisplayName = "----- Recent Methods -----", FullName = $"Recent methods used for {openedFile}" });
                 foreach (var recent in recentFunctions)
                 {
                     var matchingFunction = functionList.FirstOrDefault(f => f.DisplayName == recent);
@@ -79,7 +79,7 @@ namespace Integrated_AI
             }
 
             // Always add "All Functions" header
-            items.Add(new FunctionSelectionWindow.FunctionItem { ListBoxDisplayName = "----- All Functions -----", FullName = $"All the functions within {openedFile}" });
+            items.Add(new FunctionSelectionWindow.FunctionItem { ListBoxDisplayName = "----- All Methods -----", FullName = $"All the methods within {openedFile}" });
 
             // Add remaining functions
             items.AddRange(functionList);
@@ -98,8 +98,8 @@ namespace Integrated_AI
             // Add "New Function" option at the top
             functions.Add(new ChooseCodeWindow.ReplacementItem
             {
-                DisplayName = "New Function",
-                ListBoxDisplayName = "New Function",
+                DisplayName = "New Method",
+                ListBoxDisplayName = "New Method",
                 FullName = "Create a new function in the active document",
                 Type = "new_function"
             });
@@ -115,8 +115,8 @@ namespace Integrated_AI
             {
                 functions.Add(new ChooseCodeWindow.ReplacementItem
                 {
-                    ListBoxDisplayName = "----- Recent Functions -----",
-                    FullName = "Recently used functions"
+                    ListBoxDisplayName = "----- Recent Methods -----",
+                    FullName = "Recently used methods"
                 });
             }
 
@@ -135,8 +135,8 @@ namespace Integrated_AI
 
             functions.Add(new ChooseCodeWindow.ReplacementItem
             {
-                ListBoxDisplayName = "----- All Functions in Active Document -----",
-                FullName = "Functions in the currently active document"
+                ListBoxDisplayName = "----- All Methods in Active Document -----",
+                FullName = "Methods in the currently active document"
             });
 
             foreach (var func in activeFunctions)
