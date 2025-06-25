@@ -215,25 +215,28 @@ namespace Integrated_AI.Utilities
                 // Find the start of the line by counting line breaks
                 int lineCount = 0;
                 int lineStartIndex = 0;
+                int prevLineStartIndex = 0;
                 for (int i = 0; i < documentContent.Length; i++)
                 {
                     if (documentContent[i] == '\n')
                     {
                         lineCount++;
+                        prevLineStartIndex = lineStartIndex;
+                        lineStartIndex = i + 1;
                         if (lineCount == startLine)
                         {
-                            lineStartIndex = i + 1;
                             break;
                         }
                     }
                 }
 
                 // Extract the line text
-                if (lineCount == startLine && lineStartIndex < documentContent.Length)
+                if (lineCount == startLine && prevLineStartIndex < documentContent.Length)
                 {
-                    int lineEndIndex = documentContent.IndexOf('\n', lineStartIndex);
+                    int lineEndIndex = documentContent.IndexOf('\n', prevLineStartIndex);
                     if (lineEndIndex == -1) lineEndIndex = documentContent.Length;
-                    string lineText = documentContent.Substring(lineStartIndex, lineEndIndex - lineStartIndex).TrimEnd('\r');
+                    string lineText = documentContent.Substring(prevLineStartIndex, lineEndIndex - prevLineStartIndex).TrimEnd('\r');
+                    WebViewUtilities.Log($"Line {startLine} text for indentation: '{lineText}'");
                     baseIndentation = GetIndentPosition(lineText);
                 }
             }
@@ -266,9 +269,10 @@ namespace Integrated_AI.Utilities
                     string indentString = new string(' ', baseIndentation);
 
                     // Preserve first line's indentation, only if it's an existing function replacement
-                    // Should technically fix function replacement start index instead of this
+                    // Should technically fix this a different way but whatever
                     if (i == 0 && length > 1)
                     {
+                        WebViewUtilities.Log("Preserving first line's indentation for function replacement.");
                         indentString = ""; // Keep the first line's indentation as is
                     }
 
@@ -310,7 +314,6 @@ namespace Integrated_AI.Utilities
             // Determine the language based on the active document's extension
             string extension = Path.GetExtension(activeDoc.FullName).ToLowerInvariant();
             bool isVB = extension == ".vb";
-            bool isCS = extension == ".cs";
 
             // Analyze the code block to determine its type, if there is no chosen item provided
             if (chosenItem == null)
@@ -343,7 +346,7 @@ namespace Integrated_AI.Utilities
 
                     if (startIndex >= 0)
                     {
-                        // Remove comments (C# // or VB ' or REM) above the function definition
+                        // Remove comments (C# // or VB ' or REM) above the function definition, also remove header/footer
                         aiCode = RemoveHeaderFooterComments(aiCode);
                         context.NewCodeStartIndex = startIndex;
                         return ReplaceCodeBlock(currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode);
