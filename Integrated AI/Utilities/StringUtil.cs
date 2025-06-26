@@ -327,9 +327,14 @@ namespace Integrated_AI.Utilities
                 functionName = chosenItem?.Function?.Name ?? string.Empty;
             }
 
-            if (chosenItem == null && isFullFile)
+            // Only return the AI code if it's a full file that isn't a new file
+            if (isFullFile)
             {
-                return aiCode; // Replace entire document for "file" type
+                if (chosenItem == null || chosenItem.Type != "new_file")
+                {
+                    //MessageBox.Show("The AI response is a full file replacement. It will replace the entire document.", "Full File Replacement", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return aiCode; // Replace entire document for "file" type
+                }
             }
 
             if (isFunction)

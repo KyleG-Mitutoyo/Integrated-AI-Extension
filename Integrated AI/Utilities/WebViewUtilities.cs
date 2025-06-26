@@ -456,7 +456,7 @@ namespace Integrated_AI
                 if (result == "null") // JS 'null' or 'undefined' often means no text selected or function error
                 {
                     Log("Failed to retrieve selected text: Script returned 'null'. This might mean no text is selected in the WebView, or the 'retrieveSelectedText' function had an issue.");
-                    MessageBox.Show("No text selected in the chat window, or unable to retrieve selection. Please highlight text and try again.", "Retrieval Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    //MessageBox.Show("No text selected in the chat window, or unable to retrieve selection. Please highlight text and try again.", "Retrieval Information", MessageBoxButton.OK, MessageBoxImage.Information);
                     return null;
                 }
                 if (result.StartsWith("FAILURE:"))

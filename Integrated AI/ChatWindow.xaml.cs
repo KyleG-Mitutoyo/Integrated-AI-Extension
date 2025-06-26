@@ -135,11 +135,12 @@ namespace Integrated_AI
             if (msg == WM_CLIPBOARDUPDATE && _isWebViewInFocus)
             {
                 // Clipboard changed and WebView is in focus
-                HandleClipboardChange();
+                //HandleClipboardChange();
             }
             return IntPtr.Zero;
         }
 
+        //Not used for now until the multiple diff error is fixed
         private async void HandleClipboardChange()
         {
             // A single, robust lock to prevent re-entrancy and race conditions
@@ -362,9 +363,13 @@ namespace Integrated_AI
             }
 
             string aiCode = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
+
+
             if (aiCode == null || aiCode == "null" || string.IsNullOrEmpty(aiCode))
             {
-                return;
+                aiCode = Clipboard.GetText(); // Fallback to clipboard text if WebView retrieval fails
+                //Optional: check again if aicode is null or empty after clipboard retrieval
+                WebViewUtilities.Log("PasteButton_Click: Retrieved code from clipboard as WebView retrieval failed.");
             }
 
             PasteButton_ClickLogic(aiCode);
