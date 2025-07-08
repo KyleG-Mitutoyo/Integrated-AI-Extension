@@ -72,6 +72,7 @@
     </Compile>
     <Compile Include="Utilities\BackupUtilities.cs" />
     <Compile Include="Utilities\StringUtil.cs" />
+    <Compile Include="Utilities\ThemeUtility.cs" />
     <Compile Include="Utilities\WebViewUtilities.cs" />
     <Compile Include="Utilities\DiffUtility.cs" />
     <Compile Include="Utilities\FileUtil.cs" />

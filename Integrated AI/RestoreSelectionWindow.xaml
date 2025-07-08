@@ -2,13 +2,13 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:hc="https://handyorg.github.io/handycontrol"
-        Title="Select Backup to Restore" Height="400" Width="600" WindowStartupLocation="CenterScreen">
+        Title="Select Backup to Restore" Height="400" Width="600" WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource MainContentBackgroundBrush}">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <hc:ThemeResources/>
                 <hc:Theme/>
-                <ResourceDictionary Source="pack://application:,,,/HandyControl;component/Themes/Basic/Colors/Light.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Window.Resources>
@@ -31,6 +31,7 @@
             <Button Content="Restore" Style="{StaticResource ButtonPrimary}" Width="80" Margin="0,0,10,0" Click="RestoreButton_Click"/>
             <Button Content="Compare" Width="80" Margin="0,0,10,0" Click="CompareButton_Click"/>
             <Button Content="Delete All Backups" Style="{StaticResource ButtonDanger}" Width="130" Margin="0,0,10,0" Click="DeleteButton_Click"/>
+            <Button Content="Open Backup Folder" Width="130" Margin="0,0,10,0" Click="OpenBackups_Click"/>
             <Button Content="Cancel" Width="80" Click="CancelButton_Click"/>
         </StackPanel>
     </Grid>

@@ -1,5 +1,6 @@
 ﻿using EnvDTE;
 using EnvDTE80;
+using HandyControl.Themes;
 using Integrated_AI.Utilities; // Assuming FileUtil, DiffUtility, FunctionSelectionUtilities, SentCodeContextManager, StringUtilities are here
 using Microsoft.VisualStudio.Shell;
 // using Microsoft.VisualStudio.Shell.Interop; // Not directly used in the provided snippet, but likely in the project
@@ -224,6 +225,31 @@ namespace Integrated_AI
                 {
                     return;
                 }
+            }
+
+            else if (option == "Error -> AI")
+            {
+                MessageBox.Show("Error to AI not done yet.");
+            }
+
+            else if (option == "Exception -> AI")
+            {
+                MessageBox.Show("Exception to AI not done yet.");
+            }
+
+            else if (option == "Method -> VS")
+            {
+                MessageBox.Show("Method to VS not done yet.");
+            }
+
+            else if (option == "File -> VS")
+            {
+                MessageBox.Show("File to VS not done yet.");
+            }
+
+            else if (option == "Code -> VS")
+            {
+                MessageBox.Show("Code to VS not done yet.");
             }
 
             if (textToInject != null)

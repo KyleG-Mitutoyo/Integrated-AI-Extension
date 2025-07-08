@@ -236,5 +236,46 @@ namespace Integrated_AI.Utilities
                 System.Windows.MessageBox.Show($"Error processing directory {sourceDir}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
             }
         }
+
+        public static bool OpenFolder(string path)
+        {
+            try
+            {
+                // Validate the path is not null or empty
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    return false;
+                }
+
+                // Normalize the path to handle any invalid characters
+                string normalizedPath = Path.GetFullPath(path).Trim();
+
+                // Check if the directory exists
+                if (!Directory.Exists(normalizedPath))
+                {
+                    return false;
+                }
+
+                // Start explorer.exe with the normalized folder path
+                ProcessStartInfo startInfo = new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"\"{normalizedPath}\"",
+                    UseShellExecute = true, // Use the OS shell to avoid blocking
+                    WindowStyle = ProcessWindowStyle.Normal
+                };
+                
+                using (Process process = Process.Start(startInfo))
+                {
+                    // No need to wait for exit; let Explorer run independently
+                    return true;
+                }
+            }
+            catch (Exception)
+            {
+                // Catch any errors (e.g., invalid path, permission issues)
+                return false;
+            }
+        }
     }
 }

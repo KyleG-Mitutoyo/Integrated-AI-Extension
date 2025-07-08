@@ -1,6 +1,7 @@
 ﻿using EnvDTE;
 using EnvDTE80;
 using HandyControl.Controls;
+using HandyControl.Themes;
 using Integrated_AI.Utilities;
 using System;
 using System.Collections.Generic;
@@ -31,6 +32,8 @@ namespace Integrated_AI
         {
             InitializeComponent();
             var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
+            ThemeUtility.ApplyTheme(this);
+
             var (functions, files) = CodeSelectionUtilities.PopulateReplacementLists(dte, activeDoc);
             FunctionListBox.ItemsSource = functions;
             FileListBox.ItemsSource = files;

@@ -1,13 +1,16 @@
 ﻿using EnvDTE;
 using EnvDTE80;
 using HandyControl.Controls;
+using HandyControl.Themes;
 using HandyControl.Tools.Extension;
 using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Runtime.Remoting.Contexts;
 using System.Threading.Tasks;
@@ -16,8 +19,11 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using static Integrated_AI.WebViewUtilities;
 using MessageBox = System.Windows.MessageBox;
+
+//TODO: Make diff view labels work in compare mode
 
 namespace Integrated_AI
 {
@@ -40,7 +46,8 @@ namespace Integrated_AI
         private readonly string _webViewDataFolder;
         private readonly string _appDataFolder;
         private readonly string _backupsFolder;
-        private string _selectedOption = "Method -> AI";
+        private string _selectedOptionToAI = "Method -> AI";
+        private string _selectedOptionToVS = "Method -> VS";
         private bool _executeCommandOnClick = true;
         private readonly DTE2 _dte;
         private DiffUtility.DiffContext _diffContext;
@@ -96,6 +103,13 @@ namespace Integrated_AI
             // Register for window messages when the control is loaded
             Loaded += ChatWindow_Loaded;
             Unloaded += ChatWindow_Unloaded;
+
+            ThemeUtility.CurrentTheme = ApplicationTheme.Light; // Default theme until saving is implemented
+            //if (Enum.TryParse(Settings.Default.ApplicationTheme, out ApplicationTheme theme))
+            //{
+            //    //Update the theme
+                  //ThemeManager.Current.ApplicationTheme = savedTheme;
+            //}
         }
 
         private void ChatWindow_Loaded(object sender, RoutedEventArgs e)
@@ -256,7 +270,7 @@ namespace Integrated_AI
                     _isOpeningCodeWindow = true;
                     try
                     {
-                        selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
+                        selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument, ThemeUtility.CurrentTheme);
                         if (selectedItem == null)
                         {
                             abortAction(); // User cancelled, so abort and release the main lock
@@ -317,11 +331,20 @@ namespace Integrated_AI
             }
         }
 
-        private async void SplitButton_Click(object sender, RoutedEventArgs e)
+        private async void SplitButtonToAI_Click(object sender, RoutedEventArgs e)
         {
             if (_executeCommandOnClick)
             {
-                await WebViewUtilities.ExecuteCommandAsync(_selectedOption, _dte, ChatWebView, _webViewDataFolder);
+                await WebViewUtilities.ExecuteCommandAsync(_selectedOptionToAI, _dte, ChatWebView, _webViewDataFolder);
+            }
+            _executeCommandOnClick = true;
+        }
+
+        private async void SplitButtonToVS_Click(object sender, RoutedEventArgs e)
+        {
+            if (_executeCommandOnClick)
+            {
+                await WebViewUtilities.ExecuteCommandAsync(_selectedOptionToVS, _dte, ChatWebView, _webViewDataFolder);
             }
             _executeCommandOnClick = true;
         }
@@ -342,12 +365,22 @@ namespace Integrated_AI
             }
         }
 
-        private async void MenuItem_Click(object sender, RoutedEventArgs e)
+        private async void MenuItemToAI_Click(object sender, RoutedEventArgs e)
         {
             if (sender is MenuItem menuItem && menuItem.Tag is string option)
             {
-                _selectedOption = option;
+                _selectedOptionToAI = option;
                 VSToAISplitButton.Content = option;
+                await WebViewUtilities.ExecuteCommandAsync(option, _dte, ChatWebView, _webViewDataFolder);
+            }
+        }
+
+        private async void MenuItemToVS_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuItem menuItem && menuItem.Tag is string option)
+            {
+                _selectedOptionToVS = option;
+                AIToVSSplitButton.Content = option;
                 await WebViewUtilities.ExecuteCommandAsync(option, _dte, ChatWebView, _webViewDataFolder);
             }
         }
@@ -496,7 +529,7 @@ namespace Integrated_AI
             }
 
             // Show the code replacement window. This now uses a valid Document object, which prevents the freeze.
-            var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
+            var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument, ThemeUtility.CurrentTheme);
             if (selectedItem == null)
             {
                 // User cancelled the selection. Reset UI and state.
@@ -549,8 +582,7 @@ namespace Integrated_AI
             if (showDiffButons)
             {
                 VSToAISplitButton.Visibility = Visibility.Collapsed;
-                ErrorToAISplitButton.Visibility = Visibility.Collapsed;
-                PasteButton.Visibility = Visibility.Collapsed;
+                AIToVSSplitButton.Visibility = Visibility.Collapsed;
                 RestoreButton.Visibility = Visibility.Collapsed;
                 AcceptButton.Visibility = Visibility.Visible;
                 ChooseButton.Visibility = Visibility.Visible;
@@ -560,8 +592,7 @@ namespace Integrated_AI
             else
             {
                 VSToAISplitButton.Visibility = Visibility.Visible;
-                ErrorToAISplitButton.Visibility = Visibility.Visible;
-                PasteButton.Visibility = Visibility.Visible;
+                AIToVSSplitButton.Visibility = Visibility.Visible;
                 RestoreButton.Visibility = Visibility.Visible;
                 AcceptButton.Visibility = Visibility.Collapsed;
                 ChooseButton.Visibility = Visibility.Collapsed;
@@ -577,6 +608,12 @@ namespace Integrated_AI
 
         private void RestoreButton_Click(object sender, RoutedEventArgs e)
         {
+            if (_dte.Solution == null || string.IsNullOrEmpty(_dte.Solution.FullName))
+            {
+                MessageBox.Show("No solution is currently open to restore.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             var solutionBackupsFolder = Path.Combine(_backupsFolder, BackupUtilities.GetUniqueSolutionFolder(_dte));
             var restoreWindow = new RestoreSelectionWindow(_dte, solutionBackupsFolder);
             bool? result = restoreWindow.ShowDialog();
@@ -586,6 +623,22 @@ namespace Integrated_AI
                 if (BackupUtilities.RestoreSolution(_dte, restoreWindow.SelectedBackup.FolderPath, solutionDir))
                 {
                     System.Windows.MessageBox.Show("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                }
+            }
+        }
+
+        private void ButtonConfig_Click(object sender, RoutedEventArgs e) => PopupConfig.IsOpen = true;
+
+        private void ButtonSkins_OnClick(object sender, RoutedEventArgs e)
+        {
+            if (e.OriginalSource is Button button)
+            {
+                if (button.Tag is ApplicationTheme themeTag)
+                {
+                    ThemeManager.Current.ApplicationTheme = themeTag;
+                    ThemeUtility.CurrentTheme = themeTag; // Update the current theme variable
+                    //Settings.Default.ApplicationTheme = themeTag.ToString();
+                    //Settings.Default.Save();
                 }
             }
         }

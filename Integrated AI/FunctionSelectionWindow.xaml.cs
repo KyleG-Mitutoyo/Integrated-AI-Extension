@@ -1,12 +1,13 @@
-﻿using System;
+﻿using EnvDTE;
+using HandyControl.Controls;
+using HandyControl.Themes;
+using Integrated_AI.Utilities;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using EnvDTE;
-using HandyControl.Controls;
-using Integrated_AI.Utilities;
 using Window = System.Windows.Window;
 
 namespace Integrated_AI
@@ -33,6 +34,8 @@ namespace Integrated_AI
             {
                 InitializeComponent();
                 var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
+                ThemeUtility.ApplyTheme(this);
+
                 _recentFunctionsFilePath = recentFunctionsFilePath;
                 _recentFunctions = FileUtil.LoadRecentFunctions(recentFunctionsFilePath);
                 FunctionListBox.ItemsSource = CodeSelectionUtilities.PopulateFunctionList(functions, _recentFunctions, openedFile);

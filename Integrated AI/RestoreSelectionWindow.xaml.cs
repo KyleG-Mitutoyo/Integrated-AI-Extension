@@ -1,14 +1,15 @@
-﻿using System;
+﻿using EnvDTE80;
+using HandyControl.Controls;
+using HandyControl.Themes;
+using Integrated_AI.Utilities;
+using Microsoft.VisualStudio.Shell;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using EnvDTE80;
-using HandyControl.Controls;
-using Integrated_AI.Utilities;
-using Microsoft.VisualStudio.Shell;
 using MessageBox = System.Windows.MessageBox;
 using Window = System.Windows.Window;
 
@@ -31,6 +32,8 @@ namespace Integrated_AI
         {
             InitializeComponent();
             var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
+            ThemeUtility.ApplyTheme(this);
+
             _backupRootPath = backupRootPath;
             _dte = dte;
             PopulateBackupList();
@@ -73,7 +76,7 @@ namespace Integrated_AI
 
         private void DeleteButton_Click(object sender, RoutedEventArgs e)
         {
-            var result = MessageBox.Show("Are you sure you want to delete all backups for the current solution?", 
+            var result = MessageBox.Show("Are you sure you want to delete all backups for the current solution?",
                 "Confirm Delete All", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (result == MessageBoxResult.Yes)
             {
@@ -145,6 +148,14 @@ namespace Integrated_AI
             {
                 MessageBox.Show($"Error opening diff views: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 WebViewUtilities.Log($"RestoreSelectionWindow.CompareButton_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
+            }
+        }
+
+        private void OpenBackups_Click(object sender, RoutedEventArgs e)
+        {
+            if (!FileUtil.OpenFolder(_backupRootPath))
+            {
+                MessageBox.Show("Failed to open the backup folder.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

@@ -1,5 +1,6 @@
 ﻿using EnvDTE;
 using EnvDTE80;
+using HandyControl.Themes;
 using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.Shell;
 using System;
@@ -87,7 +88,7 @@ namespace Integrated_AI
         }
 
         // Populates separate lists for functions and project files
-        public static (List<ChooseCodeWindow.ReplacementItem> Functions, List<ChooseCodeWindow.ReplacementItem> Files)
+        public static (List<ChooseCodeWindow.ReplacementItem> Functions, List<ChooseCodeWindow.ReplacementItem> Files) 
             PopulateReplacementLists(DTE2 dte, Document activeDoc)
         {
             var functions = new List<ChooseCodeWindow.ReplacementItem>();
@@ -103,7 +104,6 @@ namespace Integrated_AI
                 FullName = "Create a new function in the active document",
                 Type = "new_function"
             });
-
 
             var recentFunctions = FileUtil.LoadRecentFunctions(FileUtil._recentFunctionsFilePath);
             var activeFunctions = CodeSelectionUtilities.GetFunctionsFromDocument(activeDoc);
@@ -162,13 +162,14 @@ namespace Integrated_AI
                 Type = "new_file"
             });
 
+            // Add separator for project files
             files.Add(new ChooseCodeWindow.ReplacementItem
             {
                 ListBoxDisplayName = "----- Project Files -----",
                 FullName = "Files in the solution"
             });
 
-
+            // Add the opened file right after the separator
             if (!string.IsNullOrEmpty(activeFilePath))
             {
                 files.Add(new ChooseCodeWindow.ReplacementItem
@@ -187,7 +188,12 @@ namespace Integrated_AI
                 .ToList();
             files.AddRange(projectFiles);
 
-            return (functions, files.OrderBy(i => i.FilePath).ToList());
+            // Sort files, but preserve "New File", separator, and opened file at the top
+            var topItems = files.Take(string.IsNullOrEmpty(activeFilePath) ? 2 : 3).ToList(); // Take "New File", separator, and opened file (if exists)
+            var sortedFiles = files.Skip(topItems.Count).OrderBy(i => i.FilePath).ToList();
+            topItems.AddRange(sortedFiles);
+
+            return (functions, topItems);
         }
 
         // Retrieves all project files with indented folder structure
@@ -232,7 +238,7 @@ namespace Integrated_AI
             }
         }
 
-        public static ChooseCodeWindow.ReplacementItem ShowCodeReplacementWindow(DTE2 dte, Document activeDoc)
+        public static ChooseCodeWindow.ReplacementItem ShowCodeReplacementWindow(DTE2 dte, Document activeDoc, ApplicationTheme theme)
         {
             var window = new ChooseCodeWindow(dte, activeDoc);
             bool? result = window.ShowDialog();
