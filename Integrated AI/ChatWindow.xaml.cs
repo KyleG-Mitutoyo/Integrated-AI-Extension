@@ -4,6 +4,7 @@ using HandyControl.Controls;
 using HandyControl.Themes;
 using HandyControl.Tools.Extension;
 using Integrated_AI.Utilities;
+using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using System;
@@ -17,13 +18,13 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Forms.VisualStyles;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using static Integrated_AI.WebViewUtilities;
 using MessageBox = System.Windows.MessageBox;
 
-//TODO: Make diff view labels work in compare mode
 
 namespace Integrated_AI
 {
@@ -108,7 +109,7 @@ namespace Integrated_AI
             //if (Enum.TryParse(Settings.Default.ApplicationTheme, out ApplicationTheme theme))
             //{
             //    //Update the theme
-                  //ThemeManager.Current.ApplicationTheme = savedTheme;
+            //ThemeManager.Current.ApplicationTheme = savedTheme;
             //}
         }
 
@@ -264,7 +265,7 @@ namespace Integrated_AI
                 string modifiedCode = currentCode;
                 ChooseCodeWindow.ReplacementItem selectedItem = null;
 
-                if ((bool)AutoDiffToggle.IsChecked)
+                if (!(bool)AutoDiffToggle.IsChecked)
                 {
                     // Use _isOpeningCodeWindow as a sub-lock for just this window, which is fine
                     _isOpeningCodeWindow = true;
@@ -445,10 +446,12 @@ namespace Integrated_AI
                 }
             }
 
-            // A backup of the solution files are created for every accept button click.
-            // TODO: also store the contextToClose.AICodeBlock in a mapped data file for later retrieval.
-            BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder);
-
+            // A backup of the solution files are created for every accept button click, if enabled.
+            if ((bool)AutoRestore.IsChecked)
+            {
+                BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder);
+            }
+            
             // Save the document after making the backup
             documentToModify?.Save();
             WebViewUtilities.Log($"ApplyChanges: Successfully saved '{contextToClose.ActiveDocumentPath}'.");
@@ -584,6 +587,7 @@ namespace Integrated_AI
                 VSToAISplitButton.Visibility = Visibility.Collapsed;
                 AIToVSSplitButton.Visibility = Visibility.Collapsed;
                 RestoreButton.Visibility = Visibility.Collapsed;
+                SaveBackupButton.Visibility = Visibility.Collapsed;
                 AcceptButton.Visibility = Visibility.Visible;
                 ChooseButton.Visibility = Visibility.Visible;
                 DeclineButton.Visibility = Visibility.Visible;
@@ -594,6 +598,7 @@ namespace Integrated_AI
                 VSToAISplitButton.Visibility = Visibility.Visible;
                 AIToVSSplitButton.Visibility = Visibility.Visible;
                 RestoreButton.Visibility = Visibility.Visible;
+                SaveBackupButton.Visibility = Visibility.Visible;
                 AcceptButton.Visibility = Visibility.Collapsed;
                 ChooseButton.Visibility = Visibility.Collapsed;
                 DeclineButton.Visibility = Visibility.Collapsed;
@@ -610,7 +615,7 @@ namespace Integrated_AI
         {
             if (_dte.Solution == null || string.IsNullOrEmpty(_dte.Solution.FullName))
             {
-                MessageBox.Show("No solution is currently open to restore.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("No solution is currently open to restore.", "Error", MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.None);
                 return;
             }
 
@@ -622,8 +627,19 @@ namespace Integrated_AI
                 string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
                 if (BackupUtilities.RestoreSolution(_dte, restoreWindow.SelectedBackup.FolderPath, solutionDir))
                 {
-                    System.Windows.MessageBox.Show("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                    MessageBox.Show("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
                 }
+            }
+        }
+
+        private void SaveBackupButton_Click(object sender, RoutedEventArgs e)
+        {
+            string path = BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder);
+
+            if (path != null)
+            {
+                string folderName = Path.GetDirectoryName(path);
+                MessageBox.Show($"Backup created successfully: {folderName}", "Success");
             }
         }
 

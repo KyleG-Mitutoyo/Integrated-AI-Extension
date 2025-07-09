@@ -10,8 +10,9 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using MessageBox = System.Windows.MessageBox;
-using Window = System.Windows.Window;
+using Window = HandyControl.Controls.Window;
 
 namespace Integrated_AI
 {
@@ -33,6 +34,7 @@ namespace Integrated_AI
             InitializeComponent();
             var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
             ThemeUtility.ApplyTheme(this);
+            NonClientAreaBackground = Brushes.Transparent;
 
             _backupRootPath = backupRootPath;
             _dte = dte;
@@ -109,7 +111,7 @@ namespace Integrated_AI
             ThreadHelper.ThrowIfNotOnUIThread();
             if (BackupListBox.SelectedItem == null)
             {
-                MessageBox.Show("Please select a restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(this, "Please select a restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 

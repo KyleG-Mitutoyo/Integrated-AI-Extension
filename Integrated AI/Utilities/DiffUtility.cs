@@ -26,7 +26,7 @@ namespace Integrated_AI.Utilities
             public bool IsNewFile { get; set; } = false;
         }
 
-        public static DiffContext OpenDiffView(Document activeDoc, string currentCode, string aiCodeFullFileContents, string aiCode, DiffContext existingContext = null)
+        public static DiffContext OpenDiffView(Document activeDoc, string currentCode, string aiCodeFullFileContents, string aiCode, DiffContext existingContext = null, bool compareMode = false)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             if (activeDoc == null || currentCode == null || aiCodeFullFileContents == null)
@@ -77,14 +77,24 @@ namespace Integrated_AI.Utilities
                                             __VSDIFFSERVICEOPTIONS.VSDIFFOPT_RightFileIsTemporary |
                                             __VSDIFFSERVICEOPTIONS.VSDIFFOPT_DoNotShow);
 
+                string leftLabel = "Current Document";
+                string rightLabel = "Document with AI Edits";
+
+                // If in compare mode, adjust labels accordingly
+                if (compareMode)
+                {
+                    leftLabel = "Old Document from Restore Point";
+                    rightLabel = "Current Document";
+                }
+
                 WebViewUtilities.Log($"OpenDiffView: Calling OpenComparisonWindow2 for {activeDoc.Name}, grfDiffOptions: {grfDiffOptions}");
                 context.DiffFrame = diffService.OpenComparisonWindow2(
                     leftFileMoniker: context.TempCurrentFile,
                     rightFileMoniker: context.TempAiFile,
                     caption: $"{activeDoc.Name} compare",
                     Tooltip: $"Changes to {activeDoc.Name}",
-                    leftLabel: "Current Document",
-                    rightLabel: "AI-Generated Code",
+                    leftLabel: leftLabel,
+                    rightLabel: rightLabel,
                     inlineLabel: "",
                     roles: "",
                     grfDiffOptions: grfDiffOptions);
@@ -206,7 +216,7 @@ namespace Integrated_AI.Utilities
 
                 // Open diff view for this file
                 //MessageBox.Show($"Opening diff view for {normalizedPath}.\n\nCurrent content length: {currentContent.Length}\nRestore content length: {restoreContent.Length}", "Diff View", MessageBoxButton.OK, MessageBoxImage.Information);
-                var context = OpenDiffView(doc, restoreContent, currentContent, restoreContent);
+                var context = OpenDiffView(doc, restoreContent, currentContent, restoreContent, null, true);
                 if (context != null)
                 {
                     diffContexts.Add(context);

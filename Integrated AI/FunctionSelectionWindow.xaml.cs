@@ -8,7 +8,8 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Window = System.Windows.Window;
+using System.Windows.Media;
+using Window = HandyControl.Controls.Window;
 
 namespace Integrated_AI
     {
@@ -35,6 +36,7 @@ namespace Integrated_AI
                 InitializeComponent();
                 var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
                 ThemeUtility.ApplyTheme(this);
+                NonClientAreaBackground = Brushes.Transparent;
 
                 _recentFunctionsFilePath = recentFunctionsFilePath;
                 _recentFunctions = FileUtil.LoadRecentFunctions(recentFunctionsFilePath);
