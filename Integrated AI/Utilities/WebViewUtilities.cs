@@ -19,6 +19,7 @@ using System.Threading.Tasks;
 // using System.Web; // HttpUtility, WebUtility is in System.Net
 using System.Windows;
 using System.Windows.Controls; // For ComboBox (used in InitializeWebView2Async)
+using MessageBox = HandyControl.Controls.MessageBox;
 
 namespace Integrated_AI
 {

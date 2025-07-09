@@ -11,7 +11,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using MessageBox = System.Windows.MessageBox;
+using MessageBox = HandyControl.Controls.MessageBox;
 using Window = HandyControl.Controls.Window;
 
 namespace Integrated_AI
@@ -32,8 +32,6 @@ namespace Integrated_AI
         public RestoreSelectionWindow(DTE2 dte, string backupRootPath)
         {
             InitializeComponent();
-            var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
-            ThemeUtility.ApplyTheme(this);
             NonClientAreaBackground = Brushes.Transparent;
 
             _backupRootPath = backupRootPath;

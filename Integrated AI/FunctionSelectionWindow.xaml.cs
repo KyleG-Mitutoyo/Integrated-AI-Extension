@@ -34,8 +34,6 @@ namespace Integrated_AI
             public FunctionSelectionWindow(IEnumerable<FunctionItem> functions, string recentFunctionsFilePath, string openedFile)
             {
                 InitializeComponent();
-                var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
-                ThemeUtility.ApplyTheme(this);
                 NonClientAreaBackground = Brushes.Transparent;
 
                 _recentFunctionsFilePath = recentFunctionsFilePath;

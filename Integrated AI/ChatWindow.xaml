@@ -77,24 +77,29 @@
                         </StackPanel>
 
                         <hc:Divider Width="250" Margin="0,10" Content="Options"/>
-                        
-                        <StackPanel Margin="0,0,0,10" HorizontalAlignment="Right" Orientation="Horizontal">
-                            <TextBlock Text="Auto Diff Compare" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,10,0"/>
-                            <ToggleButton x:Name="AutoDiffToggle" ToolTip="Toggle auto AI code detection for code replacement" IsChecked="False" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
-                        </StackPanel>
-                        
-                        <StackPanel Margin="0,0,0,10" HorizontalAlignment="Right" Orientation="Horizontal">
-                            <TextBlock Text="Auto Method Match" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,10,0"/>
-                            <ToggleButton x:Name="AutoMethodMatch" ToolTip="Toggle method matching for Method -> VS button during manual diff mode" IsChecked="True" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
-                        </StackPanel>
-                        
-                        <StackPanel Margin="0,0,0,10" HorizontalAlignment="Right" Orientation="Horizontal">
-                            <TextBlock Text="Create Restore on Accept" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,10,0"/>
-                            <ToggleButton x:Name="AutoRestore" ToolTip="Toggle creation of restore point every time a diff is accepted" IsChecked="True" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
-                        </StackPanel>
+
+                        <!-- Auto Diff Compare -->
+                        <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
+                            <TextBlock Text="Auto Diff Compare" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
+                            <ToggleButton x:Name="AutoDiffToggle" Margin="0,0,10,0" ToolTip="Toggle auto AI code detection for code replacement" IsChecked="False" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                        </DockPanel>
+
+                        <!-- Auto Method Match -->
+                        <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
+                            <TextBlock Text="Auto Method Match" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
+                            <ToggleButton x:Name="AutoMethodMatch" Margin="0,0,10,0" ToolTip="Toggle method matching for Method -> VS button during manual diff mode" IsChecked="True" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                        </DockPanel>
+
+                        <!-- Create Restore on Accept -->
+                        <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
+                            <TextBlock Text="Create Restore on Accept" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
+                            <ToggleButton x:Name="AutoRestore" Margin="0,0,10,0" ToolTip="Toggle creation of restore point every time a diff is accepted" IsChecked="True" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                        </DockPanel>
                     </StackPanel>
                 </Border>
             </Popup>
+            
+            
             
             
             <Button Click="DebugButton_Click" BorderThickness="0" BorderBrush="{StaticResource BorderBrush}" hc:BorderElement.CornerRadius="15" Width="10" Height="10" hc:IconElement.Geometry="{StaticResource InfoGeometry}" Margin="5" Padding="0" Visibility="Collapsed"/>

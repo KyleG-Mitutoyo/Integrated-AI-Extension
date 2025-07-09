@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using static Integrated_AI.Utilities.DiffUtility;
+using MessageBox = HandyControl.Controls.MessageBox;
 
 namespace Integrated_AI.Utilities
 {
@@ -221,7 +222,7 @@ namespace Integrated_AI.Utilities
                     catch (Exception ex)
                     {
                         // Log error for specific file but continue processing others
-                        System.Windows.MessageBox.Show($"Error reading file {file}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                        MessageBox.Show($"Error reading file {file}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                     }
                 }
 
@@ -233,7 +234,7 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 // Log directory-level error but continue processing
-                System.Windows.MessageBox.Show($"Error processing directory {sourceDir}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                MessageBox.Show($"Error processing directory {sourceDir}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
             }
         }
 

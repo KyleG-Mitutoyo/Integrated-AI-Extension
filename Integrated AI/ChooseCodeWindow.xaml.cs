@@ -32,8 +32,6 @@ namespace Integrated_AI
         public ChooseCodeWindow(DTE2 dte, Document activeDoc)
         {
             InitializeComponent();
-            var dummy = typeof(HandyControl.Controls.Window); // Required for HandyControl XAML compilation
-            ThemeUtility.ApplyTheme(this);
             NonClientAreaBackground = Brushes.Transparent;
 
             var (functions, files) = CodeSelectionUtilities.PopulateReplacementLists(dte, activeDoc);

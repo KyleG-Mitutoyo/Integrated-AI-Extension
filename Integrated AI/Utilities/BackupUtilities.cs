@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using EnvDTE;
 using EnvDTE80;
+using MessageBox = HandyControl.Controls.MessageBox;
 
 namespace Integrated_AI.Utilities
 {
@@ -56,7 +57,7 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 // Log error (logging implementation depends on your setup)
-                System.Windows.MessageBox.Show($"Backup failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                MessageBox.Show($"Backup failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return null;
             }
         }
@@ -113,7 +114,7 @@ namespace Integrated_AI.Utilities
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"Restore failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                MessageBox.Show($"Restore failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return false;
             }
         }
@@ -199,7 +200,7 @@ namespace Integrated_AI.Utilities
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"Error retrieving restore points: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                MessageBox.Show($"Error retrieving restore points: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return new List<string>();
             }
         }
@@ -211,7 +212,7 @@ namespace Integrated_AI.Utilities
             {
                 if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName) || string.IsNullOrEmpty(restorePoint))
                 {
-                    System.Windows.MessageBox.Show("Invalid input: Solution or restore point is missing.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    MessageBox.Show("Invalid input: Solution or restore point is missing.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                     return new Dictionary<string, string>(); // Return empty dictionary instead of null
                 }
 
@@ -219,7 +220,7 @@ namespace Integrated_AI.Utilities
 
                 if (!Directory.Exists(backupPath))
                 {
-                    System.Windows.MessageBox.Show($"Backup directory does not exist: {backupPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    MessageBox.Show($"Backup directory does not exist: {backupPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                     return new Dictionary<string, string>(); // Return empty dictionary instead of null
                 }
 
@@ -230,14 +231,14 @@ namespace Integrated_AI.Utilities
 
                 if (files.Count == 0)
                 {
-                    System.Windows.MessageBox.Show($"No files found in backup directory: {backupPath}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    MessageBox.Show($"No files found in backup directory: {backupPath}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                 }
 
                 return files;
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"Error retrieving restore files: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                MessageBox.Show($"Error retrieving restore files: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return new Dictionary<string, string>(); // Return empty dictionary instead of null
             }
         }

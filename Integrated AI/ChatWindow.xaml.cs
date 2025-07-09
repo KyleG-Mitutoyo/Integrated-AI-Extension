@@ -23,8 +23,11 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using static Integrated_AI.WebViewUtilities;
-using MessageBox = System.Windows.MessageBox;
+using MessageBox = HandyControl.Controls.MessageBox;
 
+//TODO: Show method previews on hover in function list box
+//Close button for compare diff views
+//AI chat text select to search for the matching restore point, or list the AICode that was used for each restore
 
 namespace Integrated_AI
 {
@@ -105,7 +108,7 @@ namespace Integrated_AI
             Loaded += ChatWindow_Loaded;
             Unloaded += ChatWindow_Unloaded;
 
-            ThemeUtility.CurrentTheme = ApplicationTheme.Light; // Default theme until saving is implemented
+            ThemeUtility.ChangeTheme(ApplicationTheme.Light); // Default theme until saving is implemented
             //if (Enum.TryParse(Settings.Default.ApplicationTheme, out ApplicationTheme theme))
             //{
             //    //Update the theme
@@ -651,8 +654,7 @@ namespace Integrated_AI
             {
                 if (button.Tag is ApplicationTheme themeTag)
                 {
-                    ThemeManager.Current.ApplicationTheme = themeTag;
-                    ThemeUtility.CurrentTheme = themeTag; // Update the current theme variable
+                    ThemeUtility.ChangeTheme(themeTag);
                     //Settings.Default.ApplicationTheme = themeTag.ToString();
                     //Settings.Default.Save();
                 }
