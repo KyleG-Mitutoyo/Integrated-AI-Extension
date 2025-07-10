@@ -3,6 +3,7 @@ using EnvDTE80;
 using HandyControl.Controls;
 using HandyControl.Themes;
 using HandyControl.Tools.Extension;
+using Integrated_AI.Properties;
 using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
@@ -78,7 +79,7 @@ namespace Integrated_AI
         {
             InitializeComponent();
             var dummy = typeof(HandyControl.Controls.Window);
-            UrlSelector.ItemsSource = _urlOptions;
+            InitializeUrlSelector();
             _dte = (DTE2)Package.GetGlobalService(typeof(DTE));
             _diffContext = null;
             _isWebViewInFocus = false;
@@ -108,12 +109,7 @@ namespace Integrated_AI
             Loaded += ChatWindow_Loaded;
             Unloaded += ChatWindow_Unloaded;
 
-            ThemeUtility.ChangeTheme(ApplicationTheme.Light); // Default theme until saving is implemented
-            //if (Enum.TryParse(Settings.Default.ApplicationTheme, out ApplicationTheme theme))
-            //{
-            //    //Update the theme
-            //ThemeManager.Current.ApplicationTheme = savedTheme;
-            //}
+            PopupConfig.Closed += PopupConfig_Closed;
         }
 
         private void ChatWindow_Loaded(object sender, RoutedEventArgs e)
@@ -145,6 +141,22 @@ namespace Integrated_AI
             if (hwndSource != null)
             {
                 hwndSource.RemoveHook(WndProc);
+            }
+        }
+        private void InitializeUrlSelector()
+        {
+            // Populate ComboBox with URL options
+            UrlSelector.ItemsSource = _urlOptions;
+
+            // Load saved selection
+            if (!string.IsNullOrEmpty(Settings.Default.selectedChat))
+            {
+                var savedOption = (UrlSelector.ItemsSource as List<UrlOption>)
+                    ?.FirstOrDefault(option => option.DisplayName == Settings.Default.selectedChat);
+                if (savedOption != null)
+                {
+                    UrlSelector.SelectedItem = savedOption;
+                }
             }
         }
 
@@ -326,6 +338,8 @@ namespace Integrated_AI
                     if (ChatWebView?.CoreWebView2 != null)
                     {
                         ChatWebView.Source = new Uri(selectedOption.Url);
+                        Settings.Default.selectedChat = selectedOption.DisplayName; // Save the selected chat option
+                        Settings.Default.Save(); // Save settings to persist the selection
                     }
                 }
                 catch (UriFormatException ex)
@@ -655,10 +669,13 @@ namespace Integrated_AI
                 if (button.Tag is ApplicationTheme themeTag)
                 {
                     ThemeUtility.ChangeTheme(themeTag);
-                    //Settings.Default.ApplicationTheme = themeTag.ToString();
-                    //Settings.Default.Save();
                 }
             }
+        }
+
+        private void PopupConfig_Closed(object sender, EventArgs e)
+        {
+            Settings.Default.Save(); // Save settings when the popup is closed
         }
     }
 }

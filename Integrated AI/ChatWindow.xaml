@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:wpf="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              xmlns:hc="https://handyorg.github.io/handycontrol"
+             xmlns:properties="clr-namespace:Integrated_AI.Properties"
              Height="Auto"
              Width="Auto"
              GotFocus="Window_GotFocus" LostFocus="Window_LostFocus">
@@ -22,7 +23,7 @@
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
             <ComboBox x:Name="UrlSelector" MaxWidth="200" MinWidth="100" Margin="5" SelectionChanged="UrlSelector_SelectionChanged"
-                      DisplayMemberPath="DisplayName" SelectedValuePath="Url" SelectedIndex="0"/>
+                      DisplayMemberPath="DisplayName" SelectedValuePath="Url" />
             <hc:SplitButton x:Name="VSToAISplitButton" 
                             Margin="5" 
                             Content="Method -> AI" 
@@ -81,19 +82,19 @@
                         <!-- Auto Diff Compare -->
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
                             <TextBlock Text="Auto Diff Compare" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
-                            <ToggleButton x:Name="AutoDiffToggle" Margin="0,0,10,0" ToolTip="Toggle auto AI code detection for code replacement" IsChecked="False" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                            <ToggleButton x:Name="AutoDiffToggle" Margin="0,0,10,0" ToolTip="Toggle auto AI code detection for code replacement" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoDiff, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
                         <!-- Auto Method Match -->
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
                             <TextBlock Text="Auto Method Match" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
-                            <ToggleButton x:Name="AutoMethodMatch" Margin="0,0,10,0" ToolTip="Toggle method matching for Method -> VS button during manual diff mode" IsChecked="True" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                            <ToggleButton x:Name="AutoMethodMatch" Margin="0,0,10,0" ToolTip="Toggle method matching for Method -> VS button during manual diff mode" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoMethodMatch, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
                         <!-- Create Restore on Accept -->
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
                             <TextBlock Text="Create Restore on Accept" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
-                            <ToggleButton x:Name="AutoRestore" Margin="0,0,10,0" ToolTip="Toggle creation of restore point every time a diff is accepted" IsChecked="True" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                            <ToggleButton x:Name="AutoRestore" Margin="0,0,10,0" ToolTip="Toggle creation of restore point every time a diff is accepted" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoRestore, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
                     </StackPanel>
                 </Border>
@@ -105,6 +106,6 @@
             <Button Click="DebugButton_Click" BorderThickness="0" BorderBrush="{StaticResource BorderBrush}" hc:BorderElement.CornerRadius="15" Width="10" Height="10" hc:IconElement.Geometry="{StaticResource InfoGeometry}" Margin="5" Padding="0" Visibility="Collapsed"/>
             
         </StackPanel>
-        <wpf:WebView2 x:Name="ChatWebView" Grid.Row="1" Source="https://grok.com"/>
+        <wpf:WebView2 x:Name="ChatWebView" Grid.Row="1" />
     </Grid>
 </UserControl>

@@ -19,6 +19,7 @@ using System.Threading.Tasks;
 // using System.Web; // HttpUtility, WebUtility is in System.Net
 using System.Windows;
 using System.Windows.Controls; // For ComboBox (used in InitializeWebView2Async)
+using static Integrated_AI.ChatWindow;
 using MessageBox = HandyControl.Controls.MessageBox;
 
 namespace Integrated_AI
@@ -77,25 +78,38 @@ namespace Integrated_AI
         {
             try
             {
-                var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
-                await webView.EnsureCoreWebView2Async(env);
-
-                webView.CoreWebView2.Settings.IsWebMessageEnabled = true;
-                webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-                webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
-
+                // The CoreWebView2InitializationCompleted event handler must be added before
+                // the EnsureCoreWebView2Async method is called. This ensures that the event
+                // is not missed if the initialization completes synchronously.
                 webView.CoreWebView2InitializationCompleted += (s, e) =>
                 {
-                    if (e.IsSuccess && urlOptions.Any())
+                    if (e.IsSuccess)
                     {
-                        urlSelector.SelectedIndex = 0; // Load first URL
+                        // Initialization is successful, now we can configure the settings.
+                        webView.CoreWebView2.Settings.IsWebMessageEnabled = true;
+                        webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+                        webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+
+                        // And perform the initial navigation based on the ComboBox's selected item.
+                        if (urlSelector.SelectedItem is ChatWindow.UrlOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
+                        {
+                            try
+                            {
+                                webView.Source = new Uri(selectedOption.Url);
+                            }
+                            catch (UriFormatException ex)
+                            {
+                                MessageBox.Show($"Invalid URL '{selectedOption.Url}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            }
+                        }
                     }
-                    else if (!e.IsSuccess)
+                    else
                     {
                         MessageBox.Show($"WebView2 initialization failed: {e.InitializationException?.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 };
 
+                // This handler can also be set up before initialization begins.
                 webView.NavigationCompleted += (s, e) =>
                 {
                     if (e.IsSuccess)
@@ -129,6 +143,10 @@ namespace Integrated_AI
                         MessageBox.Show(errorMessage, "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                 };
+
+                // Now, create the environment and trigger the initialization.
+                var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
+                await webView.EnsureCoreWebView2Async(env);
             }
             catch (Exception ex)
             {
