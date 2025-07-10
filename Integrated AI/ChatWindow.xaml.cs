@@ -160,6 +160,15 @@ namespace Integrated_AI
             }
         }
 
+        private string GetSelectedComboBoxText()
+        {
+            if (UrlSelector.SelectedItem is UrlOption selectedOption)
+            {
+                return selectedOption.DisplayName; // Returns the display text
+            }
+            return string.Empty; // Return empty string if nothing is selected
+        }
+
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
             if (msg == WM_CLIPBOARDUPDATE && _isWebViewInFocus)
@@ -466,7 +475,7 @@ namespace Integrated_AI
             // A backup of the solution files are created for every accept button click, if enabled.
             if ((bool)AutoRestore.IsChecked)
             {
-                BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder);
+                BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, contextToClose.AICodeBlock, GetSelectedComboBoxText());
             }
             
             // Save the document after making the backup
@@ -651,12 +660,11 @@ namespace Integrated_AI
 
         private void SaveBackupButton_Click(object sender, RoutedEventArgs e)
         {
-            string path = BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder);
+            string path = BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, "(Manual save: No AI code available.)", GetSelectedComboBoxText());
 
             if (path != null)
             {
-                string folderName = Path.GetDirectoryName(path);
-                MessageBox.Show($"Backup created successfully: {folderName}", "Success");
+                MessageBox.Show($"Backup created successfully: {path}", "Success");
             }
         }
 

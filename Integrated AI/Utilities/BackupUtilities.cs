@@ -2,19 +2,21 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using EnvDTE;
 using EnvDTE80;
 using MessageBox = HandyControl.Controls.MessageBox;
+using Newtonsoft.Json;
 
 namespace Integrated_AI.Utilities
 {
     public static class BackupUtilities
     {
         // Creates a backup of the entire solution in a dated folder, within the solution's folder
-        public static string CreateSolutionBackup(DTE2 dte, string backupRootPath)
+        public static string CreateSolutionBackup(DTE2 dte, string backupRootPath, string aiCode, string aiChat)
         {
-            try
+            try 
             {
                 if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName))
                 {
@@ -28,6 +30,16 @@ namespace Integrated_AI.Utilities
                 string backupFolderName = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
                 string backupPath = Path.Combine(backupRootPath, uniqueSolutionFolder, backupFolderName);
                 Directory.CreateDirectory(backupPath);
+
+                // Save AI code and chat metadata to a JSON file
+                string metadataPath = Path.Combine(backupPath, "backup_metadata.json");
+                var metadata = new
+                {
+                    AICode = aiCode,
+                    AIChat = aiChat,
+                    BackupTime = backupFolderName
+                };
+                File.WriteAllText(metadataPath, JsonConvert.SerializeObject(metadata, Formatting.Indented));
 
                 // Copy solution file
                 string solutionFileName = Path.GetFileName(dte.Solution.FullName);
@@ -126,6 +138,10 @@ namespace Integrated_AI.Utilities
 
             foreach (string file in Directory.GetFiles(sourceDir))
             {
+                // Skip metadata file during restore
+                if (Path.GetFileName(file) == "backup_metadata.json")
+                    continue;
+
                 string targetFile = Path.Combine(targetDir, Path.GetFileName(file));
                 bool shouldCopy = true;
 
@@ -166,45 +182,6 @@ namespace Integrated_AI.Utilities
             return uniqueSolutionFolder;
         }
 
-        // Retrieves a list of available restore points (backup folders) for the current solution
-        public static List<string> GetRestorePoints(DTE2 dte, string backupRootPath)
-        {
-            try
-            {
-                if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName))
-                {
-                    return new List<string>();
-                }
-
-                string uniqueSolutionFolder = GetUniqueSolutionFolder(dte);
-                string backupPath = Path.Combine(backupRootPath, uniqueSolutionFolder);
-
-                if (!Directory.Exists(backupPath))
-                {
-                    return new List<string>();
-                }
-
-                // Get all dated folders (yyyy-MM-dd_HH-mm-ss format)
-                var restorePoints = Directory.GetDirectories(backupPath)
-                    .Select(Path.GetFileName)
-                    .Where(name => name.Contains("_") && DateTime.TryParseExact(
-                        name, 
-                        "yyyy-MM-dd_HH-mm-ss", 
-                        System.Globalization.CultureInfo.InvariantCulture, 
-                        System.Globalization.DateTimeStyles.None, 
-                        out _))
-                    .OrderByDescending(name => name)
-                    .ToList();
-
-                return restorePoints;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error retrieving restore points: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
-                return new List<string>();
-            }
-        }
-
         // Retrieves file paths and contents from a specific backup folder
         public static Dictionary<string, string> GetRestoreFiles(DTE2 dte, string backupRootPath, string restorePoint)
         {
@@ -240,6 +217,30 @@ namespace Integrated_AI.Utilities
             {
                 MessageBox.Show($"Error retrieving restore files: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return new Dictionary<string, string>(); // Return empty dictionary instead of null
+            }
+        }
+
+        // Retrieves AI code and chat metadata from a specific backup folder
+        public static (string aiCode, string aiChat) GetBackupMetadata(string solutionBackupRootPath, string restorePoint)
+        {
+            try
+            {
+                string metadataPath = Path.Combine(solutionBackupRootPath, restorePoint, "backup_metadata.json");
+                if (!File.Exists(metadataPath))
+                {
+                    //MessageBox.Show($"Metadata file not found: {metadataPath}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    WebViewUtilities.Log($"Metadata file not found: {metadataPath}");
+                    return (null, null);
+                }
+
+                string jsonContent = File.ReadAllText(metadataPath);
+                var metadata = JsonConvert.DeserializeObject<dynamic>(jsonContent);
+                return (metadata.AICode?.ToString(), metadata.AIChat?.ToString());
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error retrieving backup metadata: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                return (null, null);
             }
         }
     }

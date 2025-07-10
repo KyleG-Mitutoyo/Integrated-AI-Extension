@@ -23,6 +23,8 @@ namespace Integrated_AI
             public string DisplayName { get; set; }
             public string FolderPath { get; set; }
             public DateTime BackupTime { get; set; }
+            public string AIChatTag { get; set; } // New property for AI chat tag
+            public string AICode { get; set; }    // New property for AI code
         }
 
         public BackupItem SelectedBackup { get; private set; }
@@ -52,16 +54,40 @@ namespace Integrated_AI
                 {
                     if (DateTime.TryParseExact(dir.Name, "yyyy-MM-dd_HH-mm-ss", null, System.Globalization.DateTimeStyles.None, out var backupTime))
                     {
+                        // Retrieve AI chat and AI code from metadata
+                        var (aiCode, aiChat) = BackupUtilities.GetBackupMetadata(_backupRootPath, dir.Name);
+                        string aiChatTag = string.IsNullOrEmpty(aiChat) ? "n/a" : aiChat.Length > 30 ? aiChat.Substring(0, 27) + "..." : aiChat;
+
                         backups.Add(new BackupItem
                         {
                             DisplayName = backupTime.ToString("MM-dd-yyyy hh:mm:ss tt"),
                             FolderPath = dir.FullName,
-                            BackupTime = backupTime
+                            BackupTime = backupTime,
+                            AIChatTag = aiChatTag,
+                            AICode = string.IsNullOrEmpty(aiCode) ? "No AI Code" : aiCode
                         });
                     }
                 }
             }
             BackupListBox.ItemsSource = backups;
+
+            // Select the first item by default to show AI code
+            if (backups.Count > 0)
+            {
+                BackupListBox.SelectedIndex = 0;
+            }
+        }
+
+        private void BackupListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (BackupListBox.SelectedItem is BackupItem selected)
+            {
+                AICodeTextBox.Text = selected.AICode;
+            }
+            else
+            {
+                AICodeTextBox.Text = string.Empty;
+            }
         }
 
         private void RestoreButton_Click(object sender, RoutedEventArgs e)
