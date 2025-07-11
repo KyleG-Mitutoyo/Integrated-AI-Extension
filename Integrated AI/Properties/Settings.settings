@@ -3,7 +3,7 @@
   <Profiles />
   <Settings>
     <Setting Name="selectedChat" Type="System.String" Scope="User">
-      <Value Profile="(Default)">Grok</Value>
+      <Value Profile="(Default)">Google AI Studio</Value>
     </Setting>
     <Setting Name="theme" Type="System.String" Scope="User">
       <Value Profile="(Default)">Dark</Value>

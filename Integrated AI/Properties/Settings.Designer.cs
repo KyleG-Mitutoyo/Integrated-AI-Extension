@@ -25,7 +25,7 @@ namespace Integrated_AI.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("Grok")]
+        [global::System.Configuration.DefaultSettingValueAttribute("Google AI Studio")]
         public string selectedChat {
             get {
                 return ((string)(this["selectedChat"]));

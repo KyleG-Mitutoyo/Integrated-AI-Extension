@@ -11,6 +11,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using static Integrated_AI.Utilities.DiffUtility;
 using MessageBox = HandyControl.Controls.MessageBox;
 using Window = HandyControl.Controls.Window;
 
@@ -28,6 +29,7 @@ namespace Integrated_AI
         }
 
         public BackupItem SelectedBackup { get; private set; }
+        public List<DiffContext> DiffContexts { get; private set; }
         private readonly string _backupRootPath;
         private DTE2 _dte;
 
@@ -39,6 +41,8 @@ namespace Integrated_AI
             _backupRootPath = backupRootPath;
             _dte = dte;
             PopulateBackupList();
+
+            DiffContexts = null;
         }
 
         private void PopulateBackupList()
@@ -155,8 +159,8 @@ namespace Integrated_AI
                     }
 
                     // Open diff views for all changed files
-                    var diffContexts = DiffUtility.OpenMultiFileDiffView(_dte, restoreFiles);
-                    if (diffContexts == null || diffContexts.Count == 0)
+                    DiffContexts = DiffUtility.OpenMultiFileDiffView(_dte, restoreFiles);
+                    if (DiffContexts == null || DiffContexts.Count == 0)
                     {
                         // Message already shown in OpenMultiFileDiffView
                         return;

@@ -23,12 +23,13 @@ using System.Windows.Forms.VisualStyles;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using static Integrated_AI.Utilities.DiffUtility;
 using static Integrated_AI.WebViewUtilities;
 using MessageBox = HandyControl.Controls.MessageBox;
 
 //TODO: Show method previews on hover in function list box
-//Close button for compare diff views
-//AI chat text select to search for the matching restore point, or list the AICode that was used for each restore
+//AI chat text select to search for the matching restore point
+//Test fix with file selection in ChooseCodeWindow other than the opened file
 
 namespace Integrated_AI
 {
@@ -56,6 +57,8 @@ namespace Integrated_AI
         private bool _executeCommandOnClick = true;
         private readonly DTE2 _dte;
         private DiffUtility.DiffContext _diffContext;
+        //Used to store the compare muliple diff views
+        private List<DiffContext> _diffContextsCompare;
         private static bool _isWebViewInFocus;
         private IntPtr _hwndSource; // Handle for the window
         private bool _isClipboardListenerRegistered;
@@ -63,6 +66,8 @@ namespace Integrated_AI
         private string _currentClipboardText; // Tracks clipboard content for current burst of events
         private bool _isOpeningCodeWindow = false;
         private bool _isProcessingClipboardAction = false;
+        private DocumentEvents _documentEvents;
+
 
         // Windows API declarations
         private const int WM_CLIPBOARDUPDATE = 0x031D;
@@ -126,6 +131,10 @@ namespace Integrated_AI
                     WebViewUtilities.Log("Failed to register clipboard listener.");
                 }
             }
+
+            var events = _dte.Events;
+            _documentEvents = events.DocumentEvents;
+            _documentEvents.DocumentClosing += OnDocumentClosing;
         }
 
         private void ChatWindow_Unloaded(object sender, RoutedEventArgs e)
@@ -142,7 +151,62 @@ namespace Integrated_AI
             {
                 hwndSource.RemoveHook(WndProc);
             }
+
+            if (_documentEvents != null)
+            {
+                _documentEvents.DocumentClosing -= OnDocumentClosing;
+            }
         }
+
+        private void OnDocumentClosing(Document document)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            WebViewUtilities.Log($"Document closing: {document.FullName}");
+        
+            // Check if the closing document is part of the single diff view
+            var singleDiffContext = _diffContext;
+            if (singleDiffContext != null &&
+                (document.FullName.Equals(singleDiffContext.TempCurrentFile, StringComparison.OrdinalIgnoreCase) ||
+                 document.FullName.Equals(singleDiffContext.TempAiFile, StringComparison.OrdinalIgnoreCase)))
+            {
+                WebViewUtilities.Log("Single diff view closed manually. Cleaning up.");
+                FileUtil.CleanUpTempFiles(singleDiffContext);
+                _diffContext = null;
+        
+                Dispatcher.Invoke(() =>
+                {
+                    UpdateButtonsForDiffView(false);
+                    _isProcessingClipboardAction = false;
+                    _lastClipboardText = null;
+                });
+                return;
+            }
+        
+            // Check if the closing document is part of a multi-compare diff view
+            if (_diffContextsCompare != null && _diffContextsCompare.Any())
+            {
+                var contextToRemove = _diffContextsCompare.FirstOrDefault(ctx =>
+                    ctx.TempCurrentFile.Equals(document.FullName, StringComparison.OrdinalIgnoreCase) ||
+                    ctx.TempAiFile.Equals(document.FullName, StringComparison.OrdinalIgnoreCase));
+        
+                if (contextToRemove != null)
+                {
+                    WebViewUtilities.Log($"Cleaning up manually closed compare-diff view for: {contextToRemove.ActiveDocumentPath}");
+                    FileUtil.CleanUpTempFiles(contextToRemove);
+                    _diffContextsCompare.Remove(contextToRemove);
+        
+                    if (_diffContextsCompare.Count == 0)
+                    {
+                        WebViewUtilities.Log("All compare diff views now closed. Hiding button.");
+                        Dispatcher.Invoke(() =>
+                        {
+                            CloseDiffsButton.Visibility = Visibility.Collapsed;
+                        });
+                    }
+                }
+            }
+        }
+
         private void InitializeUrlSelector()
         {
             // Populate ComboBox with URL options
@@ -295,7 +359,7 @@ namespace Integrated_AI
                     _isOpeningCodeWindow = true;
                     try
                     {
-                        selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument, ThemeUtility.CurrentTheme);
+                        selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
                         if (selectedItem == null)
                         {
                             abortAction(); // User cancelled, so abort and release the main lock
@@ -475,6 +539,8 @@ namespace Integrated_AI
             // A backup of the solution files are created for every accept button click, if enabled.
             if ((bool)AutoRestore.IsChecked)
             {
+                // If we want to add the code extension to get syntax highlghting in the restore window
+                // we'd use documentToModify file extension
                 BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, contextToClose.AICodeBlock, GetSelectedComboBoxText());
             }
             
@@ -557,8 +623,8 @@ namespace Integrated_AI
                 return;
             }
 
-            // Show the code replacement window. This now uses a valid Document object, which prevents the freeze.
-            var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument, ThemeUtility.CurrentTheme);
+            // Show the code replacement window. This now uses a valid Document object.
+            var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
             if (selectedItem == null)
             {
                 // User cancelled the selection. Reset UI and state.
@@ -568,14 +634,47 @@ namespace Integrated_AI
                 return;
             }
 
+            // --- START: BUG FIX ---
+            // Default to the active document, but check if the user selected a different file.
+            Document targetDoc = activeDocument;
+            string codeToModify = currentCode;
+
+            // If the user chose a specific file, update the target document and its code.
+            if (selectedItem.Type == "file" || selectedItem.Type == "opened_file")
+            {
+                string targetFilePath = selectedItem.FilePath;
+                try
+                {
+                    // Attempt to get the document if open, otherwise open it.
+                    targetDoc = _dte.Documents.Item(targetFilePath);
+                }
+                catch (ArgumentException) // Not open, so open it
+                {
+                    try
+                    {
+                        _dte.ItemOperations.OpenFile(targetFilePath);
+                        targetDoc = _dte.Documents.Item(targetFilePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error opening selected file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+                }
+
+                // Retrieve the code from the now-targeted document.
+                codeToModify = DiffUtility.GetDocumentText(targetDoc);
+            }
+            // --- END: BUG FIX ---
+
             // Create a new context for the new diff view, following the pattern in PasteButton_ClickLogic.
             var newDiffContext = new DiffUtility.DiffContext { };
 
-            // Calculate the modified code based on user's selection, passing the new context to be populated.
-            string modifiedCode = StringUtil.ReplaceOrAddCode(_dte, currentCode, aiCode, activeDocument, selectedItem, newDiffContext);
+            // Calculate the modified code based on the user's selection, using the correct target document and code.
+            string modifiedCode = StringUtil.ReplaceOrAddCode(_dte, codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
 
             // Open a new diff view and assign the fully populated context to our member field.
-            _diffContext = DiffUtility.OpenDiffView(activeDocument, currentCode, modifiedCode, aiCode, newDiffContext);
+            _diffContext = DiffUtility.OpenDiffView(targetDoc, codeToModify, modifiedCode, aiCode, newDiffContext);
 
             // If opening the diff view failed, reset the UI.
             if (_diffContext == null)
@@ -648,6 +747,13 @@ namespace Integrated_AI
             var solutionBackupsFolder = Path.Combine(_backupsFolder, BackupUtilities.GetUniqueSolutionFolder(_dte));
             var restoreWindow = new RestoreSelectionWindow(_dte, solutionBackupsFolder);
             bool? result = restoreWindow.ShowDialog();
+            // Show close diffs button if there are any diff contexts available
+            if (restoreWindow.DiffContexts != null)
+            {
+                _diffContextsCompare = restoreWindow.DiffContexts;
+                CloseDiffsButton.Visibility = Visibility.Visible;
+            }
+
             if (result == true && restoreWindow.SelectedBackup != null)
             {
                 string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
@@ -664,8 +770,26 @@ namespace Integrated_AI
 
             if (path != null)
             {
-                MessageBox.Show($"Backup created successfully: {path}", "Success");
+                string lastFolder = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar));
+                MessageBox.Show($"Backup created successfully in: {lastFolder}", "Success");
             }
+        }
+
+        private void CloseDiffsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_diffContextsCompare == null)
+            {
+                CloseDiffsButton.Visibility = Visibility.Collapsed; // Hide the button if no diffs are open
+                return;
+            }
+            // To avoid issues with modifying the collection while iterating, create a copy
+            var contextsToClose = new List<DiffContext>(_diffContextsCompare);
+            foreach (var diffContext in contextsToClose)
+            {
+                DiffUtility.CloseDiffAndReset(diffContext);
+            }
+            _diffContextsCompare.Clear();
+            CloseDiffsButton.Visibility = Visibility.Collapsed; // Hide the button after closing diffs
         }
 
         private void ButtonConfig_Click(object sender, RoutedEventArgs e) => PopupConfig.IsOpen = true;

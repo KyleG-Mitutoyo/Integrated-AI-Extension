@@ -36,7 +36,6 @@
                         <MenuItem Header="Code -> AI" Click="MenuItemToAI_Click" Tag="Code -> AI"/>
                         <MenuItem Header="Method -> AI" Click="MenuItemToAI_Click" Tag="Method -> AI"/>
                         <MenuItem Header="Error -> AI" Click="MenuItemToAI_Click" Tag="Error -> AI"/>
-                        <MenuItem Header="Exception -> AI" Click="MenuItemToAI_Click" Tag="Exception -> AI"/>
                     </StackPanel>
                 </hc:SplitButton.DropDownContent>
             </hc:SplitButton>
@@ -62,6 +61,7 @@
             <Button x:Name="SaveBackupButton" hc:IconElement.Geometry="{StaticResource SaveGeometry}" Click="SaveBackupButton_Click" Margin="-1,0,0,0" hc:BorderElement.CornerRadius="0,4,4,0"
                     ToolTip="Save solution backup"
                     ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
+            <Button x:Name="CloseDiffsButton" Content="Close all diff views" Style="{StaticResource ButtonDanger}" Click="CloseDiffsButton_Click" Margin="10,0,0,0" Visibility="Collapsed"/>
             
             <Button HorizontalAlignment="Right" Click="ButtonConfig_Click" Name="ButtonConfig" Style="{StaticResource ButtonIcon}" Foreground="{DynamicResource PrimaryTextBrush}" hc:IconElement.Geometry="{StaticResource ConfigGeometry}"/>
             <Popup AllowsTransparency="True" PlacementTarget="{Binding ElementName=ButtonConfig}" HorizontalOffset="0" Name="PopupConfig" VerticalOffset="6" StaysOpen="False" Width="300">

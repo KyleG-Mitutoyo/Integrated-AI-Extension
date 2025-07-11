@@ -238,7 +238,7 @@ namespace Integrated_AI
             }
         }
 
-        public static ChooseCodeWindow.ReplacementItem ShowCodeReplacementWindow(DTE2 dte, Document activeDoc, ApplicationTheme theme)
+        public static ChooseCodeWindow.ReplacementItem ShowCodeReplacementWindow(DTE2 dte, Document activeDoc)
         {
             var window = new ChooseCodeWindow(dte, activeDoc);
             bool? result = window.ShowDialog();

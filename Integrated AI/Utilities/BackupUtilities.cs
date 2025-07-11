@@ -16,7 +16,7 @@ namespace Integrated_AI.Utilities
         // Creates a backup of the entire solution in a dated folder, within the solution's folder
         public static string CreateSolutionBackup(DTE2 dte, string backupRootPath, string aiCode, string aiChat)
         {
-            try 
+            try
             {
                 if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName))
                 {
@@ -24,6 +24,7 @@ namespace Integrated_AI.Utilities
                 }
 
                 string solutionDir = Path.GetDirectoryName(dte.Solution.FullName);
+                Uri solutionUri = new Uri(solutionDir + Path.DirectorySeparatorChar); // Important to end with a slash
                 string uniqueSolutionFolder = GetUniqueSolutionFolder(dte);
 
                 // Create backup folder with unique solution folder and datetime stamp
@@ -48,20 +49,14 @@ namespace Integrated_AI.Utilities
                 // Copy all project files and their contents
                 foreach (Project project in dte.Solution.Projects)
                 {
-                    if (!string.IsNullOrEmpty(project.FullName))
+                    // First, copy the project file itself
+                    if (!string.IsNullOrEmpty(project.FullName) && File.Exists(project.FullName))
                     {
-                        string projectDir = Path.GetDirectoryName(project.FullName);
-                        string relativePath = projectDir.Substring(solutionDir.Length).Trim(Path.DirectorySeparatorChar);
-                        string targetProjectDir = Path.Combine(backupPath, relativePath);
-                        Directory.CreateDirectory(targetProjectDir);
-
-                        // Copy project file
-                        string projectFileName = Path.GetFileName(project.FullName);
-                        File.Copy(project.FullName, Path.Combine(targetProjectDir, projectFileName));
-
-                        // Copy all project items
-                        CopyProjectItems(project.ProjectItems, projectDir, targetProjectDir);
+                        CopyItem(project.FullName, solutionUri, backupPath);
                     }
+
+                    // Then, recursively copy all items within that project
+                    CopyProjectItems(project.ProjectItems, solutionUri, backupPath);
                 }
 
                 return backupPath;
@@ -75,27 +70,23 @@ namespace Integrated_AI.Utilities
         }
 
         // Recursively copies project items
-        private static void CopyProjectItems(ProjectItems items, string sourceDir, string targetDir)
+        private static void CopyProjectItems(ProjectItems items, Uri solutionUri, string backupRootPath)
         {
             if (items == null) return;
 
             foreach (ProjectItem item in items)
             {
-                if (item.FileNames[0] != null)
+                // A ProjectItem can represent multiple files (e.g., for forms). FileNames are 1-indexed.
+                for (short i = 1; i <= item.FileCount; i++)
                 {
-                    string relativePath = item.FileNames[0].Substring(sourceDir.Length).Trim(Path.DirectorySeparatorChar);
-                    string targetPath = Path.Combine(targetDir, relativePath);
-                    string targetItemDir = Path.GetDirectoryName(targetPath);
-
-                    if (!Directory.Exists(targetItemDir))
-                        Directory.CreateDirectory(targetItemDir);
-
-                    if (File.Exists(item.FileNames[0]))
-                        File.Copy(item.FileNames[0], targetPath, true);
+                    CopyItem(item.FileNames[i], solutionUri, backupRootPath);
                 }
 
-                // Recurse into sub-items
-                CopyProjectItems(item.ProjectItems, sourceDir, targetDir);
+                // Recurse into sub-items or nested projects
+                if (item.ProjectItems != null && item.ProjectItems.Count > 0)
+                {
+                    CopyProjectItems(item.ProjectItems, solutionUri, backupRootPath);
+                }
             }
         }
 
@@ -242,6 +233,25 @@ namespace Integrated_AI.Utilities
                 MessageBox.Show($"Error retrieving backup metadata: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return (null, null);
             }
+        }
+
+        private static void CopyItem(string sourcePath, Uri solutionUri, string backupRootPath)
+        {
+            if (string.IsNullOrEmpty(sourcePath) || !File.Exists(sourcePath)) return;
+
+            Uri sourceUri = new Uri(sourcePath);
+
+            // Get the file's path relative to the solution root.
+            string relativePath = Uri.UnescapeDataString(solutionUri.MakeRelativeUri(sourceUri).ToString().Replace('/', Path.DirectorySeparatorChar));
+
+            // The target path is simply the backup root plus the item's relative path.
+            string targetPath = Path.Combine(backupRootPath, relativePath);
+            string targetItemDir = Path.GetDirectoryName(targetPath);
+
+            if (!Directory.Exists(targetItemDir))
+                Directory.CreateDirectory(targetItemDir);
+
+            File.Copy(sourcePath, targetPath, true);
         }
     }
 }

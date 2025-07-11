@@ -302,7 +302,6 @@ namespace Integrated_AI.Utilities
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Error closing diff frame: {ex.Message}");
                     WebViewUtilities.Log($"CloseDiffAndReset: Exception closing diff frame - {ex.Message}");
                 }
                 context.DiffFrame = null;
