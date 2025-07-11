@@ -19,6 +19,7 @@
     <Grid Background="{DynamicResource MainContentBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
@@ -54,14 +55,14 @@
                 </hc:SplitButton.DropDownContent>
             </hc:SplitButton>
             
-            <Button x:Name="AcceptButton" Content="Accept" Style="{StaticResource ButtonSuccess}" Click="AcceptButton_Click" hc:BorderElement.CornerRadius="5,0,0,5" Margin="5,0,0,0" Visibility="Collapsed"/>
+            <Button x:Name="AcceptButton" Content="Accept" Style="{StaticResource ButtonSuccess}" Click="AcceptButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="5,0,0,0" Visibility="Collapsed"/>
             <Button x:Name="ChooseButton" Content="Choose code" Click="ChooseButton_Click" Style="{StaticResource ButtonWarning}" hc:BorderElement.CornerRadius="0" Margin="0" Visibility="Collapsed"/>
-            <Button x:Name="DeclineButton" Content="Decline" Style="{StaticResource ButtonDanger}" Click="DeclineButton_Click" hc:BorderElement.CornerRadius="0,5,5,0" Margin="0,0,5,0" Visibility="Collapsed"/>
+            <Button x:Name="DeclineButton" Content="Decline" Style="{StaticResource ButtonDanger}" Click="DeclineButton_Click" hc:BorderElement.CornerRadius="0,4,4,0" Margin="0,0,5,0" Visibility="Collapsed"/>
             <Button x:Name="RestoreButton" Content="Restore" Click="RestoreButton_Click" Margin="5,5,0,5" hc:BorderElement.CornerRadius="4,0,0,4"/>
             <Button x:Name="SaveBackupButton" hc:IconElement.Geometry="{StaticResource SaveGeometry}" Click="SaveBackupButton_Click" Margin="-1,0,0,0" hc:BorderElement.CornerRadius="0,4,4,0"
                     ToolTip="Save solution backup"
                     ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
-            <Button x:Name="CloseDiffsButton" Content="Close all diff views" Style="{StaticResource ButtonDanger}" Click="CloseDiffsButton_Click" Margin="10,0,0,0" Visibility="Collapsed"/>
+
             
             <Button HorizontalAlignment="Right" Click="ButtonConfig_Click" Name="ButtonConfig" Style="{StaticResource ButtonIcon}" Foreground="{DynamicResource PrimaryTextBrush}" hc:IconElement.Geometry="{StaticResource ConfigGeometry}"/>
             <Popup AllowsTransparency="True" PlacementTarget="{Binding ElementName=ButtonConfig}" HorizontalOffset="0" Name="PopupConfig" VerticalOffset="6" StaysOpen="False" Width="300">
@@ -106,6 +107,10 @@
             <Button Click="DebugButton_Click" BorderThickness="0" BorderBrush="{StaticResource BorderBrush}" hc:BorderElement.CornerRadius="15" Width="10" Height="10" hc:IconElement.Geometry="{StaticResource InfoGeometry}" Margin="5" Padding="0" Visibility="Collapsed"/>
             
         </StackPanel>
-        <wpf:WebView2 x:Name="ChatWebView" Grid.Row="1" />
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">
+            <Button x:Name="UseRestoreButton" Content="Use this restore" Style="{StaticResource ButtonPrimary}" Click="UseRestoreButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="10,0,0,5" Visibility="Collapsed"/>
+            <Button x:Name="CloseDiffsButton" Content="Close all diff views" Style="{StaticResource ButtonDanger}" Click="CloseDiffsButton_Click" hc:BorderElement.CornerRadius="0,4,4,0" Margin="0,0,0,5" Visibility="Collapsed"/>
+        </StackPanel>
+        <wpf:WebView2 x:Name="ChatWebView" Grid.Row="2" />
     </Grid>
 </UserControl>

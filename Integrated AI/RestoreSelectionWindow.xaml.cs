@@ -166,7 +166,10 @@ namespace Integrated_AI
                         return;
                     }
 
-                    // Close the window after opening diff views
+                    // Close the window after opening diff views, and save the selected backup so the "use this restore"
+                    // button can be used later
+                    SelectedBackup = selected;
+                    DialogResult = false;
                     Close();
                 }
                 else

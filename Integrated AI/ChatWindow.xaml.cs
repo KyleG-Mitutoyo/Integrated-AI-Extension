@@ -23,6 +23,7 @@ using System.Windows.Forms.VisualStyles;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using static Integrated_AI.RestoreSelectionWindow;
 using static Integrated_AI.Utilities.DiffUtility;
 using static Integrated_AI.WebViewUtilities;
 using MessageBox = HandyControl.Controls.MessageBox;
@@ -30,6 +31,9 @@ using MessageBox = HandyControl.Controls.MessageBox;
 //TODO: Show method previews on hover in function list box
 //AI chat text select to search for the matching restore point
 //Test fix with file selection in ChooseCodeWindow other than the opened file
+//Fix selected text replacement
+//Fix indents not working correct for non-functions
+//Make auto diff view bring up choose code window rather than using cursor insert with failed matches
 
 namespace Integrated_AI
 {
@@ -59,6 +63,7 @@ namespace Integrated_AI
         private DiffUtility.DiffContext _diffContext;
         //Used to store the compare muliple diff views
         private List<DiffContext> _diffContextsCompare;
+        public BackupItem _selectedBackup;
         private static bool _isWebViewInFocus;
         private IntPtr _hwndSource; // Handle for the window
         private bool _isClipboardListenerRegistered;
@@ -197,10 +202,11 @@ namespace Integrated_AI
         
                     if (_diffContextsCompare.Count == 0)
                     {
-                        WebViewUtilities.Log("All compare diff views now closed. Hiding button.");
+                        WebViewUtilities.Log("All compare diff views now closed. Hiding buttons.");
                         Dispatcher.Invoke(() =>
                         {
                             CloseDiffsButton.Visibility = Visibility.Collapsed;
+                            UseRestoreButton.Visibility = Visibility.Collapsed;
                         });
                     }
                 }
@@ -744,6 +750,9 @@ namespace Integrated_AI
                 return;
             }
 
+            // Make sure to close any open compare diffs before opening the restore window
+            CloseDiffButtonLogic();
+
             var solutionBackupsFolder = Path.Combine(_backupsFolder, BackupUtilities.GetUniqueSolutionFolder(_dte));
             var restoreWindow = new RestoreSelectionWindow(_dte, solutionBackupsFolder);
             bool? result = restoreWindow.ShowDialog();
@@ -752,6 +761,7 @@ namespace Integrated_AI
             {
                 _diffContextsCompare = restoreWindow.DiffContexts;
                 CloseDiffsButton.Visibility = Visibility.Visible;
+                UseRestoreButton.Visibility = Visibility.Visible;
             }
 
             if (result == true && restoreWindow.SelectedBackup != null)
@@ -761,6 +771,12 @@ namespace Integrated_AI
                 {
                     MessageBox.Show("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
                 }
+            }
+
+            // Handle the case where the user compares with a selected backup
+            else if (restoreWindow.SelectedBackup != null)
+            {
+                _selectedBackup = restoreWindow.SelectedBackup;
             }
         }
 
@@ -777,9 +793,15 @@ namespace Integrated_AI
 
         private void CloseDiffsButton_Click(object sender, RoutedEventArgs e)
         {
+            CloseDiffButtonLogic();
+        }
+
+        private void CloseDiffButtonLogic()
+        {
             if (_diffContextsCompare == null)
             {
                 CloseDiffsButton.Visibility = Visibility.Collapsed; // Hide the button if no diffs are open
+                UseRestoreButton.Visibility = Visibility.Collapsed;
                 return;
             }
             // To avoid issues with modifying the collection while iterating, create a copy
@@ -790,6 +812,18 @@ namespace Integrated_AI
             }
             _diffContextsCompare.Clear();
             CloseDiffsButton.Visibility = Visibility.Collapsed; // Hide the button after closing diffs
+            UseRestoreButton.Visibility = Visibility.Collapsed;
+        }
+
+        private void UseRestoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
+            if (BackupUtilities.RestoreSolution(_dte, _selectedBackup.FolderPath, solutionDir))
+            {
+                MessageBox.Show("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+            }
+
+            CloseDiffButtonLogic();
         }
 
         private void ButtonConfig_Click(object sender, RoutedEventArgs e) => PopupConfig.IsOpen = true;
