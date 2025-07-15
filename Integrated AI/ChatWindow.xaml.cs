@@ -30,10 +30,14 @@ using MessageBox = HandyControl.Controls.MessageBox;
 
 //TODO: Show method previews on hover in function list box
 //AI chat text select to search for the matching restore point
-//Test fix with file selection in ChooseCodeWindow other than the opened file
 //Fix selected text replacement
 //Fix indents not working correct for non-functions
+//Fix page auto scroll to the new code section after Accept
+//Fix copy button detection in WebView2
 //Make auto diff view bring up choose code window rather than using cursor insert with failed matches
+//Make recent functions work per file
+//Make file list a treeview with folders and files, with a + button under each folder to make a new file there
+//Combine choosecodewindow and functionselectionwindow into a single window
 
 namespace Integrated_AI
 {
@@ -50,14 +54,16 @@ namespace Integrated_AI
         {
             new UrlOption { DisplayName = "Grok", Url = "https://grok.com" },
             new UrlOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com" },
-            new UrlOption { DisplayName = "ChatGPT", Url = "https://chatgpt.com" }
+            new UrlOption { DisplayName = "ChatGPT", Url = "https://chatgpt.com" },
+            new UrlOption { DisplayName = "Claude", Url = "https://claude.ai" },
+            new UrlOption { DisplayName = "Deepseek", Url = "https://chat.deepseek.com" }
         };
 
         private readonly string _webViewDataFolder;
         private readonly string _appDataFolder;
         private readonly string _backupsFolder;
-        private string _selectedOptionToAI = "Method -> AI";
-        private string _selectedOptionToVS = "Method -> VS";
+        private string _selectedOptionToAI = "Function -> AI";
+        private string _selectedOptionToVS = "Function -> VS";
         private bool _executeCommandOnClick = true;
         private readonly DTE2 _dte;
         private DiffUtility.DiffContext _diffContext;
@@ -168,22 +174,12 @@ namespace Integrated_AI
             ThreadHelper.ThrowIfNotOnUIThread();
             WebViewUtilities.Log($"Document closing: {document.FullName}");
         
-            // Check if the closing document is part of the single diff view
+            // Single diff views are skipped
             var singleDiffContext = _diffContext;
             if (singleDiffContext != null &&
                 (document.FullName.Equals(singleDiffContext.TempCurrentFile, StringComparison.OrdinalIgnoreCase) ||
                  document.FullName.Equals(singleDiffContext.TempAiFile, StringComparison.OrdinalIgnoreCase)))
             {
-                WebViewUtilities.Log("Single diff view closed manually. Cleaning up.");
-                FileUtil.CleanUpTempFiles(singleDiffContext);
-                _diffContext = null;
-        
-                Dispatcher.Invoke(() =>
-                {
-                    UpdateButtonsForDiffView(false);
-                    _isProcessingClipboardAction = false;
-                    _lastClipboardText = null;
-                });
                 return;
             }
         
@@ -293,7 +289,7 @@ namespace Integrated_AI
                     _isProcessingClipboardAction = true; 
 
                     // Process clipboard text
-                    PasteButton_ClickLogic(clipboardText);
+                    ToVSButton_ClickLogic(clipboardText);
 
                     // Update _lastClipboardText immediately to prevent reprocessing this specific text
                     // This is safe to do here now because the _isProcessingClipboardAction lock is active.
@@ -312,7 +308,7 @@ namespace Integrated_AI
         }        
 
         
-        private void PasteButton_ClickLogic(string aiCode)
+        private void ToVSButton_ClickLogic(string aiCode, string pasteType = null, string functionName = null)
         {
             // Check if a diff window is already open. The new _isProcessingClipboardAction handles the race condition.
             if (_diffContext != null)
@@ -357,26 +353,29 @@ namespace Integrated_AI
 
                 string currentCode = DiffUtility.GetDocumentText(activeDocument);
                 string modifiedCode = currentCode;
-                ChooseCodeWindow.ReplacementItem selectedItem = null;
+                ChooseCodeWindow.ReplacementItem selectedItem = new ChooseCodeWindow.ReplacementItem();
+                selectedItem.Type = pasteType;
+                selectedItem.DisplayName = functionName;
 
-                if (!(bool)AutoDiffToggle.IsChecked)
-                {
-                    // Use _isOpeningCodeWindow as a sub-lock for just this window, which is fine
-                    _isOpeningCodeWindow = true;
-                    try
-                    {
-                        selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
-                        if (selectedItem == null)
-                        {
-                            abortAction(); // User cancelled, so abort and release the main lock
-                            return;
-                        }
-                    }
-                    finally
-                    {
-                        _isOpeningCodeWindow = false;
-                    }
-                }
+                //Later, this will only occur at the end of analyzecodeblock with auto diff mode on, as a fallback
+                //if (!(bool)AutoDiffToggle.IsChecked)
+                //{
+                //    // Use _isOpeningCodeWindow as a sub-lock for just this window, which is fine
+                //    _isOpeningCodeWindow = true;
+                //    try
+                //    {
+                //        selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
+                //        if (selectedItem == null)
+                //        {
+                //            abortAction(); // User cancelled, so abort and release the main lock
+                //            return;
+                //        }
+                //    }
+                //    finally
+                //    {
+                //        _isOpeningCodeWindow = false;
+                //    }
+                //}
 
                 _diffContext = new DiffUtility.DiffContext { };
                 modifiedCode = StringUtil.ReplaceOrAddCode(_dte, modifiedCode, aiCode, activeDocument, selectedItem, _diffContext);
@@ -439,11 +438,21 @@ namespace Integrated_AI
 
         private async void SplitButtonToVS_Click(object sender, RoutedEventArgs e)
         {
-            if (_executeCommandOnClick)
+            try
             {
-                await WebViewUtilities.ExecuteCommandAsync(_selectedOptionToVS, _dte, ChatWebView, _webViewDataFolder);
+                if (_executeCommandOnClick) ExecuteToVSCommand();
             }
-            _executeCommandOnClick = true;
+
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log($"SplitButtonToVS_Click: Error executing {_selectedOptionToVS} - {ex.Message}");
+                MessageBox.Show($"Error executing {_selectedOptionToVS}: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+
+            finally
+            {
+                _executeCommandOnClick = true;
+            }
         }
 
         private void SplitButton_PreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -472,37 +481,88 @@ namespace Integrated_AI
             }
         }
 
-        private async void MenuItemToVS_Click(object sender, RoutedEventArgs e)
+        private void MenuItemToVS_Click(object sender, RoutedEventArgs e)
         {
             if (sender is MenuItem menuItem && menuItem.Tag is string option)
             {
                 _selectedOptionToVS = option;
                 AIToVSSplitButton.Content = option;
-                await WebViewUtilities.ExecuteCommandAsync(option, _dte, ChatWebView, _webViewDataFolder);
+
+                ExecuteToVSCommand();
             }
         }
 
-        private async void PasteButton_Click(object sender, RoutedEventArgs e)
+        private async void ExecuteToVSCommand()
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
             if (_dte == null)
             {
                 MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
+            //Get AI code either from selected text or the clipboard if no text is selected
             string aiCode = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
 
 
             if (aiCode == null || aiCode == "null" || string.IsNullOrEmpty(aiCode))
             {
                 aiCode = Clipboard.GetText(); // Fallback to clipboard text if WebView retrieval fails
-                //Optional: check again if aicode is null or empty after clipboard retrieval
-                WebViewUtilities.Log("PasteButton_Click: Retrieved code from clipboard as WebView retrieval failed.");
+                                                //Optional: check again if aicode is null or empty after clipboard retrieval
+                WebViewUtilities.Log("SplitButtonToVS_Click: Retrieved code from clipboard as WebView retrieval failed.");
             }
 
-            PasteButton_ClickLogic(aiCode);
+            if (_selectedOptionToVS == "Function -> VS")
+            {
+                // First need to find the function name from the AI code
+                string functionName = null;
+                string functionType = "function";
+                string solutionPath = Path.GetDirectoryName(_dte.Solution.FullName);
+                string filePath = _dte.ActiveDocument.FullName;
+                string relativePath = FileUtil.GetRelativePath(solutionPath, filePath);
+
+                var functions = CodeSelectionUtilities.GetFunctionsFromDocument(_dte.ActiveDocument);
+                // Finding no functions means we treat it as a new function
+                if (!functions.Any())
+                {
+                    Log("SplitButtonToVS_Click: No functions found in the active document, treating as new function");
+                    ToVSButton_ClickLogic(aiCode, "new_function");
+                    return;
+                }
+
+                // If there are functions, show the selection window or auto match
+                if ((bool)AutoFunctionMatch.IsChecked)
+                {
+                    var (isFunction, analyzedFunctionName, isFullFile) = StringUtil.AnalyzeCodeBlock(_dte, _dte.ActiveDocument, aiCode);
+                    if (isFunction) functionName = analyzedFunctionName;
+                }
+
+                else
+                {
+                    var functionSelectionWindow = new FunctionSelectionWindow(functions, FileUtil._recentFunctionsFilePath, relativePath, true);
+                    if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
+                    {
+                        functionType = functionSelectionWindow.SelectedFunction.DisplayName == "New Function" ? "new_function" : "function";
+                        functionName = functionSelectionWindow.SelectedFunction.DisplayName;
+                        MessageBox.Show($"Selected function: {functionName}", "Function Selected", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        return;
+                    }
+                }
+
+                ToVSButton_ClickLogic(aiCode, functionType, functionName);
+            }
+
+            else if (_selectedOptionToVS == "File -> VS")
+            {
+                ToVSButton_ClickLogic(aiCode, pasteType: "file");
+            }
+
+            else if (_selectedOptionToVS == "Code -> VS")
+            {
+                ToVSButton_ClickLogic(aiCode, pasteType: "snippet");
+            }
         }
 
         private void AcceptButton_Click(object sender, RoutedEventArgs e)

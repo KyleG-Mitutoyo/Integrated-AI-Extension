@@ -324,7 +324,7 @@ namespace Integrated_AI.Utilities
             {
                 isFunction = chosenItem?.Type == "function" || chosenItem?.Type == "new_function";
                 isFullFile = chosenItem?.Type == "file" || chosenItem?.Type == "new_file" || chosenItem?.Type == "opened_file";
-                functionName = chosenItem?.Function?.Name ?? string.Empty;
+                functionName = chosenItem?.DisplayName ?? string.Empty;
             }
 
             // Only return the AI code if it's a full file that isn't a new file

@@ -37,8 +37,16 @@ namespace Integrated_AI
                     "textarea[aria-label=\"Start typing a prompt\"]",
                     "textarea[aria-label=\"Type something or tab to choose an example prompt\"]"
                 }
+            },
+            { 
+                "https://claude.ai", new List<string>
+                {
+                    "textarea[aria-label=\"Type your prompt to Claude\"]",
+                    "div[contenteditable=\"true\"]", // Primary, more stable selector
+                    "p[data-placeholder*=\"Type your prompt to Claude\"]", // Good fallback for empty state
+                    "div.ProseMirror" // Another possible stable selector
+                } 
             }
-            // Add other URLs and their selectors here
         };
 
         // Helper method to get selectors for a given URL, finding the most specific match
@@ -202,7 +210,7 @@ namespace Integrated_AI
                 }
                 textToInject = textSelection.Text;
                 type = "snippet";
-                sourceDescription = $"---{relativePath} (partial code block)---\n{textToInject}\n---End code---\n\n";
+                sourceDescription = $"\n---{relativePath} (partial code block)---\n{textToInject}\n---End code---\n\n";
             }
             else if (option == "File -> AI")
             {
@@ -221,9 +229,9 @@ namespace Integrated_AI
                 textToInject = text;
                 type = "file";
                 var textDoc = dte.ActiveDocument.Object("TextDocument") as TextDocument;
-                sourceDescription = $"---{relativePath} (whole file contents)---\n{textToInject}\n---End code---\n\n";
+                sourceDescription = $"\n---{relativePath} (whole file contents)---\n{textToInject}\n---End code---\n\n";
             }
-            else if (option == "Method -> AI")
+            else if (option == "Function -> AI")
             {
                 var functions = CodeSelectionUtilities.GetFunctionsFromDocument(dte.ActiveDocument);
                 if (!functions.Any())
@@ -232,13 +240,13 @@ namespace Integrated_AI
                     return;
                 }
 
-                var functionSelectionWindow = new FunctionSelectionWindow(functions, FileUtil._recentFunctionsFilePath, relativePath);
+                var functionSelectionWindow = new FunctionSelectionWindow(functions, FileUtil._recentFunctionsFilePath, relativePath, false);
                 if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
                 {
                     textToInject = functionSelectionWindow.SelectedFunction.FullCode;
                     type = "function";
                     functionName = functionSelectionWindow.SelectedFunction.DisplayName;
-                    sourceDescription = $"---{relativePath} (function: {functionName})---\n{textToInject}\n---End code---\n\n";
+                    sourceDescription = $"\n---{relativePath} (function: {functionName})---\n{textToInject}\n---End code---\n\n";
                 }
                 else
                 {
@@ -249,26 +257,6 @@ namespace Integrated_AI
             else if (option == "Error -> AI")
             {
                 MessageBox.Show("Error to AI not done yet.");
-            }
-
-            else if (option == "Exception -> AI")
-            {
-                MessageBox.Show("Exception to AI not done yet.");
-            }
-
-            else if (option == "Method -> VS")
-            {
-                MessageBox.Show("Method to VS not done yet.");
-            }
-
-            else if (option == "File -> VS")
-            {
-                MessageBox.Show("File to VS not done yet.");
-            }
-
-            else if (option == "Code -> VS")
-            {
-                MessageBox.Show("Code to VS not done yet.");
             }
 
             if (textToInject != null)
@@ -294,7 +282,9 @@ namespace Integrated_AI
             string operationName,
             string jsFunctionName,
             bool stopOnSuccess = true,
+            // CHANGE: Add isClaude as a parameter
             bool isChatGpt = false,
+            bool isClaude = false, 
             string preparedTextForJs = null)
         {
             string scriptFileContent = FileUtil.LoadScript(scriptFileName);
@@ -311,9 +301,9 @@ namespace Integrated_AI
             foreach (string selector in selectors)
             {
                 string escapedSelectorForJs = selector.Replace("'", "\\'");
-                // Construct the script based on the function name and parameters
+                // CHANGE: Add the new isClaude flag to the JavaScript function call
                 string scriptToExecute = jsFunctionName == "injectTextIntoElement"
-                    ? $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}', '{preparedTextForJs}', {isChatGpt.ToString().ToLowerInvariant()});"
+                    ? $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}', '{preparedTextForJs}', {isChatGpt.ToString().ToLowerInvariant()}, {isClaude.ToString().ToLowerInvariant()});"
                     : $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}');";
                 Log($"{operationName} - Attempting with selector: '{selector}'. Script (first 500 chars of file may be shown):\n{scriptFileContent.Substring(0, Math.Min(scriptFileContent.Length, 500))}\n{scriptToExecute.Split('\n').Last()}");
 
@@ -323,48 +313,45 @@ namespace Integrated_AI
                     Log($"Raw result from {operationName} ExecuteScriptAsync for selector '{selector}': {(result == null ? "C# null" : $"\"{result}\"")}");
                     result = result?.Trim('"');
 
-                    if (result == null) // C# null from ExecuteScriptAsync
+                    if (result == null) 
                     {
                         lastError = $"ExecuteScriptAsync returned C# null for selector '{selector}'. This often indicates a JavaScript syntax error in the generated script or a problem with the WebView. Check JS console in WebView DevTools.";
                         Log($"{operationName} attempt failed: {lastError}");
-                        continue; // Try next selector
+                        continue;
                     }
-                    if (result == "null") // JS 'null' or 'undefined'
+                    if (result == "null")
                     {
                         lastError = $"Script returned JavaScript 'null' or 'undefined' for selector '{selector}'. This commonly means the function (e.g., '{jsFunctionName}') was not defined, or the element was not found and the function returned null. Check JS console in WebView DevTools.";
                         Log($"{operationName} attempt failed: {lastError}");
-                        continue; // Try next selector
+                        continue; 
                     }
-                    // Check for "FAILURE: Element not found" specifically to try next selector
                     if (result.StartsWith("FAILURE: Element not found", StringComparison.OrdinalIgnoreCase))
                     {
                         lastError = $"Element not found with selector '{selector}'.";
                         Log($"{operationName} attempt: {lastError}");
-                        continue; // Try next selector
+                        continue; 
                     }
-                    if (result.StartsWith("FAILURE:")) // Other FAILURE types
+                    if (result.StartsWith("FAILURE:"))
                     {
                         lastError = result.Replace("FAILURE: ", "");
                         Log($"{operationName} attempt for selector '{selector}' failed critically: {lastError}");
-                        continue; // Continue to try other selectors
+                        continue; 
                     }
 
-                    // Success for this selector
                     Log($"{operationName} succeeded using selector '{selector}'. Result: {result}");
                     if (stopOnSuccess)
                     {
                         return (result, null);
                     }
                 }
-                catch (Exception ex) // Exception during ExecuteScriptAsync for this selector
+                catch (Exception ex)
                 {
                     lastError = $"Error executing JavaScript for selector '{selector}': {ex.Message}";
                     Log($"{operationName} attempt failed: {lastError}\nStackTrace: {ex.StackTrace}");
-                    continue; // Try next selector
+                    continue;
                 }
             }
 
-            // If loop completes, all selectors failed
             Log($"Failed to complete {operationName} after trying all selectors. Last error: {lastError}");
             return (null, lastError);
         }
@@ -418,8 +405,8 @@ namespace Integrated_AI
             try
             {
                 string currentUrl = webView.Source?.ToString() ?? "";
-                // Case-insensitive check for chatgpt.com
                 bool isChatGpt = currentUrl.StartsWith("https://chatgpt.com", StringComparison.OrdinalIgnoreCase);
+                bool isClaude = currentUrl.StartsWith("https://claude.ai", StringComparison.OrdinalIgnoreCase);
 
                 string preparedTextForJs;
                 if (isChatGpt)
@@ -427,13 +414,45 @@ namespace Integrated_AI
                     var htmlLines = textToInject.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n')
                         .Select(line => string.IsNullOrEmpty(line) ? "<span></span>" : $"<span>{WebUtility.HtmlEncode(line)}</span>");
                     string rawHtmlPayload = $"<div style=\"white-space: pre-wrap; line-height: 1.4;\">{string.Join("<br>", htmlLines)}</div>";
-                    // Escape the HTML payload to be a valid JS string literal
                     preparedTextForJs = rawHtmlPayload.Replace("\\", "\\\\").Replace("'", "\\'").Replace("`", "\\`").Replace("\r", "").Replace("\n", "\\n");
                 }
                 else
                 {
-                    // Escape plain text for JS string literal
-                    preparedTextForJs = textToInject.Replace("\\", "\\\\").Replace("'", "\\'").Replace("`", "\\`").Replace("\r", "").Replace("\n", "\\n");
+                    if (isClaude)
+                    {
+                        // For Claude, create a JSON payload of commands to avoid any delimiter issues.
+                        var lines = textToInject.Replace("\r\n", "\n").Split('\n');
+                        var commands = new List<string>();
+
+                        for (int i = 0; i < lines.Length; i++)
+                        {
+                            var line = lines[i];
+
+                            // Escape characters that would break a JSON string value.
+                            string escapedLine = line.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                            // Add the 'insertText' command to our list.
+                            commands.Add($"{{\"type\":\"text\",\"content\":\"{escapedLine}\"}}");
+
+                            // If it's not the last line, add a 'break' command to our list.
+                            if (i < lines.Length - 1)
+                            {
+                                commands.Add("{\"type\":\"break\"}");
+                            }
+                        }
+
+                        // Now, join all commands with a comma. This is a much safer way
+                        // to build a valid JSON array.
+                        string jsonPayload = $"[{string.Join(",", commands)}]";
+
+                        // Finally, escape the entire JSON string so it can be passed as a single
+                        // string literal to the JavaScript function.
+                        preparedTextForJs = jsonPayload.Replace("\\", "\\\\").Replace("'", "\\'");
+                    }
+                    else
+                    {
+                        // For all other non-ChatGPT sites, the original logic works perfectly.
+                        preparedTextForJs = textToInject.Replace("\\", "\\\\").Replace("'", "\\'").Replace("`", "\\`").Replace("\r", "").Replace("\n", "\\n");
+                    }
                 }
 
                 var (result, lastError) = await ExecuteScriptWithSelectors(
@@ -443,7 +462,8 @@ namespace Integrated_AI
                     "InjectText",
                     "injectTextIntoElement",
                     true,
-                    isChatGpt,
+                    isChatGpt, 
+                    isClaude,   
                     preparedTextForJs);
 
                 if (result == null)
@@ -457,7 +477,7 @@ namespace Integrated_AI
                     Log($"InjectTextIntoWebViewAsync: {result} (source: {sourceOfText})");
                 }
             }
-            catch (Exception ex) // General exception in preparation or other parts
+            catch (Exception ex)
             {
                 string errorMsg = $"Failed to prepare for text injection ('{sourceOfText}'). Problem: {ex.Message}";
                 MessageBox.Show(errorMsg, "Preparation Error", MessageBoxButton.OK, MessageBoxImage.Error);

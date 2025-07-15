@@ -1,5 +1,5 @@
 ﻿// injectText.js
-function injectTextIntoElement(selector, textToInject, isChatGptSite) {
+function injectTextIntoElement(selector, textToInject, isChatGptSite, isClaudeSite) {
     try {
         const elem = document.querySelector(selector);
         if (!elem) {
@@ -11,38 +11,52 @@ function injectTextIntoElement(selector, textToInject, isChatGptSite) {
             return `FAILURE: Input field (selector: ${selector}) is not visible or is disabled.`;
         }
 
-        if (isChatGptSite) {
-            // Apply styles specific to ChatGPT-like text areas if needed
-            elem.style.setProperty('white-space', 'pre-wrap', 'important');
-            elem.style.setProperty('line-height', '1.4', 'important');
-            elem.style.setProperty('margin', '0', 'important');
-            elem.style.setProperty('padding', '0', 'important');
-        }
-
         elem.focus();
 
         if (elem.tagName.toLowerCase() === 'textarea' || elem.tagName.toLowerCase() === 'input') {
             const currentValue = elem.value || '';
-            // The textToInject comes pre-formatted (plain text or HTML string) from C#
             elem.value = currentValue + (currentValue ? '\n' : '') + textToInject;
             elem.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
             return `SUCCESS: Text appended to ${selector} (value set)`;
-        } else if (elem.isContentEditable) {
-            const currentContent = elem.innerHTML;
-            // The textToInject for contentEditable (especially for ChatGPT) is an HTML string
-            elem.innerHTML = currentContent + textToInject;
+        } 
+        else if (elem.isContentEditable) {
+            
+            if (isClaudeSite) {
+                // THE DEFINITIVE SOLUTION: Parse a JSON payload of commands from C#.
+                // This completely avoids any "magic string" delimiters.
+                const commands = JSON.parse(textToInject);
 
-            // Move cursor to the end
+                if (elem.innerHTML.length > 0 && !elem.innerHTML.endsWith('<br>')) {
+                    document.execCommand('insertParagraph', false, null);
+                }
+
+                commands.forEach(command => {
+                    if (command.type === 'text') {
+                        // The content is the original line of code, with literal '\n' preserved.
+                        document.execCommand('insertText', false, command.content);
+                    } else if (command.type === 'break') {
+                        // This is a structural line break.
+                        document.execCommand('insertParagraph', false, null);
+                    }
+                });
+
+            } else { // This is your working logic for ChatGPT, etc.
+                const currentContent = elem.innerHTML;
+                elem.innerHTML = currentContent + textToInject;
+            }
+
+            // The cursor logic and event dispatching are still valuable.
             const range = document.createRange();
             const sel = window.getSelection();
             range.selectNodeContents(elem);
-            range.collapse(false); // false to collapse to end, true to collapse to start
+            range.collapse(false);
             sel.removeAllRanges();
             sel.addRange(range);
 
             elem.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-            return `SUCCESS: Text appended to ${selector} (contenteditable)`;
+            return `SUCCESS: Text appended to ${selector} via execCommand loop`;
         }
+        
         return `FAILURE: Element (selector: ${selector}) is neither a text input nor contenteditable.`;
     } catch (e) {
         return `FAILURE: JavaScript error: ${e.message} (Selector: ${selector})`;

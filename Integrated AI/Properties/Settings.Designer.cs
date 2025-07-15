@@ -62,12 +62,12 @@ namespace Integrated_AI.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("True")]
-        public bool autoMethodMatch {
+        public bool autoFunctionMatch {
             get {
-                return ((bool)(this["autoMethodMatch"]));
+                return ((bool)(this["autoFunctionMatch"]));
             }
             set {
-                this["autoMethodMatch"] = value;
+                this["autoFunctionMatch"] = value;
             }
         }
         

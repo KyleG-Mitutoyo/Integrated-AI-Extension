@@ -27,7 +27,7 @@
                       DisplayMemberPath="DisplayName" SelectedValuePath="Url" />
             <hc:SplitButton x:Name="VSToAISplitButton" 
                             Margin="5" 
-                            Content="Method -> AI" 
+                            Content="Function -> AI" 
                             Click="SplitButtonToAI_Click" 
                             PreviewMouseDown="SplitButton_PreviewMouseDown"
                             HorizontalAlignment="Stretch">
@@ -35,20 +35,20 @@
                     <StackPanel>
                         <MenuItem Header="File -> AI" Click="MenuItemToAI_Click" Tag="File -> AI"/>
                         <MenuItem Header="Code -> AI" Click="MenuItemToAI_Click" Tag="Code -> AI"/>
-                        <MenuItem Header="Method -> AI" Click="MenuItemToAI_Click" Tag="Method -> AI"/>
+                        <MenuItem Header="Function -> AI" Click="MenuItemToAI_Click" Tag="Function -> AI"/>
                         <MenuItem Header="Error -> AI" Click="MenuItemToAI_Click" Tag="Error -> AI"/>
                     </StackPanel>
                 </hc:SplitButton.DropDownContent>
             </hc:SplitButton>
             <hc:SplitButton x:Name="AIToVSSplitButton" 
                             Margin="5" 
-                            Content="Method -> VS" 
+                            Content="Function -> VS" 
                             Click="SplitButtonToVS_Click" 
                             PreviewMouseDown="SplitButton_PreviewMouseDown"
                             HorizontalAlignment="Stretch">
                 <hc:SplitButton.DropDownContent>
                     <StackPanel>
-                        <MenuItem Header="Method -> VS" Click="MenuItemToVS_Click" Tag="Method -> VS"/>
+                        <MenuItem Header="Function -> VS" Click="MenuItemToVS_Click" Tag="Function -> VS"/>
                         <MenuItem Header="File -> VS" Click="MenuItemToVS_Click" Tag="File -> VS"/>
                         <MenuItem Header="Code -> VS" Click="MenuItemToVS_Click" Tag="Code -> VS"/>
                     </StackPanel>
@@ -83,13 +83,13 @@
                         <!-- Auto Diff Compare -->
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
                             <TextBlock Text="Auto Diff Compare" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
-                            <ToggleButton x:Name="AutoDiffToggle" Margin="0,0,10,0" ToolTip="Toggle auto AI code detection for code replacement" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoDiff, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                            <ToggleButton x:Name="AutoDiffToggle" Margin="0,0,10,0" ToolTip="Experimental: Toggle auto AI code detection for code replacement" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoDiff, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
-                        <!-- Auto Method Match -->
+                        <!-- Auto Function Match -->
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
-                            <TextBlock Text="Auto Method Match" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
-                            <ToggleButton x:Name="AutoMethodMatch" Margin="0,0,10,0" ToolTip="Toggle method matching for Method -> VS button during manual diff mode" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoMethodMatch, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                            <TextBlock Text="Auto Function Match" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
+                            <ToggleButton x:Name="AutoFunctionMatch" Margin="0,0,10,0" ToolTip="Experimental: Toggle function matching for Function -> VS button during manual diff mode" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoFunctionMatch, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
                         <!-- Create Restore on Accept -->
