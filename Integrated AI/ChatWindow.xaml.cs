@@ -30,14 +30,16 @@ using MessageBox = HandyControl.Controls.MessageBox;
 
 //TODO: Show method previews on hover in function list box
 //AI chat text select to search for the matching restore point
-//Fix selected text replacement
-//Fix indents not working correct for non-functions
-//Fix page auto scroll to the new code section after Accept
-//Fix copy button detection in WebView2
+//Fix copy button detection in WebView2-------
+//Finish deepseek integration-------
+//Add error to AI------
 //Make auto diff view bring up choose code window rather than using cursor insert with failed matches
 //Make recent functions work per file
 //Make file list a treeview with folders and files, with a + button under each folder to make a new file there
 //Combine choosecodewindow and functionselectionwindow into a single window
+//Use better method to detect functions, clean up program flow for code replacement
+//In context menus for the toAI commands
+//Add code snippet option to choosecodewindow
 
 namespace Integrated_AI
 {
@@ -310,14 +312,6 @@ namespace Integrated_AI
         
         private void ToVSButton_ClickLogic(string aiCode, string pasteType = null, string functionName = null)
         {
-            // Check if a diff window is already open. The new _isProcessingClipboardAction handles the race condition.
-            if (_diffContext != null)
-            {
-                WebViewUtilities.Log("PasteButton_ClickLogic: Diff window already open. Aborting.");
-                _isProcessingClipboardAction = false; // Release the lock
-                return;
-            }
-
             ThreadHelper.Generic.BeginInvoke(() =>
             {
                 Action abortAction = () =>
@@ -328,6 +322,14 @@ namespace Integrated_AI
                         _lastClipboardText = null;
                     });
                 };
+
+                // Check if a diff window is already open. The new _isProcessingClipboardAction handles the race condition.
+                if (_diffContext != null)
+                {
+                    WebViewUtilities.Log("PasteButton_ClickLogic: Diff window already open. Aborting.");
+                    abortAction();
+                    return;
+                }
 
                 if (_dte == null)
                 {
@@ -510,6 +512,11 @@ namespace Integrated_AI
                                                 //Optional: check again if aicode is null or empty after clipboard retrieval
                 WebViewUtilities.Log("SplitButtonToVS_Click: Retrieved code from clipboard as WebView retrieval failed.");
             }
+            else
+            {
+                // Only remove base indentation if the AI code isn't from the clipboard
+                aiCode = StringUtil.RemoveBaseIndentation(aiCode);
+            }
 
             if (_selectedOptionToVS == "Function -> VS")
             {
@@ -559,7 +566,7 @@ namespace Integrated_AI
                 ToVSButton_ClickLogic(aiCode, pasteType: "file");
             }
 
-            else if (_selectedOptionToVS == "Code -> VS")
+            else if (_selectedOptionToVS == "Snippet -> VS")
             {
                 ToVSButton_ClickLogic(aiCode, pasteType: "snippet");
             }
@@ -572,6 +579,24 @@ namespace Integrated_AI
             string aiCodeFullFile = null;
             var contextToClose = _diffContext;
             var documentToModify = _dte.Documents.Item(contextToClose.ActiveDocumentPath);
+
+            // Capture the cursor's position BEFORE the document is modified.
+            int originalLine = -1;
+            int originalColumn = -1;
+            if (documentToModify != null)
+            {
+                try
+                {
+                    var textDocument = (TextDocument)documentToModify.Object("TextDocument");
+                    var selection = textDocument.Selection;
+                    originalLine = selection.ActivePoint.Line;
+                    originalColumn = selection.ActivePoint.LineCharOffset;
+                }
+                catch (Exception ex)
+                {
+                    WebViewUtilities.Log($"Error getting original cursor position: {ex.Message}");
+                }
+            }
 
             if (contextToClose?.TempAiFile != null && File.Exists(contextToClose.TempAiFile))
             {
@@ -614,28 +639,25 @@ namespace Integrated_AI
             documentToModify?.Save();
             WebViewUtilities.Log($"ApplyChanges: Successfully saved '{contextToClose.ActiveDocumentPath}'.");
 
-            // Scroll to the added code section start
-            if (contextToClose?.ActiveDocumentPath != null && contextToClose.NewCodeStartIndex >= 0)
+            // Scroll to the original cursor position
+            if (documentToModify != null && originalLine > 0 && originalColumn > 0)
             {
                 try
                 {
                     var textDocument = (TextDocument)documentToModify.Object("TextDocument");
                     var selection = textDocument.Selection;
-                    var editPoint = textDocument.CreateEditPoint(textDocument.StartPoint);
 
-                    // Move to the character index and get the line and column
-                    editPoint.MoveToAbsoluteOffset(contextToClose.NewCodeStartIndex + 1); // +1 because DTE uses 1-based indexing
-                    int line = editPoint.Line;
-                    int column = editPoint.LineCharOffset;
+                    // Move the cursor back to the original position
+                    selection.MoveTo(originalLine, originalColumn);
 
-                    // Move the cursor to the start of the new code
-                    selection.MoveTo(line, column);
-                    selection.ActivePoint.TryToShow(vsPaneShowHow.vsPaneShowTop, null); // Scroll to top of the view
-                    WebViewUtilities.Log($"Scrolled to line {line}, column {column} at index {contextToClose.NewCodeStartIndex}.");
+                    // Center the view on the cursor
+                    selection.ActivePoint.TryToShow(vsPaneShowHow.vsPaneShowCentered, null);
+                    WebViewUtilities.Log($"Scrolled to original cursor position at line {originalLine}, column {originalColumn}.");
                 }
                 catch (Exception ex)
                 {
-                    WebViewUtilities.Log($"Error scrolling to index {contextToClose.NewCodeStartIndex}: {ex.Message}");
+                    // The original line/column might not exist if the file changed drastically.
+                    WebViewUtilities.Log($"Error scrolling to original cursor position (line {originalLine}, column {originalColumn}): {ex.Message}");
                 }
             }
 
@@ -664,12 +686,20 @@ namespace Integrated_AI
 
             string originalDocPath = _diffContext.ActiveDocumentPath;
             string aiCode = _diffContext.AICodeBlock;
+            var activeDocument = _dte.Documents.Item(originalDocPath);
+
+            // Show the code replacement window. This now uses a valid Document object.
+            // The temp files are passed in so they will be skipped in the ChooseCodeWindow.
+            var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument, _diffContext?.TempCurrentFile, _diffContext?.TempAiFile);
+            if (selectedItem == null)
+            {
+                // User cancelled the selection. Go back to the diff view that's still open.
+                return;
+            }
 
             // First, close the existing diff view. This will invalidate the old _diffContext.ActiveDocument reference.
             DiffUtility.CloseDiffAndReset(_diffContext);
 
-            // Now that the diff view is closed, we must get a fresh handle to the document.
-            var activeDocument = _dte.Documents.Item(originalDocPath);
             if (activeDocument == null) {
                 MessageBox.Show($"Could not re-acquire a handle to document: {originalDocPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 UpdateButtonsForDiffView(false);
@@ -689,16 +719,6 @@ namespace Integrated_AI
                 return;
             }
 
-            // Show the code replacement window. This now uses a valid Document object.
-            var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
-            if (selectedItem == null)
-            {
-                // User cancelled the selection. Reset UI and state.
-                UpdateButtonsForDiffView(false);
-                _isProcessingClipboardAction = false;
-                _lastClipboardText = null;
-                return;
-            }
 
             // --- START: BUG FIX ---
             // Default to the active document, but check if the user selected a different file.
@@ -764,11 +784,6 @@ namespace Integrated_AI
 
             _isProcessingClipboardAction = false;
             _lastClipboardText = null;
-        }
-
-        private void ErrorToAISplitButton_Click(object sender, RoutedEventArgs e)
-        {
-            // Placeholder for future implementation
         }
 
         private void UpdateButtonsForDiffView(bool showDiffButons)

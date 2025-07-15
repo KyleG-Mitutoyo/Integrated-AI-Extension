@@ -200,7 +200,7 @@ namespace Integrated_AI
             string sourceDescription = "";
             string type = "";
 
-            if (option == "Code -> AI")
+            if (option == "Snippet -> AI")
             {
                 var textSelection = (TextSelection)dte.ActiveDocument.Selection;
                 if (string.IsNullOrEmpty(textSelection?.Text))

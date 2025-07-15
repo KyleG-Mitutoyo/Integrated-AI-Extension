@@ -101,112 +101,124 @@ namespace Integrated_AI
 
         // Populates separate lists for functions and project files
         public static (List<ChooseCodeWindow.ReplacementItem> Functions, List<ChooseCodeWindow.ReplacementItem> Files) 
-            PopulateReplacementLists(DTE2 dte, Document activeDoc)
-        {
-            var functions = new List<ChooseCodeWindow.ReplacementItem>();
-            var files = new List<ChooseCodeWindow.ReplacementItem>();
-            string solutionPath = Path.GetDirectoryName(dte.Solution.FullName);
-            string activeFilePath = activeDoc?.FullName;
-
-            // Add "New Function" option at the top
-            functions.Add(new ChooseCodeWindow.ReplacementItem
-            {
-                DisplayName = "New Function",
-                ListBoxDisplayName = "New Function",
-                FullName = "Create a new function in the active document",
-                Type = "new_function"
-            });
-
-            var recentFunctions = FileUtil.LoadRecentFunctions(FileUtil._recentFunctionsFilePath);
-            var activeFunctions = CodeSelectionUtilities.GetFunctionsFromDocument(activeDoc);
-            var matchedRecentFunctions = activeFunctions.Where(func => recentFunctions != null && 
-                                            recentFunctions.Contains(func.DisplayName)).ToList();
-
-            // only show the recent functions header if there are any recent functions that match the active document's functions
-            if (matchedRecentFunctions.Any())
-            {
-                functions.Add(new ChooseCodeWindow.ReplacementItem
+                    PopulateReplacementLists(DTE2 dte, Document activeDoc, string tempCurrentFile = null, string tempAiFile = null)
                 {
-                    ListBoxDisplayName = "----- Recent Functions -----",
-                    FullName = "Recently used functions"
-                });
-            }
+                    var functions = new List<ChooseCodeWindow.ReplacementItem>();
+                    var files = new List<ChooseCodeWindow.ReplacementItem>();
+                    string solutionPath = Path.GetDirectoryName(dte.Solution.FullName);
+                    string activeFilePath = activeDoc?.FullName;
 
-            foreach (var func in matchedRecentFunctions)
-            {
-                functions.Add(new ChooseCodeWindow.ReplacementItem
-                {
-                    DisplayName = func.DisplayName,
-                    ListBoxDisplayName = func.ListBoxDisplayName,
-                    FullName = func.FullName,
-                    Function = func.Function,
-                    FullCode = func.FullCode,
-                    Type = "function"
-                });
-            }
+                    // Create a list of files to exclude
+                    var filesToExclude = new List<string>();
+                    if (!string.IsNullOrEmpty(tempCurrentFile))
+                    {
+                        filesToExclude.Add(tempCurrentFile);
+                    }
+                    if (!string.IsNullOrEmpty(tempAiFile))
+                    {
+                        filesToExclude.Add(tempAiFile);
+                    }
 
-            functions.Add(new ChooseCodeWindow.ReplacementItem
-            {
-                ListBoxDisplayName = "----- All Functions in Active Document -----",
-                FullName = "Functions in the currently active document"
-            });
+                    // Add "New Function" option at the top
+                    functions.Add(new ChooseCodeWindow.ReplacementItem
+                    {
+                        DisplayName = "New Function",
+                        ListBoxDisplayName = "New Function",
+                        FullName = "Create a new function in the active document",
+                        Type = "new_function"
+                    });
 
-            foreach (var func in activeFunctions)
-            {
-                functions.Add(new ChooseCodeWindow.ReplacementItem
-                {
-                    DisplayName = func.DisplayName,
-                    ListBoxDisplayName = func.ListBoxDisplayName,
-                    FullName = func.FullName,
-                    Function = func.Function,
-                    FullCode = func.FullCode,
-                    Type = "function"
-                });
-            }
+                    var recentFunctions = FileUtil.LoadRecentFunctions(FileUtil._recentFunctionsFilePath);
+                    var activeFunctions = CodeSelectionUtilities.GetFunctionsFromDocument(activeDoc);
+                    var matchedRecentFunctions = activeFunctions.Where(func => recentFunctions != null && 
+                                                    recentFunctions.Contains(func.DisplayName)).ToList();
 
-            // Files Section
-            // Add "New File" option at the top
-            files.Add(new ChooseCodeWindow.ReplacementItem
-            {
-                DisplayName = "New File",
-                ListBoxDisplayName = "New File",
-                FullName = "Create a new file in the project",
-                Type = "new_file"
-            });
+                    // only show the recent functions header if there are any recent functions that match the active document's functions
+                    if (matchedRecentFunctions.Any())
+                    {
+                        functions.Add(new ChooseCodeWindow.ReplacementItem
+                        {
+                            ListBoxDisplayName = "----- Recent Functions -----",
+                            FullName = "Recently used functions"
+                        });
+                    }
 
-            // Add separator for project files
-            files.Add(new ChooseCodeWindow.ReplacementItem
-            {
-                ListBoxDisplayName = "----- Project Files -----",
-                FullName = "Files in the solution"
-            });
+                    foreach (var func in matchedRecentFunctions)
+                    {
+                        functions.Add(new ChooseCodeWindow.ReplacementItem
+                        {
+                            DisplayName = func.DisplayName,
+                            ListBoxDisplayName = func.ListBoxDisplayName,
+                            FullName = func.FullName,
+                            Function = func.Function,
+                            FullCode = func.FullCode,
+                            Type = "function"
+                        });
+                    }
 
-            // Add the opened file right after the separator
-            if (!string.IsNullOrEmpty(activeFilePath))
-            {
-                files.Add(new ChooseCodeWindow.ReplacementItem
-                {
-                    DisplayName = Path.GetFileName(activeFilePath) + " (opened file)",
-                    ListBoxDisplayName = Path.GetFileName(activeFilePath) + " (opened file)",
-                    FullName = "Replace contents of the currently opened file",
-                    Type = "opened_file",
-                    FilePath = activeFilePath
-                });
-            }
+                    functions.Add(new ChooseCodeWindow.ReplacementItem
+                    {
+                        ListBoxDisplayName = "----- All Functions in Active Document -----",
+                        FullName = "Functions in the currently active document"
+                    });
 
-            // Enumerate project files and exclude the active file
-            var projectFiles = GetProjectFiles(dte, solutionPath)
-                .Where(f => f.FilePath != activeFilePath)
-                .ToList();
-            files.AddRange(projectFiles);
+                    foreach (var func in activeFunctions)
+                    {
+                        functions.Add(new ChooseCodeWindow.ReplacementItem
+                        {
+                            DisplayName = func.DisplayName,
+                            ListBoxDisplayName = func.ListBoxDisplayName,
+                            FullName = func.FullName,
+                            Function = func.Function,
+                            FullCode = func.FullCode,
+                            Type = "function"
+                        });
+                    }
 
-            // Sort files, but preserve "New File", separator, and opened file at the top
-            var topItems = files.Take(string.IsNullOrEmpty(activeFilePath) ? 2 : 3).ToList(); // Take "New File", separator, and opened file (if exists)
-            var sortedFiles = files.Skip(topItems.Count).OrderBy(i => i.FilePath).ToList();
-            topItems.AddRange(sortedFiles);
+                    // Files Section
+                    // Add "New File" option at the top
+                    files.Add(new ChooseCodeWindow.ReplacementItem
+                    {
+                        DisplayName = "New File",
+                        ListBoxDisplayName = "New File",
+                        FullName = "Create a new file in the project",
+                        Type = "new_file"
+                    });
 
-            return (functions, topItems);
-        }
+                    // Add separator for project files
+                    files.Add(new ChooseCodeWindow.ReplacementItem
+                    {
+                        ListBoxDisplayName = "----- Project Files -----",
+                        FullName = "Files in the solution"
+                    });
+
+                    // Add the opened file right after the separator
+                    if (!string.IsNullOrEmpty(activeFilePath))
+                    {
+                        files.Add(new ChooseCodeWindow.ReplacementItem
+                        {
+                            DisplayName = Path.GetFileName(activeFilePath) + " (opened file)",
+                            ListBoxDisplayName = Path.GetFileName(activeFilePath) + " (opened file)",
+                            FullName = "Replace contents of the currently opened file",
+                            Type = "opened_file",
+                            FilePath = activeFilePath
+                        });
+                    }
+
+                    // Enumerate project files, excluding the active file and any temp files.
+                    // The Contains check on filesToExclude will now filter the temp files.
+                    var projectFiles = GetProjectFiles(dte, solutionPath)
+                        .Where(f => f.FilePath != activeFilePath && !filesToExclude.Contains(f.FilePath))
+                        .ToList();
+                    files.AddRange(projectFiles);
+
+                    // Sort files, but preserve "New File", separator, and opened file at the top
+                    var topItems = files.Take(string.IsNullOrEmpty(activeFilePath) ? 2 : 3).ToList(); // Take "New File", separator, and opened file (if exists)
+                    var sortedFiles = files.Skip(topItems.Count).OrderBy(i => i.FilePath).ToList();
+                    topItems.AddRange(sortedFiles);
+
+                    return (functions, topItems);
+                }
 
         // Retrieves all project files with indented folder structure
         private static List<ChooseCodeWindow.ReplacementItem> GetProjectFiles(DTE2 dte, string solutionPath)
@@ -250,9 +262,9 @@ namespace Integrated_AI
             }
         }
 
-        public static ChooseCodeWindow.ReplacementItem ShowCodeReplacementWindow(DTE2 dte, Document activeDoc)
+        public static ChooseCodeWindow.ReplacementItem ShowCodeReplacementWindow(DTE2 dte, Document activeDoc, string tempCurrentFile = null, string tempAiFile = null)
         {
-            var window = new ChooseCodeWindow(dte, activeDoc);
+            var window = new ChooseCodeWindow(dte, activeDoc, tempCurrentFile, tempAiFile);
             bool? result = window.ShowDialog();
             return result == true ? window.SelectedItem : null;
         }

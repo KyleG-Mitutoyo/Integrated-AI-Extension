@@ -29,12 +29,12 @@ namespace Integrated_AI
 
         public ReplacementItem SelectedItem { get; private set; }
 
-        public ChooseCodeWindow(DTE2 dte, Document activeDoc)
+        public ChooseCodeWindow(DTE2 dte, Document activeDoc, string tempCurrentFile = null, string tempAiFile = null)
         {
             InitializeComponent();
             NonClientAreaBackground = Brushes.Transparent;
 
-            var (functions, files) = CodeSelectionUtilities.PopulateReplacementLists(dte, activeDoc);
+            var (functions, files) = CodeSelectionUtilities.PopulateReplacementLists(dte, activeDoc, tempCurrentFile, tempAiFile);
             FunctionListBox.ItemsSource = functions;
             FileListBox.ItemsSource = files;
         }

@@ -179,34 +179,46 @@ namespace Integrated_AI.Utilities
             return null;
         }
 
-        //Should probably be in a separate document modification utility class, but keeping it here for now
         public static string InsertAtCursorOrAppend(string currentCode, string aiCode, Document activeDoc)
         {
             var lines = currentCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
 
-            if (activeDoc != null)
+            if (activeDoc?.Selection is TextSelection selection)
             {
-                var selection = activeDoc.Selection as TextSelection;
-                int cursorLine = selection?.ActivePoint.Line ?? -1;
+                var point = selection.ActivePoint;
+                int lineIndex = point.Line - 1; // 1-based to 0-based index
 
-                if (cursorLine > 0 && cursorLine <= lines.Count + 1)
+                // Use VirtualCharOffset to get the visual column, which correctly handles "virtual space".
+                int virtualColumn = point.VirtualCharOffset;
+
+                // The number of spaces for the indent is the column number minus one.
+                // Ensure it's not negative, just in case.
+                int indentSize = Math.Max(0, virtualColumn - 1);
+
+                // Create a string of spaces for the indentation prefix.
+                // This ensures visual alignment regardless of the editor's tab/space settings.
+                string indentPrefix = new string(' ', indentSize);
+
+                // Ensure we don't try to insert outside the bounds of the list.
+                if (lineIndex >= 0 && lineIndex <= lines.Count)
                 {
-                    lines.Insert(cursorLine - 1, aiCode); // Insert at cursor line
-                }
-                else
-                {
-                    lines.Add(aiCode); // Append to end
+                    var aiCodeLines = aiCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                    var indentedAiCodeLines = aiCodeLines.Select(line => indentPrefix + line);
+
+                    // Insert the new indented lines. This pushes the current line and subsequent lines down.
+                    lines.InsertRange(lineIndex, indentedAiCodeLines);
+
+                    return string.Join("\n", lines);
                 }
             }
-            else
-            {
-                lines.Add(aiCode); // Append as last resort
-            }
 
+            // Fallback behavior: if we can't determine the cursor or it's in an invalid
+            // position, append the code to the end.
+            lines.Add(aiCode);
             return string.Join("\n", lines);
         }
 
-        public static string ReplaceCodeBlock(string documentContent, int startIndex, int startLine, int length, string newCode)
+        public static string ReplaceCodeBlock(string documentContent, int startIndex, int startLine, int length, string newCode, bool fixDoubleIndent)
         {
             // Get the text of the line at startLine to determine base indentation
             int baseIndentation = 0;
@@ -269,8 +281,9 @@ namespace Integrated_AI.Utilities
                     string indentString = new string(' ', baseIndentation);
 
                     // Preserve first line's indentation, only if it's an existing function replacement
+                    // This does not apply to new functions or snippet/selection replacements
                     // Should technically fix this a different way but whatever
-                    if (i == 0 && length > 1)
+                    if (i == 0 && fixDoubleIndent)
                     {
                         WebViewUtilities.Log("Preserving first line's indentation for function replacement.");
                         indentString = ""; // Keep the first line's indentation as is
@@ -354,7 +367,7 @@ namespace Integrated_AI.Utilities
                         // Remove comments (C# // or VB ' or REM) above the function definition, also remove header/footer
                         aiCode = RemoveHeaderFooterComments(aiCode);
                         context.NewCodeStartIndex = startIndex;
-                        return ReplaceCodeBlock(currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode);
+                        return ReplaceCodeBlock(currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode, true);
                     }
                 }
                 else
@@ -394,7 +407,7 @@ namespace Integrated_AI.Utilities
 
                         // Use ReplaceCodeBlock to insert the new function with correct indentation
                         context.NewCodeStartIndex = startIndex;
-                        return ReplaceCodeBlock(currentCode, startIndex, startLine, 1, aiCode);
+                        return ReplaceCodeBlock(currentCode, startIndex, startLine, 0, aiCode, false);
                     }
                     else
                     {
@@ -424,16 +437,23 @@ namespace Integrated_AI.Utilities
 
             // For "Selection" or unmatched functions, check for highlighted text
             var selection = activeDoc.Selection as TextSelection;
-            if (selection != null)
+            if (selection != null && !selection.IsEmpty) // Check if text is highlighted
             {
-                if (!selection.IsEmpty) // Check if text is highlighted
+                var textDocument = activeDoc.Object("TextDocument") as TextDocument;
+                if (textDocument != null)
                 {
-                    // Get the start and end points of the selection
-                    int startIndex = selection.TopPoint.AbsoluteCharOffset;
-                    int length = selection.BottomPoint.AbsoluteCharOffset - startIndex;
-                    // Pass -1 to ignore base indentation, as we are replacing the selected text directly
+                    var startPoint = textDocument.StartPoint.CreateEditPoint();
+                    string textBeforeSelection = startPoint.GetText(selection.TopPoint);
+                    int startIndex = textBeforeSelection.Length;
+                    int length = selection.Text.Length;
+
+                    // Get the line number for the start of the selection. This is crucial
+                    // for allowing ReplaceCodeBlock to calculate the correct base indentation.
+                    int startLine = selection.TopPoint.Line;
+
                     context.NewCodeStartIndex = startIndex;
-                    return ReplaceCodeBlock(currentCode, startIndex, -1, length, aiCode);
+
+                    return ReplaceCodeBlock(currentCode, startIndex, startLine, length, aiCode, true);
                 }
             }
 
@@ -821,5 +841,81 @@ namespace Integrated_AI.Utilities
             }
             return null; // No matching project found
         }
-    }
+
+        public static string RemoveBaseIndentation(string codeSnippet)
+        {
+            if (string.IsNullOrEmpty(codeSnippet))
+            {
+                return codeSnippet;
+            }
+
+            var lines = codeSnippet.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            var minIndent = int.MaxValue;
+
+            // Determine the minimum indentation of non-empty lines
+            foreach (var line in lines)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    var indent = GetIndentPosition(line);
+                    if (indent < minIndent)
+                    {
+                        minIndent = indent;
+                    }
+                }
+            }
+
+            if (minIndent == int.MaxValue || minIndent == 0)
+            {
+                return codeSnippet; // No common indentation found or already at the root
+            }
+
+            var result = new System.Text.StringBuilder();
+            foreach (var line in lines)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    // Determine the current line's original indentation to decide how to handle it.
+                    int currentIndent = 0;
+                    int charsToRemove = 0;
+                    int spaceCount = 0;
+                    bool inLeadingWhitespace = true;
+
+                    for (int i = 0; i < line.Length && inLeadingWhitespace; i++)
+                    {
+                        if (line[i] == ' ')
+                        {
+                            currentIndent++;
+                        }
+                        else if (line[i] == '\t')
+                        {
+                            // Assuming a tab width of 4 for indentation calculation purposes.
+                            currentIndent += 4;
+                        }
+                        else
+                        {
+                            inLeadingWhitespace = false;
+                        }
+
+                        if (inLeadingWhitespace)
+                        {
+                            // If the running total of whitespace characters is less than or equal to the minimum indent,
+                            // we can mark this character for removal.
+                            if (currentIndent <= minIndent)
+                            {
+                                charsToRemove = i + 1;
+                            }
+                        }
+                    }
+                    result.AppendLine(line.Substring(charsToRemove));
+                }
+                else
+                {
+                    result.AppendLine(line);
+                }
+            }
+
+            return result.ToString();
+        }
+    }    
 }

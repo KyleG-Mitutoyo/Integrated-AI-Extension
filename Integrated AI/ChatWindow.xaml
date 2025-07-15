@@ -34,7 +34,7 @@
                 <hc:SplitButton.DropDownContent>
                     <StackPanel>
                         <MenuItem Header="File -> AI" Click="MenuItemToAI_Click" Tag="File -> AI"/>
-                        <MenuItem Header="Code -> AI" Click="MenuItemToAI_Click" Tag="Code -> AI"/>
+                        <MenuItem Header="Snippet -> AI" Click="MenuItemToAI_Click" Tag="Snippet -> AI"/>
                         <MenuItem Header="Function -> AI" Click="MenuItemToAI_Click" Tag="Function -> AI"/>
                         <MenuItem Header="Error -> AI" Click="MenuItemToAI_Click" Tag="Error -> AI"/>
                     </StackPanel>
@@ -48,9 +48,9 @@
                             HorizontalAlignment="Stretch">
                 <hc:SplitButton.DropDownContent>
                     <StackPanel>
-                        <MenuItem Header="Function -> VS" Click="MenuItemToVS_Click" Tag="Function -> VS"/>
                         <MenuItem Header="File -> VS" Click="MenuItemToVS_Click" Tag="File -> VS"/>
-                        <MenuItem Header="Code -> VS" Click="MenuItemToVS_Click" Tag="Code -> VS"/>
+                        <MenuItem Header="Snippet -> VS" Click="MenuItemToVS_Click" Tag="Snippet -> VS"/>
+                        <MenuItem Header="Function -> VS" Click="MenuItemToVS_Click" Tag="Function -> VS"/>
                     </StackPanel>
                 </hc:SplitButton.DropDownContent>
             </hc:SplitButton>
