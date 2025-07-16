@@ -4,6 +4,7 @@ using HandyControl.Themes;
 using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Web.WebView2.Wpf;
 using System;
 using System.Collections.Generic;
@@ -12,8 +13,11 @@ using System.Linq;
 using System.Net; // For WebUtility
 using System.Threading.Tasks;
 using System.Windows;
+using System.Text.Json; // For JSON parsing
 using static Integrated_AI.ChatWindow;
 using MessageBox = HandyControl.Controls.MessageBox;
+using WebView2 = Microsoft.Web.WebView2.Wpf.WebView2;
+using System.Globalization;
 
 namespace Integrated_AI
 {
@@ -461,9 +465,14 @@ namespace Integrated_AI
             }
         }
 
+        public static string GetCurrentUrl(WebView2 webView)
+        {
+            return webView?.CoreWebView2?.Source?.ToString() ?? string.Empty;
+        }
+
         public static void Log(string message)
         {
-            System.Diagnostics.Debug.WriteLine($"Integrated AI LOG: {message}");
+            System.Diagnostics.Debug.WriteLine($"INTEGRATED AI LOG: {message}");
         }
     }
 }

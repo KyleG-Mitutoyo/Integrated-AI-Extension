@@ -62,6 +62,7 @@
             <Button Content="Compare" Width="80" Margin="0,0,10,0" Click="CompareButton_Click"/>
             <Button Content="Delete All Backups" Style="{StaticResource ButtonDanger}" Width="130" Margin="0,0,10,0" Click="DeleteButton_Click"/>
             <Button Content="Open Backup Folder" Width="130" Margin="0,0,10,0" Click="OpenBackups_Click"/>
+            <Button Content="Go to this AI chat" ToolTip="Go to the AI chat page that was active when this backup was saved" Width="130" Margin="0,0,10,0" Click="GoToRestore_Click"/>
             <Button Content="Cancel" Width="80" Click="CancelButton_Click"/>
         </StackPanel>
     </Grid>

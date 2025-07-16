@@ -8,13 +8,15 @@ using EnvDTE;
 using EnvDTE80;
 using MessageBox = HandyControl.Controls.MessageBox;
 using Newtonsoft.Json;
+using Microsoft.Web.WebView2.Wpf;
+using System.Threading.Tasks;
 
 namespace Integrated_AI.Utilities
 {
     public static class BackupUtilities
     {
         // Creates a backup of the entire solution in a dated folder, within the solution's folder
-        public static string CreateSolutionBackup(DTE2 dte, string backupRootPath, string aiCode, string aiChat)
+        public static string CreateSolutionBackup(DTE2 dte, string backupRootPath, string aiCode, string aiChat, string url)
         {
             try
             {
@@ -38,10 +40,11 @@ namespace Integrated_AI.Utilities
                 {
                     AICode = aiCode,
                     AIChat = aiChat,
+                    Url = url,
                     BackupTime = backupFolderName
                 };
                 File.WriteAllText(metadataPath, JsonConvert.SerializeObject(metadata, Formatting.Indented));
-
+                
                 // Copy solution file
                 string solutionFileName = Path.GetFileName(dte.Solution.FullName);
                 File.Copy(dte.Solution.FullName, Path.Combine(backupPath, solutionFileName));
@@ -63,7 +66,6 @@ namespace Integrated_AI.Utilities
             }
             catch (Exception ex)
             {
-                // Log error (logging implementation depends on your setup)
                 MessageBox.Show($"Backup failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return null;
             }
@@ -212,7 +214,8 @@ namespace Integrated_AI.Utilities
         }
 
         // Retrieves AI code and chat metadata from a specific backup folder
-        public static (string aiCode, string aiChat) GetBackupMetadata(string solutionBackupRootPath, string restorePoint)
+        public static (string aiCode, string aiChat, string url) 
+            GetBackupMetadata(string solutionBackupRootPath, string restorePoint)
         {
             try
             {
@@ -221,17 +224,21 @@ namespace Integrated_AI.Utilities
                 {
                     //MessageBox.Show($"Metadata file not found: {metadataPath}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                     WebViewUtilities.Log($"Metadata file not found: {metadataPath}");
-                    return (null, null);
+                    return (null, null, null);
                 }
 
                 string jsonContent = File.ReadAllText(metadataPath);
                 var metadata = JsonConvert.DeserializeObject<dynamic>(jsonContent);
-                return (metadata.AICode?.ToString(), metadata.AIChat?.ToString());
+                if (metadata.Scroll == null)
+                {
+                    metadata.Scroll = 0; // Default scroll position if not present
+                }
+                return (metadata.AICode?.ToString(), metadata.AIChat?.ToString(), metadata.Url?.ToString());
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error retrieving backup metadata: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
-                return (null, null);
+                return (null, null, null);
             }
         }
 

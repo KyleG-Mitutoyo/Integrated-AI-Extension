@@ -320,7 +320,7 @@ namespace Integrated_AI.Utilities
             return (double)commonCount / Math.Max(source.Length, target.Length);
         }
 
-        public static string ReplaceOrAddCode(DTE2 dte, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
+        public static string CreateDocumentContent(DTE2 dte, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
         {
             var (isFunction, functionName, isFullFile) = (false, string.Empty, false);
 

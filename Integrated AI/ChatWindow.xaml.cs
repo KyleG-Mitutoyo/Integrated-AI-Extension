@@ -32,12 +32,10 @@ using MessageBox = HandyControl.Controls.MessageBox;
 
 //TODO: Show method previews on hover in function list box
 //AI chat text select to search for the matching restore point
-//Fix copy button detection in WebView2-------
-//Finish deepseek integration-------
 //Add error to AI------
 //Fix extension freezes when navigation fails, eg a captcha pops up------
 //Verify that freezes won't happen------
-//Make auto diff view bring up choose code window rather than using cursor insert with failed matches
+//Test test test------
 //Make recent functions work per file
 //Make file list a treeview with folders and files, with a + button under each folder to make a new file there
 //Combine choosecodewindow and functionselectionwindow into a single window
@@ -61,8 +59,7 @@ namespace Integrated_AI
             new UrlOption { DisplayName = "Grok", Url = "https://grok.com" },
             new UrlOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com" },
             new UrlOption { DisplayName = "ChatGPT", Url = "https://chatgpt.com" },
-            new UrlOption { DisplayName = "Claude", Url = "https://claude.ai" },
-            new UrlOption { DisplayName = "Deepseek", Url = "https://chat.deepseek.com" }
+            new UrlOption { DisplayName = "Claude", Url = "https://claude.ai" }
         };
 
         private readonly string _webViewDataFolder;
@@ -192,7 +189,7 @@ namespace Integrated_AI
             }
         }
 
-        private string GetSelectedComboBoxText()
+        private string GetUrlSelectorText()
         {
             if (UrlSelector.SelectedItem is UrlOption selectedOption)
             {
@@ -243,7 +240,7 @@ namespace Integrated_AI
                 }
 
                 _diffContext = new DiffUtility.DiffContext { };
-                modifiedCode = StringUtil.ReplaceOrAddCode(_dte, modifiedCode, aiCode, activeDocument, selectedItem, _diffContext);
+                modifiedCode = StringUtil.CreateDocumentContent(_dte, modifiedCode, aiCode, activeDocument, selectedItem, _diffContext);
                 _diffContext = DiffUtility.OpenDiffView(activeDocument, currentCode, modifiedCode, aiCode, _diffContext);
 
                 if (_diffContext == null)
@@ -492,7 +489,8 @@ namespace Integrated_AI
             {
                 // If we want to add the code extension to get syntax highlghting in the restore window
                 // we'd use documentToModify file extension
-                BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, contextToClose.AICodeBlock, GetSelectedComboBoxText());
+                string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
+                BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, contextToClose.AICodeBlock, GetUrlSelectorText(), currentUrl);
             }
             
             // Save the document after making the backup
@@ -608,7 +606,7 @@ namespace Integrated_AI
             var newDiffContext = new DiffUtility.DiffContext { };
 
             // Calculate the modified code based on the user's selection, using the correct target document and code.
-            string modifiedCode = StringUtil.ReplaceOrAddCode(_dte, codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
+            string modifiedCode = StringUtil.CreateDocumentContent(_dte, codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
 
             // Open a new diff view and assign the fully populated context to our member field.
             _diffContext = DiffUtility.OpenDiffView(targetDoc, codeToModify, modifiedCode, aiCode, newDiffContext);
@@ -657,10 +655,9 @@ namespace Integrated_AI
             }
         }
 
-        // Integrated AI/ChatWindow.xaml.cs
-        private void DebugButton_Click(object sender, RoutedEventArgs e)
+        private async void DebugButton_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show(StringUtil.GetIndentPosition("        private void RestoreButton_Click(object sender, RoutedEventArgs e)").ToString(), "Debug", MessageBoxButton.OK, MessageBoxImage.Information);
+            
         }
 
         private void RestoreButton_Click(object sender, RoutedEventArgs e)
@@ -675,7 +672,7 @@ namespace Integrated_AI
             CloseDiffButtonLogic();
 
             var solutionBackupsFolder = Path.Combine(_backupsFolder, BackupUtilities.GetUniqueSolutionFolder(_dte));
-            var restoreWindow = new RestoreSelectionWindow(_dte, solutionBackupsFolder);
+            var restoreWindow = new RestoreSelectionWindow(_dte, ChatWebView, solutionBackupsFolder);
             bool? result = restoreWindow.ShowDialog();
             // Show close diffs button if there are any diff contexts available
             if (restoreWindow.DiffContexts != null)
@@ -685,30 +682,60 @@ namespace Integrated_AI
                 UseRestoreButton.Visibility = Visibility.Visible;
             }
 
-            if (result == true && restoreWindow.SelectedBackup != null)
+            if (restoreWindow.SelectedBackup != null)
             {
-                string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
-                if (BackupUtilities.RestoreSolution(_dte, restoreWindow.SelectedBackup.FolderPath, solutionDir))
+                if (result == true)
                 {
-                    MessageBox.Show("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                    string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
+                    if (BackupUtilities.RestoreSolution(_dte, restoreWindow.SelectedBackup.FolderPath, solutionDir))
+                    {
+                        MessageBox.Show("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                    }
                 }
-            }
 
-            // Handle the case where the user compares with a selected backup
-            else if (restoreWindow.SelectedBackup != null)
-            {
-                _selectedBackup = restoreWindow.SelectedBackup;
+                // Handle the case where the user compares with a selected backup
+                else if (!restoreWindow.NavigateToUrl)
+                {
+                    _selectedBackup = restoreWindow.SelectedBackup;
+                }
+
+                // Handle the Go To Chat button
+                else
+                {
+                    // 1. Find the UrlOption object that matches the DisplayName from the backup.
+                    var optionToSelect = (UrlSelector.ItemsSource as List<UrlOption>)
+                        ?.FirstOrDefault(option => option.DisplayName == restoreWindow.SelectedBackup.AIChatTag);
+                    
+                    if (optionToSelect != null)
+                    {
+                        // 2. Temporarily unsubscribe from the event.
+                        UrlSelector.SelectionChanged -= UrlSelector_SelectionChanged;
+                        try
+                        {
+                            // 3. Set the selected item. This will now NOT fire the event handler.
+                            UrlSelector.SelectedItem = optionToSelect;
+                            Settings.Default.selectedChat = optionToSelect.DisplayName;
+                            Settings.Default.Save();
+                        }
+                        finally
+                        {
+                            // 4. Re-subscribe to the event so it works for user interactions.
+                            UrlSelector.SelectionChanged += UrlSelector_SelectionChanged;
+                        }
+                    }
+                }
             }
         }
 
         private void SaveBackupButton_Click(object sender, RoutedEventArgs e)
         {
-            string path = BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, "(Manual save: No AI code available.)", GetSelectedComboBoxText());
+            string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
+            string path = BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, "(Manual save: No AI code available.)", GetUrlSelectorText(), currentUrl);
 
             if (path != null)
             {
                 string lastFolder = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar));
-                MessageBox.Show($"Backup created successfully in: {lastFolder}", "Success");
+                MessageBox.Show($"Backup created successfully: {lastFolder}", "Success");
             }
         }
 

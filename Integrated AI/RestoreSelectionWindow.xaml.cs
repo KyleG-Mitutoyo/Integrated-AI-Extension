@@ -3,6 +3,8 @@ using HandyControl.Controls;
 using HandyControl.Themes;
 using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.Web.WebView2.WinForms;
+using Microsoft.Web.WebView2.Wpf;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,6 +15,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using static Integrated_AI.Utilities.DiffUtility;
 using MessageBox = HandyControl.Controls.MessageBox;
+using WebView2 = Microsoft.Web.WebView2.Wpf.WebView2;
 using Window = HandyControl.Controls.Window;
 
 namespace Integrated_AI
@@ -26,20 +29,25 @@ namespace Integrated_AI
             public DateTime BackupTime { get; set; }
             public string AIChatTag { get; set; } // New property for AI chat tag
             public string AICode { get; set; }    // New property for AI code
+            public string Url { get; set; } // Url that was open when the backup was created
         }
 
         public BackupItem SelectedBackup { get; private set; }
+        public bool NavigateToUrl { get; private set; }
         public List<DiffContext> DiffContexts { get; private set; }
         private readonly string _backupRootPath;
         private DTE2 _dte;
+        private WebView2 _webView; // Added WebView2 reference
 
-        public RestoreSelectionWindow(DTE2 dte, string backupRootPath)
+        public RestoreSelectionWindow(DTE2 dte, WebView2 webView, string backupRootPath)
         {
             InitializeComponent();
             NonClientAreaBackground = Brushes.Transparent;
 
             _backupRootPath = backupRootPath;
             _dte = dte;
+            _webView = webView;
+            NavigateToUrl = false;
             PopulateBackupList();
 
             DiffContexts = null;
@@ -59,16 +67,17 @@ namespace Integrated_AI
                     if (DateTime.TryParseExact(dir.Name, "yyyy-MM-dd_HH-mm-ss", null, System.Globalization.DateTimeStyles.None, out var backupTime))
                     {
                         // Retrieve AI chat and AI code from metadata
-                        var (aiCode, aiChat) = BackupUtilities.GetBackupMetadata(_backupRootPath, dir.Name);
+                        var (aiCode, aiChat, url) = BackupUtilities.GetBackupMetadata(_backupRootPath, dir.Name);
                         string aiChatTag = string.IsNullOrEmpty(aiChat) ? "n/a" : aiChat.Length > 30 ? aiChat.Substring(0, 27) + "..." : aiChat;
-
+                        
                         backups.Add(new BackupItem
                         {
                             DisplayName = backupTime.ToString("MM-dd-yyyy hh:mm:ss tt"),
                             FolderPath = dir.FullName,
                             BackupTime = backupTime,
                             AIChatTag = aiChatTag,
-                            AICode = string.IsNullOrEmpty(aiCode) ? "No AI Code" : aiCode
+                            AICode = string.IsNullOrEmpty(aiCode) ? "No AI Code" : aiCode,
+                            Url = url
                         });
                     }
                 }
@@ -189,6 +198,35 @@ namespace Integrated_AI
             if (!FileUtil.OpenFolder(_backupRootPath))
             {
                 MessageBox.Show("Failed to open the backup folder.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void GoToRestore_Click(object sender, RoutedEventArgs e)
+        {
+            if (BackupListBox.SelectedItem is BackupItem selected)
+            {
+                try
+                {
+                    //Also need to set the url combobox
+                    if (!string.IsNullOrEmpty(selected.Url))
+                    {
+                        SelectedBackup = selected;
+                        _webView.CoreWebView2.Navigate(selected.Url);
+                        NavigateToUrl = true;
+                        DialogResult = false;
+                        Close();
+                    }
+                    else
+                    {
+                        MessageBox.Show("This backup has no recorded URL.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    //MessageBox.Show($"Exception in GoToRestore.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    WebViewUtilities.Log($"RestoreSelectionWindow.GoToRestore_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
+                }
             }
         }
     }
