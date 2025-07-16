@@ -3,19 +3,21 @@
         return;
     }
     window.copyInterceptorAttached = true;
+    console.log(">>> Copy Interceptor Attached (Signal Mode) <<<");
+
+    const sendSignal = () => {
+        const signal = "copy_signal";
+        console.log("SUCCESS: Sending signal to C#:", signal);
+        window.chrome.webview.postMessage(signal);
+    };
 
     // 1. Intercept the modern Clipboard API
     if (navigator.clipboard && navigator.clipboard.writeText) {
         const originalWriteText = navigator.clipboard.writeText;
-
         navigator.clipboard.writeText = async function (text) {
             try {
                 await originalWriteText.call(navigator.clipboard, text);
-                // SUCCESS: Send the actual text that was copied.
-                window.chrome.webview.postMessage({
-                    type: 'programmatic_copy_complete',
-                    text: text 
-                });
+                sendSignal(); // Send the simple string signal
             } catch (e) {
                 console.error('Clipboard write failed:', e);
             }
@@ -27,12 +29,7 @@
     document.execCommand = function (command) {
         const result = originalExecCommand.apply(document, arguments);
         if (command && command.toLowerCase() === 'copy' && result) {
-            // For execCommand, we get the text from the current selection.
-            const selectedText = window.getSelection().toString();
-            window.chrome.webview.postMessage({
-                type: 'programmatic_copy_complete',
-                text: selectedText
-            });
+            sendSignal(); // Send the simple string signal
         }
         return result;
     };

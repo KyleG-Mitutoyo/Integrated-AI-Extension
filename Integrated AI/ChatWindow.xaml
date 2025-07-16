@@ -5,8 +5,7 @@
              xmlns:hc="https://handyorg.github.io/handycontrol"
              xmlns:properties="clr-namespace:Integrated_AI.Properties"
              Height="Auto"
-             Width="Auto"
-             GotFocus="Window_GotFocus" LostFocus="Window_LostFocus">
+             Width="Auto">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -105,6 +104,7 @@
             
             
             <Button Click="DebugButton_Click" BorderThickness="0" BorderBrush="{StaticResource BorderBrush}" hc:BorderElement.CornerRadius="15" Width="10" Height="10" hc:IconElement.Geometry="{StaticResource InfoGeometry}" Margin="5" Padding="0" Visibility="Collapsed"/>
+            <Button x:Name="TestWebMessageButton" Content="Test Msg" Click="TestWebMessageButton_Click" Margin="2" Visibility="Collapsed"/>
             
         </StackPanel>
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">

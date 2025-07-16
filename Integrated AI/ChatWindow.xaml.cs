@@ -8,6 +8,7 @@ using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.Web.WebView2.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,6 +16,7 @@ using System.Linq;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Runtime.Remoting.Contexts;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -74,12 +76,8 @@ namespace Integrated_AI
         //Used to store the compare muliple diff views
         private List<DiffContext> _diffContextsCompare;
         public BackupItem _selectedBackup;
-        private static bool _isWebViewInFocus;
-        private string _lastClipboardText; // Tracks last processed clipboard content
-        private string _currentClipboardText; // Tracks clipboard content for current burst of events
-        private bool _isOpeningCodeWindow = false;
-        private bool _isProcessingClipboardAction = false;
         private DocumentEvents _documentEvents;
+        private bool _isWebViewInitialized = false;
 
 
         public ChatWindow()
@@ -89,7 +87,6 @@ namespace Integrated_AI
             InitializeUrlSelector();
             _dte = (DTE2)Package.GetGlobalService(typeof(DTE));
             _diffContext = null;
-            _isWebViewInFocus = false;
 
             // Define base folder for the extension
             var baseFolder = Path.Combine(
@@ -108,24 +105,27 @@ namespace Integrated_AI
 
             FileUtil._recentFunctionsFilePath = Path.Combine(_appDataFolder, "recent_functions.txt");
 
-            // Initialize WebView2
-            WebViewUtilities.InitializeWebView2Async(ChatWebView, _webViewDataFolder, _urlOptions, UrlSelector);
-
             // Register for window messages when the control is loaded
             Loaded += ChatWindow_Loaded;
             Unloaded += ChatWindow_Unloaded;
 
             PopupConfig.Closed += PopupConfig_Closed;
-
-            ChatWebView.CoreWebView2InitializationCompleted += ChatWebView_CoreWebView2InitializationCompleted;
         }
 
-        private void ChatWindow_Loaded(object sender, RoutedEventArgs e)
+        // This can occur multiple times 
+        private async void ChatWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            // Hook DTE events here
             var events = _dte.Events;
             _documentEvents = events.DocumentEvents;
+            _documentEvents.DocumentClosing -= OnDocumentClosing;
             _documentEvents.DocumentClosing += OnDocumentClosing;
+
+            // Start the new, centralized initialization flow.
+            await InitializeWebViewAsync();
         }
+
+
 
         private void ChatWindow_Unloaded(object sender, RoutedEventArgs e)
         {
@@ -206,34 +206,22 @@ namespace Integrated_AI
         {
             ThreadHelper.Generic.BeginInvoke(() =>
             {
-                Action abortAction = () =>
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        _isProcessingClipboardAction = false;
-                        _lastClipboardText = null;
-                    });
-                };
-
                 // Check if a diff window is already open. The new _isProcessingClipboardAction handles the race condition.
                 if (_diffContext != null)
                 {
                     WebViewUtilities.Log("PasteButton_ClickLogic: Diff window already open. Aborting.");
-                    abortAction();
                     return;
                 }
 
                 if (_dte == null)
                 {
                     MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    abortAction();
                     return;
                 }
 
                 if (string.IsNullOrEmpty(aiCode))
                 {
                     MessageBox.Show("No code retrieved from clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    abortAction();
                     return;
                 }
 
@@ -241,7 +229,6 @@ namespace Integrated_AI
                 if (activeDocument == null)
                 {
                     MessageBox.Show("No active document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    abortAction();
                     return;
                 }
 
@@ -254,26 +241,6 @@ namespace Integrated_AI
                     selectedItem.Type = pasteType;
                     selectedItem.DisplayName = functionName;
                 }
-                
-                //Later, this will only occur at the end of analyzecodeblock with auto diff mode on, as a fallback
-                //if (!(bool)AutoDiffToggle.IsChecked)
-                //{
-                //    // Use _isOpeningCodeWindow as a sub-lock for just this window, which is fine
-                //    _isOpeningCodeWindow = true;
-                //    try
-                //    {
-                //        selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument);
-                //        if (selectedItem == null)
-                //        {
-                //            abortAction(); // User cancelled, so abort and release the main lock
-                //            return;
-                //        }
-                //    }
-                //    finally
-                //    {
-                //        _isOpeningCodeWindow = false;
-                //    }
-                //}
 
                 _diffContext = new DiffUtility.DiffContext { };
                 modifiedCode = StringUtil.ReplaceOrAddCode(_dte, modifiedCode, aiCode, activeDocument, selectedItem, _diffContext);
@@ -281,8 +248,6 @@ namespace Integrated_AI
 
                 if (_diffContext == null)
                 {
-                    // If diff view failed to open, abort and release the lock
-                    abortAction();
                     return;
                 }
 
@@ -295,27 +260,26 @@ namespace Integrated_AI
             });
         }
 
-        private void Window_GotFocus(object sender, RoutedEventArgs e)
-        {
-            _isWebViewInFocus = true;
-        }
-
-        private void Window_LostFocus(object sender, RoutedEventArgs e)
-        {
-            _isWebViewInFocus = false;
-        }
-
         private void UrlSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            // ---- THE FIX ----
+            // Do not allow navigation until our async initialization is 100% complete.
+            if (!_isWebViewInitialized)
+            {
+                return;
+            }
+            // ---- END FIX ----
+
             if (UrlSelector.SelectedItem is UrlOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
             {
                 try
                 {
+                    // This check is still good practice.
                     if (ChatWebView?.CoreWebView2 != null)
                     {
                         ChatWebView.Source = new Uri(selectedOption.Url);
-                        Settings.Default.selectedChat = selectedOption.DisplayName; // Save the selected chat option
-                        Settings.Default.Save(); // Save settings to persist the selection
+                        Settings.Default.selectedChat = selectedOption.DisplayName;
+                        Settings.Default.Save();
                     }
                 }
                 catch (UriFormatException ex)
@@ -433,7 +397,7 @@ namespace Integrated_AI
                 }
 
                 // If there are functions, show the selection window or auto match
-                if ((bool)AutoFunctionMatch.IsChecked)
+                if (AutoFunctionMatch.IsChecked == true)
                 {
                     var (isFunction, analyzedFunctionName, isFullFile) = StringUtil.AnalyzeCodeBlock(_dte, _dte.ActiveDocument, aiCode);
                     if (isFunction) functionName = analyzedFunctionName;
@@ -524,7 +488,7 @@ namespace Integrated_AI
             }
 
             // A backup of the solution files are created for every accept button click, if enabled.
-            if ((bool)AutoRestore.IsChecked)
+            if (AutoRestore.IsChecked == true)
             {
                 // If we want to add the code extension to get syntax highlghting in the restore window
                 // we'd use documentToModify file extension
@@ -558,9 +522,6 @@ namespace Integrated_AI
             }
 
             UpdateButtonsForDiffView(false);
-
-            _isProcessingClipboardAction = false;
-            _lastClipboardText = null;
         }
 
         private void ChooseButton_Click(object sender, RoutedEventArgs e)
@@ -570,8 +531,6 @@ namespace Integrated_AI
             {
                 // Not enough info to proceed. Reset UI and state.
                 UpdateButtonsForDiffView(false);
-                _isProcessingClipboardAction = false;
-                _lastClipboardText = null;
                 if (_diffContext != null)
                 {
                     DiffUtility.CloseDiffAndReset(_diffContext);
@@ -599,8 +558,6 @@ namespace Integrated_AI
             if (activeDocument == null) {
                 MessageBox.Show($"Could not re-acquire a handle to document: {originalDocPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 UpdateButtonsForDiffView(false);
-                _isProcessingClipboardAction = false;
-                _lastClipboardText = null;
                 return;
             }
             activeDocument.Activate(); // Good practice to ensure it's the active document.
@@ -610,8 +567,6 @@ namespace Integrated_AI
             {
                 MessageBox.Show("Unable to retrieve current code from document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 UpdateButtonsForDiffView(false);
-                _isProcessingClipboardAction = false;
-                _lastClipboardText = null;
                 return;
             }
 
@@ -662,8 +617,6 @@ namespace Integrated_AI
             if (_diffContext == null)
             {
                 UpdateButtonsForDiffView(false);
-                _isProcessingClipboardAction = false;
-                _lastClipboardText = null;
             }
             // If successful, the UI remains in the "diff view open" state with the new diff.
         }
@@ -677,9 +630,6 @@ namespace Integrated_AI
             }
 
             UpdateButtonsForDiffView(false);
-
-            _isProcessingClipboardAction = false;
-            _lastClipboardText = null;
         }
 
         private void UpdateButtonsForDiffView(bool showDiffButons)
@@ -815,69 +765,137 @@ namespace Integrated_AI
             Settings.Default.Save(); // Save settings when the popup is closed
         }
 
-        private void CoreWebView2_WebMessageReceived(object sender, Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs args)
+        private void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs args)
         {
+            // Only handle copy button clicks if the AutoDiffToggle is enabled.
+            if (AutoDiffToggle.IsChecked != true)
+            {
+                return; // Exit immediately if the feature is disabled.
+            }
+
+            // We are expecting a plain string now.
             string message = args.TryGetWebMessageAsString();
-            if (message == "programmatic_copy_complete")
-            {
-                // The message now confirms the clipboard IS ready.
-                // No polling needed. Just process the clipboard content.
-                ProcessCopiedCode();
-            }
-        }
 
-        private void ChatWebView_CoreWebView2InitializationCompleted(object sender, Microsoft.Web.WebView2.Core.CoreWebView2InitializationCompletedEventArgs e)
-        {
-            // Check if the initialization was successful
-            if (e.IsSuccess)
-            {
-                // It is now SAFE to access CoreWebView2 and attach further event handlers.
-                ChatWebView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
-                WebViewUtilities.Log("ChatWindow is now listening for WebMessages from the WebView.");
-            }
-            else
-            {
-                WebViewUtilities.Log($"FATAL: CoreWebView2 initialization failed in ChatWindow. Exception: {e.InitializationException}");
-                MessageBox.Show($"WebView2 failed to initialize. The chat view may not function correctly. Error: {e.InitializationException.Message}", "WebView Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
+            // Log whatever we get, even if it's empty.
+            WebViewUtilities.Log($"Received web message: '{message}'");
 
-        private void ProcessCopiedCode()
-        {
-            // Ensure we run on the UI thread for clipboard access, then call the logic
-            Dispatcher.Invoke(() =>
+            if (message == "copy_signal" || message == "manual_test_signal")
             {
-                // Ignore if a diff view is already open. This is our only guard.
-                if (_diffContext != null)
+                // IT WORKED! The channel is open.
+                WebViewUtilities.Log("Signal received successfully! Processing clipboard...");
+
+                // Now, we fall back to reading the clipboard, but add a tiny delay
+                // to give the OS time to propagate the change.
+                Dispatcher.Invoke(async () => 
                 {
-                    return;
-                }
+                    // Give the OS a moment to finish the clipboard write.
+                    await Task.Delay(100); 
 
-                string clipboardText = string.Empty;
-                try
-                {
-                    if (Clipboard.ContainsText())
+                    if (_diffContext != null) return;
+
+                    string clipboardText = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty;
+
+                    if (!string.IsNullOrEmpty(clipboardText))
                     {
-                        clipboardText = Clipboard.GetText();
+                        ToVSButton_ClickLogic(clipboardText);
                     }
-                }
-                catch (Exception ex)
-                {
-                    WebViewUtilities.Log($"Failed to get clipboard text: {ex.Message}");
-                    return; // Exit if we can't access the clipboard
-                }
+                    else
+                    {
+                        WebViewUtilities.Log("Signal received, but clipboard was empty after delay.");
+                    }
+                });
+            }
+        }
 
+        private async Task InitializeWebViewAsync()
+        {
+            if (_isWebViewInitialized)
+            {
+                return;
+            }
 
-                if (!string.IsNullOrEmpty(clipboardText))
+            try
+            {
+                // Step 1: Call the simplified utility to ensure CoreWebView2 is ready.
+                await WebViewUtilities.InitializeWebView2Async(ChatWebView, _webViewDataFolder);
+
+                // Step 2: CoreWebView2 is now guaranteed to be available. Configure it.
+                Log("CoreWebView2 initialized successfully. Now configuring settings and events.");
+                ChatWebView.CoreWebView2.Settings.IsWebMessageEnabled = true;
+                ChatWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+                ChatWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+
+                // Step 3: Load and inject the interceptor script.
+                string script = FileUtil.LoadScript("copyInterceptor.js");
+                if (!script.StartsWith("console.error"))
                 {
-                    WebViewUtilities.Log("Programmatic copy confirmed. Processing content.");
-                    ToVSButton_ClickLogic(clipboardText);
+                    await ChatWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(script);
+                    Log("Successfully registered the copyInterceptor.js script.");
                 }
                 else
                 {
-                    WebViewUtilities.Log("Received copy confirmation, but clipboard was empty.");
+                    Log($"CRITICAL: Failed to load copyInterceptor.js. Script content: {script}");
                 }
-            });
-        }  
+
+                // Step 4: Hook the event handlers DIRECTLY. This is now safe and reliable.
+                ChatWebView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
+                ChatWebView.CoreWebView2.NavigationCompleted += CoreWebView2_NavigationCompleted; // For error reporting
+                Log("WebMessageReceived and NavigationCompleted handlers attached.");
+
+                // Step 5: Perform the initial navigation.
+                if (UrlSelector.SelectedItem is UrlOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
+                {
+                    ChatWebView.Source = new Uri(selectedOption.Url);
+                }
+
+                _isWebViewInitialized = true;
+                Log("WebView initialization complete. UI interactions are now enabled.");
+            }
+            catch (Exception ex)
+            {
+                Log($"A critical error occurred during WebView initialization: {ex.Message}");
+                MessageBox.Show($"The AI Chat panel could not be initialized. Please try restarting Visual Studio.\n\nError: {ex.Message}", "Fatal Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+
+        // This is the navigation error handler, kept separate for clarity.
+        private void CoreWebView2_NavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
+        {
+            if (e.IsSuccess)
+            {
+                Log($"Navigation successful to: {ChatWebView.Source?.ToString()}");
+            }
+            else
+            {
+                string errorMessage = $"Failed to load {ChatWebView.Source?.ToString() ?? "page"}. Error status: {e.WebErrorStatus}.";
+                if (e.WebErrorStatus == Microsoft.Web.WebView2.Core.CoreWebView2WebErrorStatus.CannotConnect ||
+                    e.WebErrorStatus == Microsoft.Web.WebView2.Core.CoreWebView2WebErrorStatus.HostNameNotResolved)
+                {
+                    errorMessage += " Please check your internet connection.";
+                }
+                MessageBox.Show(errorMessage, "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void TestWebMessageButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ChatWebView?.CoreWebView2 == null)
+            {
+                MessageBox.Show("CoreWebView2 is not initialized.", "Error");
+                return;
+            }
+
+            try
+            {
+                // This script will execute inside the WebView and send a message back to us.
+                ChatWebView.CoreWebView2.ExecuteScriptAsync("window.chrome.webview.postMessage('manual_test_signal')");
+                WebViewUtilities.Log("Manually sent 'manual_test_signal' to WebView.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to execute script: {ex.Message}", "Error");
+            }
+        }
     }
 }

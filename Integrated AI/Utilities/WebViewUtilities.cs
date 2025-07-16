@@ -1,24 +1,17 @@
 ﻿using EnvDTE;
 using EnvDTE80;
 using HandyControl.Themes;
-using Integrated_AI.Utilities; // Assuming FileUtil, DiffUtility, FunctionSelectionUtilities, SentCodeContextManager, StringUtilities are here
+using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.Shell;
-// using Microsoft.VisualStudio.Shell.Interop; // Not directly used in the provided snippet, but likely in the project
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using System;
 using System.Collections.Generic;
-// using System.Diagnostics; // Not directly used
 using System.IO;
-// using System.IO.Packaging; // Not directly used
 using System.Linq;
 using System.Net; // For WebUtility
-// using System.Reflection; // Not directly used
-// using System.Text; // For StringBuilder - Not directly used
 using System.Threading.Tasks;
-// using System.Web; // HttpUtility, WebUtility is in System.Net
 using System.Windows;
-using System.Windows.Controls; // For ComboBox (used in InitializeWebView2Async)
 using static Integrated_AI.ChatWindow;
 using MessageBox = HandyControl.Controls.MessageBox;
 
@@ -82,102 +75,22 @@ namespace Integrated_AI
         }
 
 
-        public static async Task InitializeWebView2Async(WebView2 webView, string userDataFolder, List<ChatWindow.UrlOption> urlOptions, ComboBox urlSelector)
+        public static async Task InitializeWebView2Async(WebView2 webView, string userDataFolder)
         {
             try
             {
-                // This event handler is the perfect place to set up persistent settings and scripts.
-                webView.CoreWebView2InitializationCompleted += (s, e) =>
-                {
-                    if (e.IsSuccess)
-                    {
-                        // ---- START: NEW LOGIC ----
-                        // Configure core settings
-                        webView.CoreWebView2.Settings.IsWebMessageEnabled = true;
-                        webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-                        webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
-
-                        // Load the interceptor script using your utility function
-                        string interceptorScript = FileUtil.LoadScript("copyInterceptor.js");
-
-                        // Check if the script loaded successfully before injecting
-                        if (!interceptorScript.StartsWith("console.error"))
-                        {
-                            // This adds the script to run for every new document, which includes
-                            // initial navigation, user-initiated navigations, and iframes.
-                            // This is the most reliable way to intercept API calls.
-                            webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(interceptorScript);
-                            Log("Successfully registered the copyInterceptor.js script for all navigations.");
-                        }
-                        else
-                        {
-                            Log($"CRITICAL: Failed to load copyInterceptor.js. Script content: {interceptorScript}");
-                        }
-                        // ---- END: NEW LOGIC ----
-
-                        // Perform the initial navigation
-                        if (urlSelector.SelectedItem is ChatWindow.UrlOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
-                        {
-                            try
-                            {
-                                webView.Source = new Uri(selectedOption.Url);
-                            }
-                            catch (UriFormatException ex)
-                            {
-                                MessageBox.Show($"Invalid URL '{selectedOption.Url}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        MessageBox.Show($"WebView2 initialization failed: {e.InitializationException?.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                };
-
-                // This event handler is now only for handling navigation success or failure messages.
-                // The script injection logic has been moved.
-                webView.NavigationCompleted += (s, e) =>
-                {
-                    if (e.IsSuccess)
-                    {
-                        Log($"Navigation successful to: {webView.Source?.ToString()}");
-                    }
-                    else
-                    {
-                        string errorMessage = $"Failed to load {webView.Source?.ToString() ?? "page"}. Error status: {e.WebErrorStatus}.";
-                        if (e.WebErrorStatus == CoreWebView2WebErrorStatus.CannotConnect ||
-                            e.WebErrorStatus == CoreWebView2WebErrorStatus.HostNameNotResolved)
-                        {
-                            errorMessage += " Please check your internet connection and firewall settings.";
-                        }
-                        MessageBox.Show(errorMessage, "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    }
-                };
-
-                // Trigger the initialization
+                // Its only jobs are to create the environment and ensure the CoreWebView2 object exists.
                 var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
                 await webView.EnsureCoreWebView2Async(env);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to initialize WebView2: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                // We will let the caller handle the message box to keep this a pure utility.
+                Log($"FATAL: Failed to initialize WebView2 Environment/Core: {ex.Message}");
+                // Rethrow the exception so the caller knows initialization failed.
+                throw new InvalidOperationException("Failed to initialize WebView2. See inner exception for details.", ex);
             }
         }
-
-        public static async Task<bool> IsProgrammaticCopyAsync(WebView2 webView)
-        {
-            try
-            {
-                string result = await webView.CoreWebView2.ExecuteScriptAsync("localStorage.getItem('isProgrammaticCopy')");
-                return result == "\"true\"";
-            }
-            catch (Exception ex)
-            {
-                Log($"Error checking programmatic copy flag: {ex.Message}");
-                return false;
-            }
-        }
-
 
         public static async Task ExecuteCommandAsync(string option, DTE2 dte, WebView2 chatWebView, string userDataFolder)
         {
