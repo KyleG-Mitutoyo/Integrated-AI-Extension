@@ -124,6 +124,10 @@
   <ItemGroup>
     <Content Include="Resources\AIChatCommand.png" />
     <Content Include="Resources\AIChatCommandPackage.ico" />
+    <Content Include="Scripts\copyInterceptor.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
     <Content Include="Scripts\injectText.js">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <IncludeInVSIX>true</IncludeInVSIX>

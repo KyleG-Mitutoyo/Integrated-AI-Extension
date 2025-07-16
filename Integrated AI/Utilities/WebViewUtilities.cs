@@ -86,19 +86,36 @@ namespace Integrated_AI
         {
             try
             {
-                // The CoreWebView2InitializationCompleted event handler must be added before
-                // the EnsureCoreWebView2Async method is called. This ensures that the event
-                // is not missed if the initialization completes synchronously.
+                // This event handler is the perfect place to set up persistent settings and scripts.
                 webView.CoreWebView2InitializationCompleted += (s, e) =>
                 {
                     if (e.IsSuccess)
                     {
-                        // Initialization is successful, now we can configure the settings.
+                        // ---- START: NEW LOGIC ----
+                        // Configure core settings
                         webView.CoreWebView2.Settings.IsWebMessageEnabled = true;
                         webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
                         webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
 
-                        // And perform the initial navigation based on the ComboBox's selected item.
+                        // Load the interceptor script using your utility function
+                        string interceptorScript = FileUtil.LoadScript("copyInterceptor.js");
+
+                        // Check if the script loaded successfully before injecting
+                        if (!interceptorScript.StartsWith("console.error"))
+                        {
+                            // This adds the script to run for every new document, which includes
+                            // initial navigation, user-initiated navigations, and iframes.
+                            // This is the most reliable way to intercept API calls.
+                            webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(interceptorScript);
+                            Log("Successfully registered the copyInterceptor.js script for all navigations.");
+                        }
+                        else
+                        {
+                            Log($"CRITICAL: Failed to load copyInterceptor.js. Script content: {interceptorScript}");
+                        }
+                        // ---- END: NEW LOGIC ----
+
+                        // Perform the initial navigation
                         if (urlSelector.SelectedItem is ChatWindow.UrlOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
                         {
                             try
@@ -117,28 +134,13 @@ namespace Integrated_AI
                     }
                 };
 
-                // This handler can also be set up before initialization begins.
+                // This event handler is now only for handling navigation success or failure messages.
+                // The script injection logic has been moved.
                 webView.NavigationCompleted += (s, e) =>
                 {
                     if (e.IsSuccess)
                     {
-                        string monitorScript = FileUtil.LoadScript("monitorClipboardWrite.js");
-                        if (monitorScript.StartsWith("LoadScript ERROR:"))
-                        {
-                            Log($"Failed to inject clipboard monitoring script after navigation: {monitorScript}");
-                        }
-                        else
-                        {
-                            try
-                            {
-                                webView.CoreWebView2.ExecuteScriptAsync(monitorScript);
-                                Log("Clipboard monitoring script injected after navigation.");
-                            }
-                            catch (Exception ex)
-                            {
-                                Log($"Failed to inject clipboard monitoring script after navigation: {ex.Message}");
-                            }
-                        }
+                        Log($"Navigation successful to: {webView.Source?.ToString()}");
                     }
                     else
                     {
@@ -152,7 +154,7 @@ namespace Integrated_AI
                     }
                 };
 
-                // Now, create the environment and trigger the initialization.
+                // Trigger the initialization
                 var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
                 await webView.EnsureCoreWebView2Async(env);
             }

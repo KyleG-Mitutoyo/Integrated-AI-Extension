@@ -33,6 +33,8 @@ using MessageBox = HandyControl.Controls.MessageBox;
 //Fix copy button detection in WebView2-------
 //Finish deepseek integration-------
 //Add error to AI------
+//Fix extension freezes when navigation fails, eg a captcha pops up------
+//Verify that freezes won't happen------
 //Make auto diff view bring up choose code window rather than using cursor insert with failed matches
 //Make recent functions work per file
 //Make file list a treeview with folders and files, with a + button under each folder to make a new file there
@@ -73,25 +75,12 @@ namespace Integrated_AI
         private List<DiffContext> _diffContextsCompare;
         public BackupItem _selectedBackup;
         private static bool _isWebViewInFocus;
-        private IntPtr _hwndSource; // Handle for the window
-        private bool _isClipboardListenerRegistered;
         private string _lastClipboardText; // Tracks last processed clipboard content
         private string _currentClipboardText; // Tracks clipboard content for current burst of events
         private bool _isOpeningCodeWindow = false;
         private bool _isProcessingClipboardAction = false;
         private DocumentEvents _documentEvents;
 
-
-        // Windows API declarations
-        private const int WM_CLIPBOARDUPDATE = 0x031D;
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool AddClipboardFormatListener(IntPtr hwnd);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
 
         public ChatWindow()
         {
@@ -101,7 +90,6 @@ namespace Integrated_AI
             _dte = (DTE2)Package.GetGlobalService(typeof(DTE));
             _diffContext = null;
             _isWebViewInFocus = false;
-            _isClipboardListenerRegistered = false;
 
             // Define base folder for the extension
             var baseFolder = Path.Combine(
@@ -128,23 +116,12 @@ namespace Integrated_AI
             Unloaded += ChatWindow_Unloaded;
 
             PopupConfig.Closed += PopupConfig_Closed;
+
+            ChatWebView.CoreWebView2InitializationCompleted += ChatWebView_CoreWebView2InitializationCompleted;
         }
 
         private void ChatWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            // Get the window handle
-            var hwndSource = PresentationSource.FromVisual(this) as HwndSource;
-            if (hwndSource != null)
-            {
-                _hwndSource = hwndSource.Handle;
-                hwndSource.AddHook(WndProc);
-                _isClipboardListenerRegistered = AddClipboardFormatListener(_hwndSource);
-                if (!_isClipboardListenerRegistered)
-                {
-                    WebViewUtilities.Log("Failed to register clipboard listener.");
-                }
-            }
-
             var events = _dte.Events;
             _documentEvents = events.DocumentEvents;
             _documentEvents.DocumentClosing += OnDocumentClosing;
@@ -152,19 +129,6 @@ namespace Integrated_AI
 
         private void ChatWindow_Unloaded(object sender, RoutedEventArgs e)
         {
-            // Clean up clipboard listener
-            if (_isClipboardListenerRegistered && _hwndSource != IntPtr.Zero)
-            {
-                RemoveClipboardFormatListener(_hwndSource);
-                _isClipboardListenerRegistered = false;
-            }
-
-            var hwndSource = PresentationSource.FromVisual(this) as HwndSource;
-            if (hwndSource != null)
-            {
-                hwndSource.RemoveHook(WndProc);
-            }
-
             if (_documentEvents != null)
             {
                 _documentEvents.DocumentClosing -= OnDocumentClosing;
@@ -236,79 +200,7 @@ namespace Integrated_AI
             }
             return string.Empty; // Return empty string if nothing is selected
         }
-
-        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-        {
-            if (msg == WM_CLIPBOARDUPDATE && _isWebViewInFocus)
-            {
-                // Clipboard changed and WebView is in focus
-                //HandleClipboardChange();
-            }
-            return IntPtr.Zero;
-        }
-
-        //Not used for now until the multiple diff error is fixed
-        private async void HandleClipboardChange()
-        {
-            // A single, robust lock to prevent re-entrancy and race conditions
-            if (_isProcessingClipboardAction)
-            {
-                return;
-            }
-
-            // Run on UI thread
-            await Dispatcher.InvokeAsync(async () =>
-            {
-                try
-                {
-                    // Get clipboard text
-                    string clipboardText = null;
-                    if (Clipboard.ContainsText())
-                    {
-                        clipboardText = Clipboard.GetText();
-                    }
-
-                    // Ignore if there's no text or if it's the same as the last processed text
-                    if (string.IsNullOrEmpty(clipboardText) || clipboardText == _lastClipboardText)
-                    {
-                        return;
-                    }
-
-                    // Prevent a clipboard change from being processed while a diff view is open
-                    if (_diffContext != null)
-                    {
-                        MessageBox.Show("Clipboard change ignored: Diff view is open. Please accept or decline the changes first.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                        return;
-                    }
-
-                    // Check if WebView is focused and clipboard write was programmatic
-                    if (!_isWebViewInFocus || !await WebViewUtilities.IsProgrammaticCopyAsync(ChatWebView))
-                    {
-                        return; // Ignore if not focused or not a programmatic copy (e.g., Ctrl+C)
-                    }
-
-                    // Set the lock BEFORE starting the background operation
-                    _isProcessingClipboardAction = true; 
-
-                    // Process clipboard text
-                    ToVSButton_ClickLogic(clipboardText);
-
-                    // Update _lastClipboardText immediately to prevent reprocessing this specific text
-                    // This is safe to do here now because the _isProcessingClipboardAction lock is active.
-                    _lastClipboardText = clipboardText;
-
-                }
-                catch (Exception ex)
-                {
-                    WebViewUtilities.Log($"Clipboard change handling error: {ex.Message}");
-                    // Ensure the lock is released on error
-                    _isProcessingClipboardAction = false; 
-                }
-                // Note: The lock is NOT released in a `finally` block here.
-                // It will be released by the methods that conclude the action (Accept, Decline, or an abort in PasteButton_ClickLogic).
-            });
-        }        
-
+   
         
         private void ToVSButton_ClickLogic(string aiCode, string pasteType = null, string functionName = null)
         {
@@ -355,10 +247,14 @@ namespace Integrated_AI
 
                 string currentCode = DiffUtility.GetDocumentText(activeDocument);
                 string modifiedCode = currentCode;
-                ChooseCodeWindow.ReplacementItem selectedItem = new ChooseCodeWindow.ReplacementItem();
-                selectedItem.Type = pasteType;
-                selectedItem.DisplayName = functionName;
-
+                ChooseCodeWindow.ReplacementItem selectedItem = null;
+                if (pasteType != null || functionName != null)
+                {
+                    selectedItem = new ChooseCodeWindow.ReplacementItem();
+                    selectedItem.Type = pasteType;
+                    selectedItem.DisplayName = functionName;
+                }
+                
                 //Later, this will only occur at the end of analyzecodeblock with auto diff mode on, as a fallback
                 //if (!(bool)AutoDiffToggle.IsChecked)
                 //{
@@ -918,5 +814,70 @@ namespace Integrated_AI
         {
             Settings.Default.Save(); // Save settings when the popup is closed
         }
+
+        private void CoreWebView2_WebMessageReceived(object sender, Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs args)
+        {
+            string message = args.TryGetWebMessageAsString();
+            if (message == "programmatic_copy_complete")
+            {
+                // The message now confirms the clipboard IS ready.
+                // No polling needed. Just process the clipboard content.
+                ProcessCopiedCode();
+            }
+        }
+
+        private void ChatWebView_CoreWebView2InitializationCompleted(object sender, Microsoft.Web.WebView2.Core.CoreWebView2InitializationCompletedEventArgs e)
+        {
+            // Check if the initialization was successful
+            if (e.IsSuccess)
+            {
+                // It is now SAFE to access CoreWebView2 and attach further event handlers.
+                ChatWebView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
+                WebViewUtilities.Log("ChatWindow is now listening for WebMessages from the WebView.");
+            }
+            else
+            {
+                WebViewUtilities.Log($"FATAL: CoreWebView2 initialization failed in ChatWindow. Exception: {e.InitializationException}");
+                MessageBox.Show($"WebView2 failed to initialize. The chat view may not function correctly. Error: {e.InitializationException.Message}", "WebView Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ProcessCopiedCode()
+        {
+            // Ensure we run on the UI thread for clipboard access, then call the logic
+            Dispatcher.Invoke(() =>
+            {
+                // Ignore if a diff view is already open. This is our only guard.
+                if (_diffContext != null)
+                {
+                    return;
+                }
+
+                string clipboardText = string.Empty;
+                try
+                {
+                    if (Clipboard.ContainsText())
+                    {
+                        clipboardText = Clipboard.GetText();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WebViewUtilities.Log($"Failed to get clipboard text: {ex.Message}");
+                    return; // Exit if we can't access the clipboard
+                }
+
+
+                if (!string.IsNullOrEmpty(clipboardText))
+                {
+                    WebViewUtilities.Log("Programmatic copy confirmed. Processing content.");
+                    ToVSButton_ClickLogic(clipboardText);
+                }
+                else
+                {
+                    WebViewUtilities.Log("Received copy confirmation, but clipboard was empty.");
+                }
+            });
+        }  
     }
 }

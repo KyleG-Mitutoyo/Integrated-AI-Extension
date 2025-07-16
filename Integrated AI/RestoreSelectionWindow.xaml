@@ -48,7 +48,7 @@
         
 
         <!-- AI Code Display -->
-        <TextBlock Grid.Row="0" Grid.Column="1" Text="AI code that will be reverted:" 
+        <TextBlock Grid.Row="0" Grid.Column="1" Text="AI code applied right after this backup:" 
            Style="{StaticResource TextBlockDefaultBold}" Margin="0,0,0,10"/>
         <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
             <TextBox x:Name="AICodeTextBox" IsReadOnly="True" FontFamily="Consolas" 
