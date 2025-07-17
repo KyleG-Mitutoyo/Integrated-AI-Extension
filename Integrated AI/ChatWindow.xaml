@@ -22,7 +22,7 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
-            <ComboBox x:Name="UrlSelector" MaxWidth="200" MinWidth="100" Margin="5" SelectionChanged="UrlSelector_SelectionChanged"
+            <ComboBox x:Name="UrlSelector" MaxWidth="200" MinWidth="100" Margin="10,5,5,5" SelectionChanged="UrlSelector_SelectionChanged"
                       DisplayMemberPath="DisplayName" SelectedValuePath="Url" />
             <hc:SplitButton x:Name="VSToAISplitButton" 
                             Margin="5" 
@@ -58,14 +58,16 @@
             <Button x:Name="AcceptButton" Content="Accept" Style="{StaticResource ButtonSuccess}" Click="AcceptButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="5,0,0,0" Visibility="Collapsed"/>
             <Button x:Name="ChooseButton" Content="Choose code" Click="ChooseButton_Click" Style="{StaticResource ButtonWarning}" hc:BorderElement.CornerRadius="0" Margin="0" Visibility="Collapsed"/>
             <Button x:Name="DeclineButton" Content="Decline" Style="{StaticResource ButtonDanger}" Click="DeclineButton_Click" hc:BorderElement.CornerRadius="0,4,4,0" Margin="0,0,5,0" Visibility="Collapsed"/>
-            <Button x:Name="RestoreButton" Content="Restore" Click="RestoreButton_Click" Margin="5,5,0,5" hc:BorderElement.CornerRadius="4,0,0,4"/>
+            <Button x:Name="RestoreButton" Content="Restore" Click="RestoreButton_Click" Margin="5,5,0,5" hc:BorderElement.CornerRadius="4,0,0,4"
+                    ToolTip="Select code in the chat to go to the backup that was made right before the code was applied"
+                    ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
             <Button x:Name="SaveBackupButton" hc:IconElement.Geometry="{StaticResource SaveGeometry}" Click="SaveBackupButton_Click" Margin="-1,0,0,0" hc:BorderElement.CornerRadius="0,4,4,0"
                     ToolTip="Save solution backup"
                     ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
 
             
             <Button HorizontalAlignment="Right" Click="ButtonConfig_Click" Name="ButtonConfig" Style="{StaticResource ButtonIcon}" Foreground="{DynamicResource PrimaryTextBrush}" hc:IconElement.Geometry="{StaticResource ConfigGeometry}"/>
-            <Popup AllowsTransparency="True" PlacementTarget="{Binding ElementName=ButtonConfig}" HorizontalOffset="0" Name="PopupConfig" VerticalOffset="6" StaysOpen="False" Width="300">
+            <Popup AllowsTransparency="True" PlacementTarget="{Binding ElementName=ButtonConfig}" HorizontalOffset="-250" Name="PopupConfig" VerticalOffset="6" StaysOpen="False" Width="300">
                 <Border Background="{DynamicResource RegionBrush}" CornerRadius="4" Margin="16" Effect="{StaticResource EffectShadow2}">
                     <StackPanel Button.Click="ButtonSkins_OnClick">
                         <hc:Divider Width="250" Margin="0,10" Content="Application Theme"/>

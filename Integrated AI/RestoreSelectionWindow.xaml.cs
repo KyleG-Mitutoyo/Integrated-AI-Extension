@@ -38,8 +38,9 @@ namespace Integrated_AI
         private readonly string _backupRootPath;
         private DTE2 _dte;
         private WebView2 _webView; // Added WebView2 reference
+        private readonly string _selectedAiText; // The text selected in the AI chat WebView
 
-        public RestoreSelectionWindow(DTE2 dte, WebView2 webView, string backupRootPath)
+        public RestoreSelectionWindow(DTE2 dte, WebView2 webView, string backupRootPath, string selectedAiText = null)
         {
             InitializeComponent();
             NonClientAreaBackground = Brushes.Transparent;
@@ -47,8 +48,11 @@ namespace Integrated_AI
             _backupRootPath = backupRootPath;
             _dte = dte;
             _webView = webView;
+            _selectedAiText = selectedAiText;
             NavigateToUrl = false;
+
             PopulateBackupList();
+            SelectMatchingBackup();
 
             DiffContexts = null;
         }
@@ -69,7 +73,7 @@ namespace Integrated_AI
                         // Retrieve AI chat and AI code from metadata
                         var (aiCode, aiChat, url) = BackupUtilities.GetBackupMetadata(_backupRootPath, dir.Name);
                         string aiChatTag = string.IsNullOrEmpty(aiChat) ? "n/a" : aiChat.Length > 30 ? aiChat.Substring(0, 27) + "..." : aiChat;
-                        
+
                         backups.Add(new BackupItem
                         {
                             DisplayName = backupTime.ToString("MM-dd-yyyy hh:mm:ss tt"),
@@ -83,13 +87,75 @@ namespace Integrated_AI
                 }
             }
             BackupListBox.ItemsSource = backups;
+        }
 
-            // Select the first item by default to show AI code
-            if (backups.Count > 0)
+        // New method to find and select the best matching backup
+        private void SelectMatchingBackup()
+        {
+            var allBackups = BackupListBox.ItemsSource as List<BackupItem>;
+            if (allBackups == null || !allBackups.Any())
             {
-                BackupListBox.SelectedIndex = 0;
+                return; // No backups to select.
+            }
+
+            // Determine the list of backups to search within.
+            List<BackupItem> searchCandidates = allBackups;
+            string currentUrl = WebViewUtilities.GetCurrentUrl(_webView);
+
+            // If a current URL is provided, try to filter the backups.
+            if (!string.IsNullOrEmpty(currentUrl))
+            {
+                var urlMatchingBackups = allBackups.Where(b => b.Url == currentUrl).ToList();
+                if (urlMatchingBackups.Any())
+                {
+                    // If backups for the current URL exist, we will ONLY search within them.
+                    searchCandidates = urlMatchingBackups;
+                }
+                // If no backups for this URL exist, searchCandidates remains as allBackups (graceful fallback).
+            }
+
+            // If there's no selected text, just select the most recent backup from our search scope.
+            if (string.IsNullOrWhiteSpace(_selectedAiText))
+            {
+                BackupListBox.SelectedItem = searchCandidates.First(); // Already sorted descending by date.
+                BackupListBox.ScrollIntoView(searchCandidates.First());
+                return;
+            }
+
+            string normalizedSelection = StringUtil.NormalizeCodeSimple(_selectedAiText);
+
+            // Find all potential text matches within the candidate list.
+            var textMatchingCandidates = searchCandidates.Where(b =>
+                !string.IsNullOrEmpty(b.AICode) &&
+                (StringUtil.NormalizeCodeSimple(b.AICode).Contains(normalizedSelection) || normalizedSelection.Contains(StringUtil.NormalizeCodeSimple(b.AICode)))
+            ).ToList();
+
+            BackupItem itemToSelect;
+
+            if (!textMatchingCandidates.Any())
+            {
+                // No text match found, so select the most recent backup in the current search scope.
+                itemToSelect = searchCandidates.First();
+            }
+            else if (textMatchingCandidates.Count == 1)
+            {
+                // A single, perfect text match.
+                itemToSelect = textMatchingCandidates.First();
+            }
+            else
+            {
+                // Multiple text matches found, find the one with the smallest length difference.
+                itemToSelect = textMatchingCandidates.OrderBy(b => Math.Abs(StringUtil.NormalizeCodeSimple(b.AICode).Length - normalizedSelection.Length))
+                                                      .First();
+            }
+
+            if (itemToSelect != null)
+            {
+                BackupListBox.SelectedItem = itemToSelect;
+                BackupListBox.ScrollIntoView(itemToSelect);
             }
         }
+
 
         private void BackupListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {

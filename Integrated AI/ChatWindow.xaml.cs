@@ -653,7 +653,7 @@ namespace Integrated_AI
             
         }
 
-        private void RestoreButton_Click(object sender, RoutedEventArgs e)
+        private async void RestoreButton_Click(object sender, RoutedEventArgs e)
         {
             if (_dte.Solution == null || string.IsNullOrEmpty(_dte.Solution.FullName))
             {
@@ -665,7 +665,9 @@ namespace Integrated_AI
             CloseDiffButtonLogic();
 
             var solutionBackupsFolder = Path.Combine(_backupsFolder, BackupUtilities.GetUniqueSolutionFolder(_dte));
-            var restoreWindow = new RestoreSelectionWindow(_dte, ChatWebView, solutionBackupsFolder);
+            string selectedTextForSearch = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
+            MessageBox.Show(selectedTextForSearch, "Selected Text for Search", MessageBoxButton.OK, MessageBoxImage.Information);
+            var restoreWindow = new RestoreSelectionWindow(_dte, ChatWebView, solutionBackupsFolder, selectedTextForSearch);
             bool? result = restoreWindow.ShowDialog();
             // Show close diffs button if there are any diff contexts available
             if (restoreWindow.DiffContexts != null)

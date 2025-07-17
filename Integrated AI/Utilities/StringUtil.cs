@@ -120,6 +120,14 @@ namespace Integrated_AI.Utilities
             return string.Join("\n", lines);
         }
 
+        public static string NormalizeCodeSimple(string code)
+        {
+            if (string.IsNullOrEmpty(code)) return string.Empty;
+            // Simple normalization: remove all whitespace characters (spaces, tabs, newlines, etc.)
+            // This makes comparisons robust against formatting differences.
+            return new string(code.Where(c => !char.IsWhiteSpace(c)).ToArray());
+        }
+
         // Helper method to calculate similarity (Levenshtein distance-based)
         public static double CalculateSimilarity(string source, string target)
         {
