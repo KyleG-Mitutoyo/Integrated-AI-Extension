@@ -1,4 +1,6 @@
-﻿using Microsoft.VisualStudio.Shell;
+﻿using EnvDTE;
+using EnvDTE80;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using System;
 using System.Collections.Generic;
@@ -11,6 +13,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using static Integrated_AI.Utilities.DiffUtility;
 using MessageBox = HandyControl.Controls.MessageBox;
+using Process = System.Diagnostics.Process;
 
 namespace Integrated_AI.Utilities
 {
@@ -277,6 +280,86 @@ namespace Integrated_AI.Utilities
                 // Catch any errors (e.g., invalid path, permission issues)
                 return false;
             }
+        }
+
+        // Prompt user for a new file path using a dialog
+        public static string PromptForNewFilePath(DTE2 dte, string language = "cs")
+        {
+            // Use Windows Forms SaveFileDialog for simplicity
+            using (var dialog = new System.Windows.Forms.SaveFileDialog())
+            {
+                if (language == "vb")
+                {
+                    dialog.Filter = "VB Files (*.vb)|*.vb|All Files (*.*)|*.*";
+                    dialog.DefaultExt = "vb";
+                }
+                else
+                {
+                    dialog.Filter = "C# Files (*.cs)|*.cs|All Files (*.*)|*.*";
+                    dialog.DefaultExt = "cs";
+                }
+                dialog.Title = "Select Location for New File";
+                dialog.InitialDirectory = Path.GetDirectoryName(dte.Solution.FullName); // Start in solution directory
+
+                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    return dialog.FileName;
+                }
+            }
+            return null; // Return null if cancelled
+        }
+
+        // Create a new file in the solution and add AI-generated code
+        public static void CreateNewFileInSolution(DTE2 dte, string filePath, string aiCode)
+        {
+            try
+            {
+                // Ensure the directory exists
+                string directory = Path.GetDirectoryName(filePath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                // Write the AI-generated code to the new file
+                File.WriteAllText(filePath, aiCode);
+
+                // Add the file to the solution
+                Project project = FindProjectForPath(dte, directory);
+                if (project != null)
+                {
+                    project.ProjectItems.AddFromFile(filePath);
+                    WebViewUtilities.Log($"New file '{filePath}' added to project '{project.Name}'.");
+                }
+                else
+                {
+                    // Fallback: Add to the solution's Miscellaneous Files
+                    dte.ItemOperations.OpenFile(filePath);
+                    WebViewUtilities.Log($"New file '{filePath}' added as a miscellaneous file.");
+                }
+
+                // Open the new file in the editor
+                dte.ItemOperations.OpenFile(filePath);
+            }
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log($"Error creating new file: {ex.Message}");
+                //MessageBox.Show($"Error creating new file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Find the appropriate project for the given directory
+        public static Project FindProjectForPath(DTE2 dte, string directory)
+        {
+            foreach (Project project in dte.Solution.Projects)
+            {
+                string projectDir = Path.GetDirectoryName(project.FullName);
+                if (directory.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    return project;
+                }
+            }
+            return null; // No matching project found
         }
     }
 }

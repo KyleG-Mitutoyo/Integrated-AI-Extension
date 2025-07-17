@@ -30,18 +30,6 @@ using static Integrated_AI.Utilities.DiffUtility;
 using static Integrated_AI.WebViewUtilities;
 using MessageBox = HandyControl.Controls.MessageBox;
 
-//TODO: Show method previews on hover in function list box
-//AI chat text select to search for the matching restore point
-//Add error to AI------
-//Fix extension freezes when navigation fails, eg a captcha pops up------
-//Verify that freezes won't happen------
-//Test test test------
-//Make recent functions work per file
-//Make file list a treeview with folders and files, with a + button under each folder to make a new file there
-//Combine choosecodewindow and functionselectionwindow into a single window
-//Use better method to detect functions, clean up program flow for code replacement
-//In context menus for the toAI commands
-//Add code snippet option to choosecodewindow
 
 namespace Integrated_AI
 {
@@ -426,6 +414,11 @@ namespace Integrated_AI
             else if (_selectedOptionToVS == "Snippet -> VS")
             {
                 ToVSButton_ClickLogic(aiCode, pasteType: "snippet");
+            }
+
+            else if ( _selectedOptionToVS == "New File")
+            {
+                ToVSButton_ClickLogic(aiCode, pasteType: "new_file");
             }
         }
 

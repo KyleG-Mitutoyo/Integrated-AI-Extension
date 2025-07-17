@@ -104,15 +104,17 @@ namespace Integrated_AI
                 MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
-            if (dte.ActiveDocument == null)
+
+            // The "Error -> AI" option doesn't require an active document initially, so we check later.
+            if (option != "Error -> AI" && dte.ActiveDocument == null)
             {
                 MessageBox.Show("No active document in Visual Studio.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             string solutionPath = Path.GetDirectoryName(dte.Solution.FullName);
-            string filePath = dte.ActiveDocument.FullName;
-            string relativePath = FileUtil.GetRelativePath(solutionPath, filePath);
+            string filePath = dte.ActiveDocument?.FullName;
+            string relativePath = filePath != null ? FileUtil.GetRelativePath(solutionPath, filePath) : "";
 
             string functionName = null;
             string textToInject = null;
@@ -172,10 +174,48 @@ namespace Integrated_AI
                     return;
                 }
             }
-
             else if (option == "Error -> AI")
             {
-                MessageBox.Show("Error to AI not done yet.");
+                var errorList = CodeSelectionUtilities.GetErrorsFromDTE(dte);
+
+                if (errorList == null || !errorList.Any())
+                {
+                    MessageBox.Show("No errors found in the current solution.", "No Errors", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var errorSelectionWindow = new ErrorSelectionWindow(errorList);
+                if (errorSelectionWindow.ShowDialog() == true && errorSelectionWindow.SelectedError != null)
+                {
+                    var selectedError = errorSelectionWindow.SelectedError;
+
+                    selectedError.DteErrorItem.Navigate();
+
+                    EnvDTE.Window window = dte.ItemOperations.OpenFile(selectedError.FullFile);
+                    window.Activate(); // Ensure the window is focused
+
+                    var errorDocument = dte.ActiveDocument;
+                    if (errorDocument == null)
+                    {
+                        MessageBox.Show("Could not navigate to the error location.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+
+                    var textSelection = (TextSelection)errorDocument.Selection;
+                    textSelection.GotoLine(selectedError.Line);
+                    textSelection.SelectLine();
+                    string lineOfCode = textSelection.Text;
+                    textSelection.Cancel(); // Deselect the line in the editor
+
+                    string errorRelativePath = FileUtil.GetRelativePath(solutionPath, selectedError.FullFile);
+
+                    textToInject = $"Error: {selectedError.Description}\nCode:\n{lineOfCode.Trim()}";
+                    sourceDescription = $"\n---{errorRelativePath} (error on line {selectedError.Line})---\n{textToInject}\n---End code---\n\n";
+                }
+                else
+                {
+                    return; // User cancelled the selection.
+                }
             }
 
             if (textToInject != null)

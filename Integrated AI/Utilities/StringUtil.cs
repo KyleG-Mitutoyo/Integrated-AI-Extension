@@ -419,7 +419,7 @@ namespace Integrated_AI.Utilities
                 else if (chosenItem.Type == "new_file")
                 {
                     // Prompt user to select a location and file name
-                    string newFilePath = PromptForNewFilePath(dte, isVB ? "vb" : "cs");
+                    string newFilePath = FileUtil.PromptForNewFilePath(dte, isVB ? "vb" : "cs");
                     if (string.IsNullOrEmpty(newFilePath))
                     {
                         WebViewUtilities.Log("New file creation cancelled by user.");
@@ -427,7 +427,7 @@ namespace Integrated_AI.Utilities
                     }
 
                     // Create and add the new file to the solution
-                    CreateNewFileInSolution(dte, newFilePath, aiCode);
+                    FileUtil.CreateNewFileInSolution(dte, newFilePath, aiCode);
                     context.IsNewFile = true; // Indicate that a new file was created
 
                     // Since it's a new file, we don't modify the current document
@@ -760,86 +760,6 @@ namespace Integrated_AI.Utilities
             }
 
             return indent;
-        }
-
-        // Prompt user for a new file path using a dialog
-        private static string PromptForNewFilePath(DTE2 dte, string language = "cs")
-        {
-            // Use Windows Forms SaveFileDialog for simplicity
-            using (var dialog = new System.Windows.Forms.SaveFileDialog())
-            {
-                if (language == "vb")
-                {
-                    dialog.Filter = "VB Files (*.vb)|*.vb|All Files (*.*)|*.*";
-                    dialog.DefaultExt = "vb";
-                }
-                else
-                {
-                    dialog.Filter = "C# Files (*.cs)|*.cs|All Files (*.*)|*.*";
-                    dialog.DefaultExt = "cs";
-                }
-                dialog.Title = "Select Location for New File";
-                dialog.InitialDirectory = Path.GetDirectoryName(dte.Solution.FullName); // Start in solution directory
-
-                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-                {
-                    return dialog.FileName;
-                }
-            }
-            return null; // Return null if cancelled
-        }
-
-        // Create a new file in the solution and add AI-generated code
-        private static void CreateNewFileInSolution(DTE2 dte, string filePath, string aiCode)
-        {
-            try
-            {
-                // Ensure the directory exists
-                string directory = Path.GetDirectoryName(filePath);
-                if (!Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-
-                // Write the AI-generated code to the new file
-                File.WriteAllText(filePath, aiCode);
-
-                // Add the file to the solution
-                Project project = FindProjectForPath(dte, directory);
-                if (project != null)
-                {
-                    project.ProjectItems.AddFromFile(filePath);
-                    WebViewUtilities.Log($"New file '{filePath}' added to project '{project.Name}'.");
-                }
-                else
-                {
-                    // Fallback: Add to the solution's Miscellaneous Files
-                    dte.ItemOperations.OpenFile(filePath);
-                    WebViewUtilities.Log($"New file '{filePath}' added as a miscellaneous file.");
-                }
-
-                // Open the new file in the editor
-                dte.ItemOperations.OpenFile(filePath);
-            }
-            catch (Exception ex)
-            {
-                WebViewUtilities.Log($"Error creating new file: {ex.Message}");
-                //MessageBox.Show($"Error creating new file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        // Find the appropriate project for the given directory
-        private static Project FindProjectForPath(DTE2 dte, string directory)
-        {
-            foreach (Project project in dte.Solution.Projects)
-            {
-                string projectDir = Path.GetDirectoryName(project.FullName);
-                if (directory.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
-                {
-                    return project;
-                }
-            }
-            return null; // No matching project found
         }
 
         public static string RemoveBaseIndentation(string codeSnippet)

@@ -63,6 +63,7 @@
     <Compile Include="DebugWindow.xaml.cs">
       <DependentUpon>DebugWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="ErrorSelectionWindow.cs" />
     <Compile Include="FunctionSelectionWindow.xaml.cs">
       <DependentUpon>FunctionSelectionWindow.xaml</DependentUpon>
     </Compile>
@@ -167,6 +168,10 @@
     <Page Include="DebugWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="ErrorSelectionWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
     </Page>
     <Page Include="FunctionSelectionWindow.xaml">
       <SubType>Designer</SubType>

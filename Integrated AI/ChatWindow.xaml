@@ -50,6 +50,7 @@
                         <MenuItem Header="File -> VS" Click="MenuItemToVS_Click" Tag="File -> VS"/>
                         <MenuItem Header="Snippet -> VS" Click="MenuItemToVS_Click" Tag="Snippet -> VS"/>
                         <MenuItem Header="Function -> VS" Click="MenuItemToVS_Click" Tag="Function -> VS"/>
+                        <MenuItem Header="New File" Click="MenuItemToVS_Click" Tag="New File"/>
                     </StackPanel>
                 </hc:SplitButton.DropDownContent>
             </hc:SplitButton>
