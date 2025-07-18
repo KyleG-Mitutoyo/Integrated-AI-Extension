@@ -80,11 +80,13 @@ namespace Integrated_AI.Utilities
                     catch (Exception deleteEx)
                     {
                         // If cleanup also fails, inform the user to manually remove it.
+                        WebViewUtilities.Log($"Failed to clean up incomplete backup folder '{backupPath}': {deleteEx.Message}");
                         MessageBox.Show($"Backup failed: {ex.Message}\n\nAdditionally, failed to clean up the incomplete backup folder '{backupPath}'. Please remove it manually.\nCleanup error: {deleteEx.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                         return null;
                     }
                 }
 
+                WebViewUtilities.Log($"Backup failed: {ex.Message}");
                 MessageBox.Show($"Backup failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return null;
             }
@@ -93,21 +95,29 @@ namespace Integrated_AI.Utilities
         // Recursively copies project items
         private static void CopyProjectItems(ProjectItems items, Uri solutionUri, string backupRootPath)
         {
-            if (items == null) return;
-
-            foreach (ProjectItem item in items)
+            try
             {
-                // A ProjectItem can represent multiple files (e.g., for forms). FileNames are 1-indexed.
-                for (short i = 1; i <= item.FileCount; i++)
-                {
-                    CopyItem(item.FileNames[i], solutionUri, backupRootPath);
-                }
+                if (items == null) return;
 
-                // Recurse into sub-items or nested projects
-                if (item.ProjectItems != null && item.ProjectItems.Count > 0)
+                foreach (ProjectItem item in items)
                 {
-                    CopyProjectItems(item.ProjectItems, solutionUri, backupRootPath);
+                    // A ProjectItem can represent multiple files (e.g., for forms). FileNames are 1-indexed.
+                    for (short i = 1; i <= item.FileCount; i++)
+                    {
+                        CopyItem(item.FileNames[i], solutionUri, backupRootPath);
+                    }
+
+                    // Recurse into sub-items or nested projects
+                    if (item.ProjectItems != null && item.ProjectItems.Count > 0)
+                    {
+                        CopyProjectItems(item.ProjectItems, solutionUri, backupRootPath);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log("CopyProjectItems error");
+                return;
             }
         }
 
@@ -138,6 +148,7 @@ namespace Integrated_AI.Utilities
             }
             catch (Exception ex)
             {
+                WebViewUtilities.Log($"RestoreSolution error: {ex.Message}");
                 MessageBox.Show($"Restore failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return false;
             }
@@ -146,52 +157,68 @@ namespace Integrated_AI.Utilities
         // Copies all contents of a directory recursively, skipping unchanged files
         private static void CopyDirectory(string sourceDir, string targetDir)
         {
-            Directory.CreateDirectory(targetDir);
-
-            foreach (string file in Directory.GetFiles(sourceDir))
+            try
             {
-                // Skip metadata file during restore
-                if (Path.GetFileName(file) == "backup_metadata.json")
-                    continue;
+                Directory.CreateDirectory(targetDir);
 
-                string targetFile = Path.Combine(targetDir, Path.GetFileName(file));
-                bool shouldCopy = true;
-
-                // Check if target file exists and is identical
-                if (File.Exists(targetFile))
+                foreach (string file in Directory.GetFiles(sourceDir))
                 {
-                    var sourceInfo = new FileInfo(file);
-                    var targetInfo = new FileInfo(targetFile);
-                    // Skip if file size and last write time are the same
-                    if (sourceInfo.Length == targetInfo.Length && 
-                        sourceInfo.LastWriteTimeUtc == targetInfo.LastWriteTimeUtc)
+                    // Skip metadata file during restore
+                    if (Path.GetFileName(file) == "backup_metadata.json")
+                        continue;
+
+                    string targetFile = Path.Combine(targetDir, Path.GetFileName(file));
+                    bool shouldCopy = true;
+
+                    // Check if target file exists and is identical
+                    if (File.Exists(targetFile))
                     {
-                        shouldCopy = false;
+                        var sourceInfo = new FileInfo(file);
+                        var targetInfo = new FileInfo(targetFile);
+                        // Skip if file size and last write time are the same
+                        if (sourceInfo.Length == targetInfo.Length &&
+                            sourceInfo.LastWriteTimeUtc == targetInfo.LastWriteTimeUtc)
+                        {
+                            shouldCopy = false;
+                        }
+                    }
+
+                    if (shouldCopy)
+                    {
+                        File.Copy(file, targetFile, true);
                     }
                 }
 
-                if (shouldCopy)
+                foreach (string dir in Directory.GetDirectories(sourceDir))
                 {
-                    File.Copy(file, targetFile, true);
+                    string targetSubDir = Path.Combine(targetDir, Path.GetFileName(dir));
+                    CopyDirectory(dir, targetSubDir);
                 }
             }
-
-            foreach (string dir in Directory.GetDirectories(sourceDir))
+            catch (Exception ex)
             {
-                string targetSubDir = Path.Combine(targetDir, Path.GetFileName(dir));
-                CopyDirectory(dir, targetSubDir);
+                WebViewUtilities.Log("CopyDirectory error");
             }
         }
 
         public static string GetUniqueSolutionFolder(DTE2 dte)
         {
-            // Get the solution name and parent directory for unique folder naming
-            string solutionName = Path.GetFileNameWithoutExtension(dte.Solution.FullName); // e.g., "MySolution"
-            string solutionDir = Path.GetDirectoryName(dte.Solution.FullName); // e.g., "C:\Projects\ClientA"
-            string parentDir = Path.GetFileName(solutionDir); // e.g., "ClientA"
-            string uniqueSolutionFolder = $"{parentDir}_{solutionName}"; // e.g., "ClientA_MySolution"
+            try
+            {
+                // Get the solution name and parent directory for unique folder naming
+                string solutionName = Path.GetFileNameWithoutExtension(dte.Solution.FullName); // e.g., "MySolution"
+                string solutionDir = Path.GetDirectoryName(dte.Solution.FullName); // e.g., "C:\Projects\ClientA"
+                string parentDir = Path.GetFileName(solutionDir); // e.g., "ClientA"
+                string uniqueSolutionFolder = $"{parentDir}_{solutionName}"; // e.g., "ClientA_MySolution"
 
-            return uniqueSolutionFolder;
+                return uniqueSolutionFolder;
+            }
+            catch
+            {
+                WebViewUtilities.Log("GetUniqueSolutionFolder error");
+                return null;
+            }
+            
         }
 
         // Retrieves file paths and contents from a specific backup folder
@@ -201,6 +228,7 @@ namespace Integrated_AI.Utilities
             {
                 if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName) || string.IsNullOrEmpty(restorePoint))
                 {
+                    WebViewUtilities.Log("Invalid input: Solution or restore point is missing.");
                     MessageBox.Show("Invalid input: Solution or restore point is missing.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                     return new Dictionary<string, string>(); // Return empty dictionary instead of null
                 }
@@ -209,6 +237,7 @@ namespace Integrated_AI.Utilities
 
                 if (!Directory.Exists(backupPath))
                 {
+                    WebViewUtilities.Log($"Backup directory does not exist: {backupPath}");
                     MessageBox.Show($"Backup directory does not exist: {backupPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                     return new Dictionary<string, string>(); // Return empty dictionary instead of null
                 }
@@ -220,6 +249,7 @@ namespace Integrated_AI.Utilities
 
                 if (files.Count == 0)
                 {
+                    WebViewUtilities.Log($"No files found in backup directory: {backupPath}");
                     MessageBox.Show($"No files found in backup directory: {backupPath}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                 }
 
@@ -227,6 +257,7 @@ namespace Integrated_AI.Utilities
             }
             catch (Exception ex)
             {
+                WebViewUtilities.Log($"Error retrieving restore files: {ex.Message}");
                 MessageBox.Show($"Error retrieving restore files: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return new Dictionary<string, string>(); // Return empty dictionary instead of null
             }
@@ -256,6 +287,7 @@ namespace Integrated_AI.Utilities
             }
             catch (Exception ex)
             {
+                WebViewUtilities.Log($"Error retrieving backup metadata: {ex.Message}");
                 MessageBox.Show($"Error retrieving backup metadata: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return (null, null, null);
             }
@@ -263,22 +295,32 @@ namespace Integrated_AI.Utilities
 
         private static void CopyItem(string sourcePath, Uri solutionUri, string backupRootPath)
         {
-            if (string.IsNullOrEmpty(sourcePath) || !File.Exists(sourcePath)) return;
+            try
+            {
+                if (string.IsNullOrEmpty(sourcePath) || !File.Exists(sourcePath)) return;
 
-            Uri sourceUri = new Uri(sourcePath);
+                Uri sourceUri = new Uri(sourcePath);
 
-            // Get the file's path relative to the solution root.
-            string relativePath = Uri.UnescapeDataString(solutionUri.MakeRelativeUri(sourceUri).ToString().Replace('/', Path.DirectorySeparatorChar));
+                // Get the file's path relative to the solution root.
+                string relativePath = Uri.UnescapeDataString(solutionUri.MakeRelativeUri(sourceUri).ToString().Replace('/', Path.DirectorySeparatorChar));
 
 
-            // The target path is simply the backup root plus the item's relative path.
-            string targetPath = Path.Combine(backupRootPath, relativePath);
-            string targetItemDir = Path.GetDirectoryName(targetPath);
+                // The target path is simply the backup root plus the item's relative path.
+                string targetPath = Path.Combine(backupRootPath, relativePath);
+                string targetItemDir = Path.GetDirectoryName(targetPath);
 
-            if (!Directory.Exists(targetItemDir))
-                Directory.CreateDirectory(targetItemDir);
+                if (!Directory.Exists(targetItemDir))
+                    Directory.CreateDirectory(targetItemDir);
 
-            File.Copy(sourcePath, targetPath, true);
+                File.Copy(sourcePath, targetPath, true);
+            }
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log("CopyItem error");
+                return;
+            }
+
+            
         }
     }
 }

@@ -97,68 +97,7 @@ namespace Integrated_AI
             PopupConfig.Closed += PopupConfig_Closed;
         }
 
-        // This can occur multiple times 
-        private async void ChatWindow_Loaded(object sender, RoutedEventArgs e)
-        {
-            // Hook DTE events here
-            var events = _dte.Events;
-            _documentEvents = events.DocumentEvents;
-            _documentEvents.DocumentClosing -= OnDocumentClosing;
-            _documentEvents.DocumentClosing += OnDocumentClosing;
-
-            // Start the new, centralized initialization flow.
-            await InitializeWebViewAsync();
-        }
-
-
-
-        private void ChatWindow_Unloaded(object sender, RoutedEventArgs e)
-        {
-            if (_documentEvents != null)
-            {
-                _documentEvents.DocumentClosing -= OnDocumentClosing;
-            }
-        }
-
-        private void OnDocumentClosing(Document document)
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            WebViewUtilities.Log($"Document closing: {document.FullName}");
-        
-            // Single diff views are skipped
-            var singleDiffContext = _diffContext;
-            if (singleDiffContext != null &&
-                (document.FullName.Equals(singleDiffContext.TempCurrentFile, StringComparison.OrdinalIgnoreCase) ||
-                 document.FullName.Equals(singleDiffContext.TempAiFile, StringComparison.OrdinalIgnoreCase)))
-            {
-                return;
-            }
-        
-            // Check if the closing document is part of a multi-compare diff view
-            if (_diffContextsCompare != null && _diffContextsCompare.Any())
-            {
-                var contextToRemove = _diffContextsCompare.FirstOrDefault(ctx =>
-                    ctx.TempCurrentFile.Equals(document.FullName, StringComparison.OrdinalIgnoreCase) ||
-                    ctx.TempAiFile.Equals(document.FullName, StringComparison.OrdinalIgnoreCase));
-        
-                if (contextToRemove != null)
-                {
-                    WebViewUtilities.Log($"Cleaning up manually closed compare-diff view for: {contextToRemove.ActiveDocumentPath}");
-                    FileUtil.CleanUpTempFiles(contextToRemove);
-                    _diffContextsCompare.Remove(contextToRemove);
-        
-                    if (_diffContextsCompare.Count == 0)
-                    {
-                        WebViewUtilities.Log("All compare diff views now closed. Hiding buttons.");
-                        Dispatcher.Invoke(() =>
-                        {
-                            CloseDiffsButton.Visibility = Visibility.Collapsed;
-                            UseRestoreButton.Visibility = Visibility.Collapsed;
-                        });
-                    }
-                }
-            }
-        }
+        #region Helper Methods
 
         private void InitializeUrlSelector()
         {
@@ -185,8 +124,8 @@ namespace Integrated_AI
             }
             return string.Empty; // Return empty string if nothing is selected
         }
-   
-        
+
+
         private void ToVSButton_ClickLogic(string aiCode, string pasteType = null, string functionName = null)
         {
             ThreadHelper.Generic.BeginInvoke(() =>
@@ -194,18 +133,20 @@ namespace Integrated_AI
                 // Check if a diff window is already open. The new _isProcessingClipboardAction handles the race condition.
                 if (_diffContext != null)
                 {
-                    WebViewUtilities.Log("PasteButton_ClickLogic: Diff window already open. Aborting.");
+                    Log("PasteButton_ClickLogic: Diff window already open. Aborting.");
                     return;
                 }
 
                 if (_dte == null)
                 {
+                    Log("PasteButton_ClickLogic: DTE service not available.");
                     MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
                 if (string.IsNullOrEmpty(aiCode))
                 {
+                    Log("PasteButton_ClickLogic: No AI code retrieved from WebView or clipboard.");
                     MessageBox.Show("No code retrieved from clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
@@ -213,6 +154,7 @@ namespace Integrated_AI
                 var activeDocument = _dte.ActiveDocument;
                 if (activeDocument == null)
                 {
+                    Log("PasteButton_ClickLogic: No active document found.");
                     MessageBox.Show("No active document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
@@ -245,6 +187,146 @@ namespace Integrated_AI
             });
         }
 
+        private async void ExecuteToVSCommand()
+        {
+            try
+            {
+                if (_dte == null)
+                {
+                    Log("ExecuteToVSCommand: DTE service not available.");
+                    MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                //Get AI code either from selected text or the clipboard if no text is selected
+                string aiCode = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
+
+
+                if (aiCode == null || aiCode == "null" || string.IsNullOrEmpty(aiCode))
+                {
+                    aiCode = Clipboard.GetText(); // Fallback to clipboard text if WebView retrieval fails
+                                                  //Optional: check again if aicode is null or empty after clipboard retrieval
+                    WebViewUtilities.Log("ExecuteToVSCommand: Retrieved code from clipboard as WebView retrieval failed.");
+                }
+                else
+                {
+                    // Only remove base indentation if the AI code isn't from the clipboard
+                    aiCode = StringUtil.RemoveBaseIndentation(aiCode);
+                }
+
+                if (_selectedOptionToVS == "Function -> VS")
+                {
+                    // First need to find the function name from the AI code
+                    string functionName = null;
+                    string functionType = "function";
+                    string solutionPath = Path.GetDirectoryName(_dte.Solution.FullName);
+                    string filePath = _dte.ActiveDocument.FullName;
+                    string relativePath = FileUtil.GetRelativePath(solutionPath, filePath);
+
+                    var functions = CodeSelectionUtilities.GetFunctionsFromDocument(_dte.ActiveDocument);
+                    // Finding no functions means we treat it as a new function
+                    if (!functions.Any())
+                    {
+                        Log("SplitButtonToVS_Click: No functions found in the active document, treating as new function");
+                        ToVSButton_ClickLogic(aiCode, "new_function");
+                        return;
+                    }
+
+                    // If there are functions, show the selection window or auto match
+                    if (AutoFunctionMatch.IsChecked == true)
+                    {
+                        var (isFunction, analyzedFunctionName, isFullFile) = StringUtil.AnalyzeCodeBlock(_dte, _dte.ActiveDocument, aiCode);
+                        if (isFunction) functionName = analyzedFunctionName;
+                    }
+
+                    else
+                    {
+                        var functionSelectionWindow = new FunctionSelectionWindow(functions, FileUtil._recentFunctionsFilePath, relativePath, true);
+                        if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
+                        {
+                            functionType = functionSelectionWindow.SelectedFunction.DisplayName == "New Function" ? "new_function" : "function";
+                            functionName = functionSelectionWindow.SelectedFunction.DisplayName;
+                        }
+                        else
+                        {
+                            return;
+                        }
+                    }
+
+                    ToVSButton_ClickLogic(aiCode, functionType, functionName);
+                }
+
+                else if (_selectedOptionToVS == "File -> VS")
+                {
+                    ToVSButton_ClickLogic(aiCode, pasteType: "file");
+                }
+
+                else if (_selectedOptionToVS == "Snippet -> VS")
+                {
+                    ToVSButton_ClickLogic(aiCode, pasteType: "snippet");
+                }
+
+                else if (_selectedOptionToVS == "New File")
+                {
+                    ToVSButton_ClickLogic(aiCode, pasteType: "new_file");
+                }
+            }
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log($"ExecuteToVSCommand: Error executing {_selectedOptionToVS} - {ex.Message}");
+                MessageBox.Show($"Error executing {_selectedOptionToVS}: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+        }
+
+        private void UpdateButtonsForDiffView(bool showDiffButons)
+        {
+            if (showDiffButons)
+            {
+                VSToAISplitButton.Visibility = Visibility.Collapsed;
+                AIToVSSplitButton.Visibility = Visibility.Collapsed;
+                RestoreButton.Visibility = Visibility.Collapsed;
+                SaveBackupButton.Visibility = Visibility.Collapsed;
+                AcceptButton.Visibility = Visibility.Visible;
+                ChooseButton.Visibility = Visibility.Visible;
+                DeclineButton.Visibility = Visibility.Visible;
+            }
+
+            else
+            {
+                VSToAISplitButton.Visibility = Visibility.Visible;
+                AIToVSSplitButton.Visibility = Visibility.Visible;
+                RestoreButton.Visibility = Visibility.Visible;
+                SaveBackupButton.Visibility = Visibility.Visible;
+                AcceptButton.Visibility = Visibility.Collapsed;
+                ChooseButton.Visibility = Visibility.Collapsed;
+                DeclineButton.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void CloseDiffButtonLogic()
+        {
+            if (_diffContextsCompare == null)
+            {
+                CloseDiffsButton.Visibility = Visibility.Collapsed; // Hide the button if no diffs are open
+                UseRestoreButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+            // To avoid issues with modifying the collection while iterating, create a copy
+            var contextsToClose = new List<DiffContext>(_diffContextsCompare);
+            foreach (var diffContext in contextsToClose)
+            {
+                DiffUtility.CloseDiffAndReset(diffContext);
+            }
+            _diffContextsCompare.Clear();
+            CloseDiffsButton.Visibility = Visibility.Collapsed; // Hide the button after closing diffs
+            UseRestoreButton.Visibility = Visibility.Collapsed;
+        }
+
+        #endregion
+
+        #region UI interactions
+
         private void UrlSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             // ---- THE FIX ----
@@ -269,6 +351,7 @@ namespace Integrated_AI
                 }
                 catch (UriFormatException ex)
                 {
+                    Log($"Invalid URL '{selectedOption.Url}': {ex.Message}");
                     MessageBox.Show($"Invalid URL '{selectedOption.Url}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
@@ -339,277 +422,225 @@ namespace Integrated_AI
             }
         }
 
-        private async void ExecuteToVSCommand()
-        {
-            if (_dte == null)
-            {
-                MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            //Get AI code either from selected text or the clipboard if no text is selected
-            string aiCode = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
-
-
-            if (aiCode == null || aiCode == "null" || string.IsNullOrEmpty(aiCode))
-            {
-                aiCode = Clipboard.GetText(); // Fallback to clipboard text if WebView retrieval fails
-                                                //Optional: check again if aicode is null or empty after clipboard retrieval
-                WebViewUtilities.Log("SplitButtonToVS_Click: Retrieved code from clipboard as WebView retrieval failed.");
-            }
-            else
-            {
-                // Only remove base indentation if the AI code isn't from the clipboard
-                aiCode = StringUtil.RemoveBaseIndentation(aiCode);
-            }
-
-            if (_selectedOptionToVS == "Function -> VS")
-            {
-                // First need to find the function name from the AI code
-                string functionName = null;
-                string functionType = "function";
-                string solutionPath = Path.GetDirectoryName(_dte.Solution.FullName);
-                string filePath = _dte.ActiveDocument.FullName;
-                string relativePath = FileUtil.GetRelativePath(solutionPath, filePath);
-
-                var functions = CodeSelectionUtilities.GetFunctionsFromDocument(_dte.ActiveDocument);
-                // Finding no functions means we treat it as a new function
-                if (!functions.Any())
-                {
-                    Log("SplitButtonToVS_Click: No functions found in the active document, treating as new function");
-                    ToVSButton_ClickLogic(aiCode, "new_function");
-                    return;
-                }
-
-                // If there are functions, show the selection window or auto match
-                if (AutoFunctionMatch.IsChecked == true)
-                {
-                    var (isFunction, analyzedFunctionName, isFullFile) = StringUtil.AnalyzeCodeBlock(_dte, _dte.ActiveDocument, aiCode);
-                    if (isFunction) functionName = analyzedFunctionName;
-                }
-
-                else
-                {
-                    var functionSelectionWindow = new FunctionSelectionWindow(functions, FileUtil._recentFunctionsFilePath, relativePath, true);
-                    if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
-                    {
-                        functionType = functionSelectionWindow.SelectedFunction.DisplayName == "New Function" ? "new_function" : "function";
-                        functionName = functionSelectionWindow.SelectedFunction.DisplayName;
-                        MessageBox.Show($"Selected function: {functionName}", "Function Selected", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
-                    else
-                    {
-                        return;
-                    }
-                }
-
-                ToVSButton_ClickLogic(aiCode, functionType, functionName);
-            }
-
-            else if (_selectedOptionToVS == "File -> VS")
-            {
-                ToVSButton_ClickLogic(aiCode, pasteType: "file");
-            }
-
-            else if (_selectedOptionToVS == "Snippet -> VS")
-            {
-                ToVSButton_ClickLogic(aiCode, pasteType: "snippet");
-            }
-
-            else if ( _selectedOptionToVS == "New File")
-            {
-                ToVSButton_ClickLogic(aiCode, pasteType: "new_file");
-            }
-        }
-
         private void AcceptButton_Click(object sender, RoutedEventArgs e)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            string aiCodeFullFile = null;
-            var contextToClose = _diffContext;
-            var documentToModify = _dte.Documents.Item(contextToClose.ActiveDocumentPath);
-
-            // Capture the cursor's position BEFORE the document is modified.
-            int originalLine = -1;
-            int originalColumn = -1;
-            if (documentToModify != null)
+            try
             {
-                try
+                string aiCodeFullFile = null;
+                var contextToClose = _diffContext;
+                var documentToModify = _dte.Documents.Item(contextToClose.ActiveDocumentPath);
+
+                // Capture the cursor's position BEFORE the document is modified.
+                int originalLine = -1;
+                int originalColumn = -1;
+                if (documentToModify != null)
                 {
-                    var textDocument = (TextDocument)documentToModify.Object("TextDocument");
-                    var selection = textDocument.Selection;
-                    originalLine = selection.ActivePoint.Line;
-                    originalColumn = selection.ActivePoint.LineCharOffset;
+                    try
+                    {
+                        var textDocument = (TextDocument)documentToModify.Object("TextDocument");
+                        var selection = textDocument.Selection;
+                        originalLine = selection.ActivePoint.Line;
+                        originalColumn = selection.ActivePoint.LineCharOffset;
+                    }
+                    catch (Exception ex)
+                    {
+                        WebViewUtilities.Log($"Error getting original cursor position: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
+
+                if (contextToClose?.TempAiFile != null && File.Exists(contextToClose.TempAiFile))
                 {
-                    WebViewUtilities.Log($"Error getting original cursor position: {ex.Message}");
+                    aiCodeFullFile = FileUtil.GetAICode(contextToClose.TempAiFile);
+                    if (string.IsNullOrEmpty(aiCodeFullFile))
+                    {
+                        WebViewUtilities.Log("AcceptButton_Click: AI code is empty.");
+                    }
                 }
-            }
-
-            if (contextToClose?.TempAiFile != null && File.Exists(contextToClose.TempAiFile))
-            {
-                aiCodeFullFile = FileUtil.GetAICode(contextToClose.TempAiFile);
-                if (string.IsNullOrEmpty(aiCodeFullFile))
+                else
                 {
-                    WebViewUtilities.Log("AcceptButton_Click: AI code is empty.");
+                    WebViewUtilities.Log("AcceptButton_Click: No valid diff context or temp file.");
                 }
-            }
-            else
-            {
-                WebViewUtilities.Log("AcceptButton_Click: No valid diff context or temp file.");
-            }
 
 
-            if (contextToClose != null)
-            {
-                DiffUtility.CloseDiffAndReset(contextToClose);
-                _diffContext = null;
-            }
-
-            // Make sure to use the ActiveDocument from the diffcontext rather than the current active document!
-            if (aiCodeFullFile != null && _dte != null)
-            {
-                if (contextToClose.ActiveDocumentPath != null)
+                if (contextToClose != null)
                 {
-                    DiffUtility.ApplyChanges(_dte, documentToModify, aiCodeFullFile);
+                    DiffUtility.CloseDiffAndReset(contextToClose);
+                    _diffContext = null;
                 }
-            }
 
-            // A backup of the solution files are created for every accept button click, if enabled.
-            if (AutoRestore.IsChecked == true)
-            {
-                // If we want to add the code extension to get syntax highlghting in the restore window
-                // we'd use documentToModify file extension
-                string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
-                BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, contextToClose.AICodeBlock, GetUrlSelectorText(), currentUrl);
-            }
-            
-            // Save the document after making the backup
-            documentToModify?.Save();
-            WebViewUtilities.Log($"ApplyChanges: Successfully saved '{contextToClose.ActiveDocumentPath}'.");
-
-            // Scroll to the original cursor position
-            if (documentToModify != null && originalLine > 0 && originalColumn > 0)
-            {
-                try
+                // Make sure to use the ActiveDocument from the diffcontext rather than the current active document!
+                if (aiCodeFullFile != null && _dte != null)
                 {
-                    var textDocument = (TextDocument)documentToModify.Object("TextDocument");
-                    var selection = textDocument.Selection;
-
-                    // Move the cursor back to the original position
-                    selection.MoveTo(originalLine, originalColumn);
-
-                    // Center the view on the cursor
-                    selection.ActivePoint.TryToShow(vsPaneShowHow.vsPaneShowCentered, null);
-                    WebViewUtilities.Log($"Scrolled to original cursor position at line {originalLine}, column {originalColumn}.");
+                    if (contextToClose.ActiveDocumentPath != null)
+                    {
+                        DiffUtility.ApplyChanges(_dte, documentToModify, aiCodeFullFile);
+                    }
                 }
-                catch (Exception ex)
+
+                // A backup of the solution files are created for every accept button click, if enabled.
+                if (AutoRestore.IsChecked == true)
                 {
-                    // The original line/column might not exist if the file changed drastically.
-                    WebViewUtilities.Log($"Error scrolling to original cursor position (line {originalLine}, column {originalColumn}): {ex.Message}");
+                    // If we want to add the code extension to get syntax highlghting in the restore window
+                    // we'd use documentToModify file extension
+                    string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
+                    BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, contextToClose.AICodeBlock, GetUrlSelectorText(), currentUrl);
+                }
+
+                // Save the document after making the backup
+                documentToModify?.Save();
+                WebViewUtilities.Log($"ApplyChanges: Successfully saved '{contextToClose.ActiveDocumentPath}'.");
+
+                // Scroll to the original cursor position
+                if (documentToModify != null && originalLine > 0 && originalColumn > 0)
+                {
+                    try
+                    {
+                        var textDocument = (TextDocument)documentToModify.Object("TextDocument");
+                        var selection = textDocument.Selection;
+
+                        // Move the cursor back to the original position
+                        selection.MoveTo(originalLine, originalColumn);
+
+                        // Center the view on the cursor
+                        selection.ActivePoint.TryToShow(vsPaneShowHow.vsPaneShowCentered, null);
+                        WebViewUtilities.Log($"Scrolled to original cursor position at line {originalLine}, column {originalColumn}.");
+                    }
+                    catch (Exception ex)
+                    {
+                        // The original line/column might not exist if the file changed drastically.
+                        WebViewUtilities.Log($"Error scrolling to original cursor position (line {originalLine}, column {originalColumn}): {ex.Message}");
+                    }
                 }
             }
-
-            UpdateButtonsForDiffView(false);
-        }
-
-        private void ChooseButton_Click(object sender, RoutedEventArgs e)
-        {
-            // Capture necessary data from the existing context before it gets reset.
-            if (_diffContext == null || _diffContext.ActiveDocumentPath == null || string.IsNullOrEmpty(_diffContext.AICodeBlock))
+            catch (Exception ex)
             {
-                // Not enough info to proceed. Reset UI and state.
-                UpdateButtonsForDiffView(false);
+                WebViewUtilities.Log($"AcceptButton_Click: Error in AcceptButton_Click - {ex.Message}");
+                MessageBox.Show($"Error in AcceptButton_Click: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                // If an error occurs, we should still try to clean up the diff context
                 if (_diffContext != null)
                 {
                     DiffUtility.CloseDiffAndReset(_diffContext);
                     _diffContext = null;
                 }
-                return;
             }
-
-            string originalDocPath = _diffContext.ActiveDocumentPath;
-            string aiCode = _diffContext.AICodeBlock;
-            var activeDocument = _dte.Documents.Item(originalDocPath);
-
-            // Show the code replacement window. This now uses a valid Document object.
-            // The temp files are passed in so they will be skipped in the ChooseCodeWindow.
-            var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument, _diffContext?.TempCurrentFile, _diffContext?.TempAiFile);
-            if (selectedItem == null)
+            finally
             {
-                // User cancelled the selection. Go back to the diff view that's still open.
-                return;
-            }
-
-            // First, close the existing diff view. This will invalidate the old _diffContext.ActiveDocument reference.
-            DiffUtility.CloseDiffAndReset(_diffContext);
-
-            if (activeDocument == null) {
-                MessageBox.Show($"Could not re-acquire a handle to document: {originalDocPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                // This ensures the buttons are always reset, regardless of success or failure.
                 UpdateButtonsForDiffView(false);
-                return;
-            }
-            activeDocument.Activate(); // Good practice to ensure it's the active document.
-
-            string currentCode = DiffUtility.GetDocumentText(activeDocument);
-            if (currentCode == null)
-            {
-                MessageBox.Show("Unable to retrieve current code from document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                UpdateButtonsForDiffView(false);
-                return;
             }
 
+        }
 
-            // --- START: BUG FIX ---
-            // Default to the active document, but check if the user selected a different file.
-            Document targetDoc = activeDocument;
-            string codeToModify = currentCode;
-
-            // If the user chose a specific file, update the target document and its code.
-            if (selectedItem.Type == "file" || selectedItem.Type == "opened_file")
+        private void ChooseButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
             {
-                string targetFilePath = selectedItem.FilePath;
-                try
+                // Capture necessary data from the existing context before it gets reset.
+                if (_diffContext == null || _diffContext.ActiveDocumentPath == null || string.IsNullOrEmpty(_diffContext.AICodeBlock))
                 {
-                    // Attempt to get the document if open, otherwise open it.
-                    targetDoc = _dte.Documents.Item(targetFilePath);
+                    // Not enough info to proceed. Reset UI and state.
+                    UpdateButtonsForDiffView(false);
+                    if (_diffContext != null)
+                    {
+                        DiffUtility.CloseDiffAndReset(_diffContext);
+                        _diffContext = null;
+                    }
+                    return;
                 }
-                catch (ArgumentException) // Not open, so open it
+
+                string originalDocPath = _diffContext.ActiveDocumentPath;
+                string aiCode = _diffContext.AICodeBlock;
+                var activeDocument = _dte.Documents.Item(originalDocPath);
+
+                // Show the code replacement window. This now uses a valid Document object.
+                // The temp files are passed in so they will be skipped in the ChooseCodeWindow.
+                var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument, _diffContext?.TempCurrentFile, _diffContext?.TempAiFile);
+                if (selectedItem == null)
                 {
+                    // User cancelled the selection. Go back to the diff view that's still open.
+                    return;
+                }
+
+                // First, close the existing diff view. This will invalidate the old _diffContext.ActiveDocument reference.
+                DiffUtility.CloseDiffAndReset(_diffContext);
+
+                if (activeDocument == null)
+                {
+                    Log($"ChooseButton_Click: Active document not found for path: {originalDocPath}");
+                    MessageBox.Show($"Could not re-acquire a handle to document: {originalDocPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    UpdateButtonsForDiffView(false);
+                    return;
+                }
+                activeDocument.Activate(); // Good practice to ensure it's the active document.
+
+                string currentCode = DiffUtility.GetDocumentText(activeDocument);
+                if (currentCode == null)
+                {
+                    Log("ChooseButton_Click: Unable to retrieve current code from document.");
+                    MessageBox.Show("Unable to retrieve current code from document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    UpdateButtonsForDiffView(false);
+                    return;
+                }
+
+
+                // --- START: BUG FIX ---
+                // Default to the active document, but check if the user selected a different file.
+                Document targetDoc = activeDocument;
+                string codeToModify = currentCode;
+
+                // If the user chose a specific file, update the target document and its code.
+                if (selectedItem.Type == "file" || selectedItem.Type == "opened_file")
+                {
+                    string targetFilePath = selectedItem.FilePath;
                     try
                     {
-                        _dte.ItemOperations.OpenFile(targetFilePath);
+                        // Attempt to get the document if open, otherwise open it.
                         targetDoc = _dte.Documents.Item(targetFilePath);
                     }
-                    catch (Exception ex)
+                    catch (ArgumentException) // Not open, so open it
                     {
-                        MessageBox.Show($"Error opening selected file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        return;
+                        try
+                        {
+                            _dte.ItemOperations.OpenFile(targetFilePath);
+                            targetDoc = _dte.Documents.Item(targetFilePath);
+                        }
+                        catch (Exception ex)
+                        {
+                            WebViewUtilities.Log($"ChooseButton_Click: Error opening selected file '{targetFilePath}': {ex.Message}");
+                            MessageBox.Show($"Error opening selected file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            return;
+                        }
                     }
+
+                    // Retrieve the code from the now-targeted document.
+                    codeToModify = DiffUtility.GetDocumentText(targetDoc);
                 }
+                // --- END: BUG FIX ---
 
-                // Retrieve the code from the now-targeted document.
-                codeToModify = DiffUtility.GetDocumentText(targetDoc);
+                // Create a new context for the new diff view, following the pattern in PasteButton_ClickLogic.
+                var newDiffContext = new DiffUtility.DiffContext { };
+
+                // Calculate the modified code based on the user's selection, using the correct target document and code.
+                string modifiedCode = StringUtil.CreateDocumentContent(_dte, codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
+
+                // Open a new diff view and assign the fully populated context to our member field.
+                _diffContext = DiffUtility.OpenDiffView(targetDoc, codeToModify, modifiedCode, aiCode, newDiffContext);
+
+                // If opening the diff view failed, reset the UI.
+                if (_diffContext == null)
+                {
+                    UpdateButtonsForDiffView(false);
+                }
+                // If successful, the UI remains in the "diff view open" state with the new diff.
             }
-            // --- END: BUG FIX ---
-
-            // Create a new context for the new diff view, following the pattern in PasteButton_ClickLogic.
-            var newDiffContext = new DiffUtility.DiffContext { };
-
-            // Calculate the modified code based on the user's selection, using the correct target document and code.
-            string modifiedCode = StringUtil.CreateDocumentContent(_dte, codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
-
-            // Open a new diff view and assign the fully populated context to our member field.
-            _diffContext = DiffUtility.OpenDiffView(targetDoc, codeToModify, modifiedCode, aiCode, newDiffContext);
-
-            // If opening the diff view failed, reset the UI.
-            if (_diffContext == null)
+            catch (Exception ex)
             {
+                WebViewUtilities.Log($"ChooseButton_Click: Error in ChooseButton_Click - {ex.Message}");
+                MessageBox.Show($"Error in ChooseButton_Click: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 UpdateButtonsForDiffView(false);
             }
-            // If successful, the UI remains in the "diff view open" state with the new diff.
         }
 
         private void DeclineButton_Click(object sender, RoutedEventArgs e)
@@ -623,40 +654,16 @@ namespace Integrated_AI
             UpdateButtonsForDiffView(false);
         }
 
-        private void UpdateButtonsForDiffView(bool showDiffButons)
-        {
-            if (showDiffButons)
-            {
-                VSToAISplitButton.Visibility = Visibility.Collapsed;
-                AIToVSSplitButton.Visibility = Visibility.Collapsed;
-                RestoreButton.Visibility = Visibility.Collapsed;
-                SaveBackupButton.Visibility = Visibility.Collapsed;
-                AcceptButton.Visibility = Visibility.Visible;
-                ChooseButton.Visibility = Visibility.Visible;
-                DeclineButton.Visibility = Visibility.Visible;
-            }
-
-            else
-            {
-                VSToAISplitButton.Visibility = Visibility.Visible;
-                AIToVSSplitButton.Visibility = Visibility.Visible;
-                RestoreButton.Visibility = Visibility.Visible;
-                SaveBackupButton.Visibility = Visibility.Visible;
-                AcceptButton.Visibility = Visibility.Collapsed;
-                ChooseButton.Visibility = Visibility.Collapsed;
-                DeclineButton.Visibility = Visibility.Collapsed;
-            }
-        }
-
         private async void DebugButton_Click(object sender, RoutedEventArgs e)
         {
-            
+
         }
 
         private async void RestoreButton_Click(object sender, RoutedEventArgs e)
         {
             if (_dte.Solution == null || string.IsNullOrEmpty(_dte.Solution.FullName))
             {
+                Log("RestoreButton_Click: No solution is currently open.");
                 MessageBox.Show("No solution is currently open to restore.", "Error", MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.None);
                 return;
             }
@@ -666,7 +673,7 @@ namespace Integrated_AI
 
             var solutionBackupsFolder = Path.Combine(_backupsFolder, BackupUtilities.GetUniqueSolutionFolder(_dte));
             string selectedTextForSearch = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
-            MessageBox.Show(selectedTextForSearch, "Selected Text for Search", MessageBoxButton.OK, MessageBoxImage.Information);
+
             var restoreWindow = new RestoreSelectionWindow(_dte, ChatWebView, solutionBackupsFolder, selectedTextForSearch);
             bool? result = restoreWindow.ShowDialog();
             // Show close diffs button if there are any diff contexts available
@@ -684,6 +691,7 @@ namespace Integrated_AI
                     string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
                     if (BackupUtilities.RestoreSolution(_dte, restoreWindow.SelectedBackup.FolderPath, solutionDir))
                     {
+                        Log("RestoreButton_Click: Solution restored successfully.");
                         MessageBox.Show("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
                     }
                 }
@@ -700,7 +708,7 @@ namespace Integrated_AI
                     // 1. Find the UrlOption object that matches the DisplayName from the backup.
                     var optionToSelect = (UrlSelector.ItemsSource as List<UrlOption>)
                         ?.FirstOrDefault(option => option.DisplayName == restoreWindow.SelectedBackup.AIChatTag);
-                    
+
                     if (optionToSelect != null)
                     {
                         // 2. Temporarily unsubscribe from the event.
@@ -724,13 +732,22 @@ namespace Integrated_AI
 
         private void SaveBackupButton_Click(object sender, RoutedEventArgs e)
         {
-            string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
-            string path = BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, "(Manual save: No AI code available.)", GetUrlSelectorText(), currentUrl);
-
-            if (path != null)
+            try
             {
-                string lastFolder = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar));
-                MessageBox.Show($"Backup created successfully: {lastFolder}", "Success");
+                string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
+                string path = BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, "(Manual save: No AI code available.)", GetUrlSelectorText(), currentUrl);
+
+                if (path != null)
+                {
+                    string lastFolder = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar));
+                    WebViewUtilities.Log($"Manual backup created at: {path}");
+                    MessageBox.Show($"Backup created successfully: {lastFolder}", "Success");
+                }
+            }
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log($"Error creating manual backup: {ex.ToString()}");
+                MessageBox.Show($"Failed to create backup: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -739,34 +756,26 @@ namespace Integrated_AI
             CloseDiffButtonLogic();
         }
 
-        private void CloseDiffButtonLogic()
-        {
-            if (_diffContextsCompare == null)
-            {
-                CloseDiffsButton.Visibility = Visibility.Collapsed; // Hide the button if no diffs are open
-                UseRestoreButton.Visibility = Visibility.Collapsed;
-                return;
-            }
-            // To avoid issues with modifying the collection while iterating, create a copy
-            var contextsToClose = new List<DiffContext>(_diffContextsCompare);
-            foreach (var diffContext in contextsToClose)
-            {
-                DiffUtility.CloseDiffAndReset(diffContext);
-            }
-            _diffContextsCompare.Clear();
-            CloseDiffsButton.Visibility = Visibility.Collapsed; // Hide the button after closing diffs
-            UseRestoreButton.Visibility = Visibility.Collapsed;
-        }
-
         private void UseRestoreButton_Click(object sender, RoutedEventArgs e)
         {
-            string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
-            if (BackupUtilities.RestoreSolution(_dte, _selectedBackup.FolderPath, solutionDir))
+            try
             {
-                MessageBox.Show("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
+                if (BackupUtilities.RestoreSolution(_dte, _selectedBackup.FolderPath, solutionDir))
+                {
+                    Log("Solution restored successfully from backup.");
+                    MessageBox.Show("Solution restored successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
             }
-
-            CloseDiffButtonLogic();
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log($"Error restoring solution from backup: {ex.ToString()}");
+                MessageBox.Show($"Failed to restore solution: {ex.Message}", "Restore Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                CloseDiffButtonLogic();
+            }
         }
 
         private void ButtonConfig_Click(object sender, RoutedEventArgs e) => PopupConfig.IsOpen = true;
@@ -778,6 +787,102 @@ namespace Integrated_AI
                 if (button.Tag is ApplicationTheme themeTag)
                 {
                     ThemeUtility.ChangeTheme(themeTag);
+                }
+            }
+        }
+
+        private void OpenLogButton_Click(object sender, RoutedEventArgs e)
+        {
+            var logWindow = new LogWindow(PopupConfig);
+
+            logWindow.Show();
+        }
+
+        private void TestWebMessageButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ChatWebView?.CoreWebView2 == null)
+            {
+                WebViewUtilities.Log("TestWebMessageButton_Click: CoreWebView2 is not initialized.");
+                MessageBox.Show("CoreWebView2 is not initialized.", "Error");
+                return;
+            }
+
+            try
+            {
+                // This script will execute inside the WebView and send a message back to us.
+                ChatWebView.CoreWebView2.ExecuteScriptAsync("window.chrome.webview.postMessage('manual_test_signal')");
+                WebViewUtilities.Log("Manually sent 'manual_test_signal' to WebView.");
+            }
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log($"TestWebMessageButton_Click: Failed to execute script - {ex.Message}");
+                MessageBox.Show($"Failed to execute script: {ex.Message}", "Error");
+            }
+        }
+
+        #endregion
+
+        #region Events
+
+        // This can occur multiple times 
+        private async void ChatWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Hook DTE events here
+            var events = _dte.Events;
+            _documentEvents = events.DocumentEvents;
+            _documentEvents.DocumentClosing -= OnDocumentClosing;
+            _documentEvents.DocumentClosing += OnDocumentClosing;
+
+            // Start the new, centralized initialization flow.
+            await InitializeWebViewAsync();
+        }
+
+
+
+        private void ChatWindow_Unloaded(object sender, RoutedEventArgs e)
+        {
+            if (_documentEvents != null)
+            {
+                _documentEvents.DocumentClosing -= OnDocumentClosing;
+            }
+        }
+
+        private void OnDocumentClosing(Document document)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            WebViewUtilities.Log($"Document closing: {document.FullName}");
+
+            // Single diff views are skipped
+            var singleDiffContext = _diffContext;
+            if (singleDiffContext != null &&
+                (document.FullName.Equals(singleDiffContext.TempCurrentFile, StringComparison.OrdinalIgnoreCase) ||
+                 document.FullName.Equals(singleDiffContext.TempAiFile, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            // Check if the closing document is part of a multi-compare diff view
+            if (_diffContextsCompare != null && _diffContextsCompare.Any())
+            {
+                var contextToRemove = _diffContextsCompare.FirstOrDefault(ctx =>
+                    ctx.TempCurrentFile.Equals(document.FullName, StringComparison.OrdinalIgnoreCase) ||
+                    ctx.TempAiFile.Equals(document.FullName, StringComparison.OrdinalIgnoreCase));
+
+                if (contextToRemove != null)
+                {
+                    WebViewUtilities.Log($"Cleaning up manually closed compare-diff view for: {contextToRemove.ActiveDocumentPath}");
+                    FileUtil.CleanUpTempFiles(contextToRemove);
+                    _diffContextsCompare.Remove(contextToRemove);
+
+                    if (_diffContextsCompare.Count == 0)
+                    {
+                        WebViewUtilities.Log("All compare diff views now closed. Hiding buttons.");
+                        Dispatcher.Invoke(() =>
+                        {
+                            CloseDiffsButton.Visibility = Visibility.Collapsed;
+                            UseRestoreButton.Visibility = Visibility.Collapsed;
+                        });
+                    }
                 }
             }
         }
@@ -810,20 +915,29 @@ namespace Integrated_AI
                 // to give the OS time to propagate the change.
                 Dispatcher.Invoke(async () => 
                 {
-                    // Give the OS a moment to finish the clipboard write.
-                    await Task.Delay(100); 
-
-                    if (_diffContext != null) return;
-
-                    string clipboardText = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty;
-
-                    if (!string.IsNullOrEmpty(clipboardText))
+                    try // Add try block here
                     {
-                        ToVSButton_ClickLogic(clipboardText);
+                        await Task.Delay(100);
+
+                        if (_diffContext != null) return;
+
+                        // Clipboard.GetText() can throw
+                        string clipboardText = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty;
+
+                        if (!string.IsNullOrEmpty(clipboardText))
+                        {
+                            ToVSButton_ClickLogic(clipboardText);
+                        }
+                        else
+                        {
+                            WebViewUtilities.Log("Signal received, but clipboard was empty after delay.");
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        WebViewUtilities.Log("Signal received, but clipboard was empty after delay.");
+                        // Catch exceptions from clipboard access or ToVSButton_ClickLogic
+                        WebViewUtilities.Log($"Error processing web message signal: {ex.Message}");
+                        MessageBox.Show($"An error occurred while processing the code from the chat window: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 });
             }
@@ -896,35 +1010,14 @@ namespace Integrated_AI
                 {
                     errorMessage += " Please check your internet connection.";
                 }
+
+                WebViewUtilities.Log(errorMessage);
                 MessageBox.Show(errorMessage, "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
-        private void OpenLogButton_Click(object sender, RoutedEventArgs e)
-        {
-            var logWindow = new LogWindow();
+        #endregion
 
-            logWindow.Show();
-        }
-
-        private void TestWebMessageButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (ChatWebView?.CoreWebView2 == null)
-            {
-                MessageBox.Show("CoreWebView2 is not initialized.", "Error");
-                return;
-            }
-
-            try
-            {
-                // This script will execute inside the WebView and send a message back to us.
-                ChatWebView.CoreWebView2.ExecuteScriptAsync("window.chrome.webview.postMessage('manual_test_signal')");
-                WebViewUtilities.Log("Manually sent 'manual_test_signal' to WebView.");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Failed to execute script: {ex.Message}", "Error");
-            }
-        }
+        
     }
 }

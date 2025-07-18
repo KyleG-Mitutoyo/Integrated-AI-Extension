@@ -100,129 +100,145 @@ namespace Integrated_AI
 
         public static async Task ExecuteCommandAsync(string option, DTE2 dte, WebView2 chatWebView, string userDataFolder)
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            if (dte == null)
+            try
             {
-                MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            // The "Error -> AI" option doesn't require an active document initially, so we check later.
-            if (option != "Error -> AI" && dte.ActiveDocument == null)
-            {
-                MessageBox.Show("No active document in Visual Studio.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            string solutionPath = Path.GetDirectoryName(dte.Solution.FullName);
-            string filePath = dte.ActiveDocument?.FullName;
-            string relativePath = filePath != null ? FileUtil.GetRelativePath(solutionPath, filePath) : "";
-
-            string functionName = null;
-            string textToInject = null;
-            string sourceDescription = "";
-            string type = "";
-
-            if (option == "Snippet -> AI")
-            {
-                var textSelection = (TextSelection)dte.ActiveDocument.Selection;
-                if (string.IsNullOrEmpty(textSelection?.Text))
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                if (dte == null)
                 {
-                    MessageBox.Show("No text selected in Visual Studio.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-                textToInject = textSelection.Text;
-                type = "snippet";
-                sourceDescription = $"\n---{relativePath} (partial code block)---\n{textToInject}\n---End code---\n\n";
-            }
-            else if (option == "File -> AI")
-            {
-                var text = DiffUtility.GetDocumentText(dte.ActiveDocument);
-                if (string.IsNullOrEmpty(text))
-                {
-                    MessageBox.Show("The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-                string currentContent = await RetrieveTextFromWebViewAsync(chatWebView);
-                if (currentContent != null && currentContent.Contains($"---{relativePath} (whole file contents)---"))
-                {
-                    MessageBox.Show("This file's contents have already been injected.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-                textToInject = text;
-                type = "file";
-                var textDoc = dte.ActiveDocument.Object("TextDocument") as TextDocument;
-                sourceDescription = $"\n---{relativePath} (whole file contents)---\n{textToInject}\n---End code---\n\n";
-            }
-            else if (option == "Function -> AI")
-            {
-                var functions = CodeSelectionUtilities.GetFunctionsFromDocument(dte.ActiveDocument);
-                if (!functions.Any())
-                {
-                    MessageBox.Show("No functions found in the active document.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    Log("DTE service is not available. Cannot execute command.");
+                    MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
-                var functionSelectionWindow = new FunctionSelectionWindow(functions, FileUtil._recentFunctionsFilePath, relativePath, false);
-                if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
+                // The "Error -> AI" option doesn't require an active document initially, so we check later.
+                if (option != "Error -> AI" && dte.ActiveDocument == null)
                 {
-                    textToInject = functionSelectionWindow.SelectedFunction.FullCode;
-                    type = "function";
-                    functionName = functionSelectionWindow.SelectedFunction.DisplayName;
-                    sourceDescription = $"\n---{relativePath} (function: {functionName})---\n{textToInject}\n---End code---\n\n";
-                }
-                else
-                {
-                    return;
-                }
-            }
-            else if (option == "Error -> AI")
-            {
-                var errorList = CodeSelectionUtilities.GetErrorsFromDTE(dte);
-
-                if (errorList == null || !errorList.Any())
-                {
-                    MessageBox.Show("No errors found in the current solution.", "No Errors", MessageBoxButton.OK, MessageBoxImage.Information);
+                    Log("No active document in Visual Studio. Cannot execute command.");
+                    MessageBox.Show("No active document in Visual Studio.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                var errorSelectionWindow = new ErrorSelectionWindow(errorList);
-                if (errorSelectionWindow.ShowDialog() == true && errorSelectionWindow.SelectedError != null)
+                string solutionPath = Path.GetDirectoryName(dte.Solution.FullName);
+                string filePath = dte.ActiveDocument?.FullName;
+                string relativePath = filePath != null ? FileUtil.GetRelativePath(solutionPath, filePath) : "";
+
+                string functionName = null;
+                string textToInject = null;
+                string sourceDescription = "";
+                string type = "";
+
+                if (option == "Snippet -> AI")
                 {
-                    var selectedError = errorSelectionWindow.SelectedError;
-
-                    selectedError.DteErrorItem.Navigate();
-
-                    EnvDTE.Window window = dte.ItemOperations.OpenFile(selectedError.FullFile);
-                    window.Activate(); // Ensure the window is focused
-
-                    var errorDocument = dte.ActiveDocument;
-                    if (errorDocument == null)
+                    var textSelection = (TextSelection)dte.ActiveDocument.Selection;
+                    if (string.IsNullOrEmpty(textSelection?.Text))
                     {
-                        MessageBox.Show("Could not navigate to the error location.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        Log("No text selected in Visual Studio for snippet injection.");
+                        MessageBox.Show("No text selected in Visual Studio.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                    textToInject = textSelection.Text;
+                    type = "snippet";
+                    sourceDescription = $"\n---{relativePath} (partial code block)---\n{textToInject}\n---End code---\n\n";
+                }
+                else if (option == "File -> AI")
+                {
+                    var text = DiffUtility.GetDocumentText(dte.ActiveDocument);
+                    if (string.IsNullOrEmpty(text))
+                    {
+                        Log("Active document is empty. Cannot inject file contents.");
+                        MessageBox.Show("The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                    string currentContent = await RetrieveTextFromWebViewAsync(chatWebView);
+                    if (currentContent != null && currentContent.Contains($"---{relativePath} (whole file contents)---"))
+                    {
+                        Log("This file's contents have already been injected into the chat.");
+                        MessageBox.Show("This file's contents have already been injected.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                    textToInject = text;
+                    type = "file";
+                    var textDoc = dte.ActiveDocument.Object("TextDocument") as TextDocument;
+                    sourceDescription = $"\n---{relativePath} (whole file contents)---\n{textToInject}\n---End code---\n\n";
+                }
+                else if (option == "Function -> AI")
+                {
+                    var functions = CodeSelectionUtilities.GetFunctionsFromDocument(dte.ActiveDocument);
+                    if (!functions.Any())
+                    {
+                        Log("No functions found in the active document.");
+                        MessageBox.Show("No functions found in the active document.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
 
-                    var textSelection = (TextSelection)errorDocument.Selection;
-                    textSelection.GotoLine(selectedError.Line);
-                    textSelection.SelectLine();
-                    string lineOfCode = textSelection.Text;
-                    textSelection.Cancel(); // Deselect the line in the editor
-
-                    string errorRelativePath = FileUtil.GetRelativePath(solutionPath, selectedError.FullFile);
-
-                    textToInject = $"Error: {selectedError.Description}\nCode:\n{lineOfCode.Trim()}";
-                    sourceDescription = $"\n---{errorRelativePath} (error on line {selectedError.Line})---\n{textToInject}\n---End code---\n\n";
+                    var functionSelectionWindow = new FunctionSelectionWindow(functions, FileUtil._recentFunctionsFilePath, relativePath, false);
+                    if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
+                    {
+                        textToInject = functionSelectionWindow.SelectedFunction.FullCode;
+                        type = "function";
+                        functionName = functionSelectionWindow.SelectedFunction.DisplayName;
+                        sourceDescription = $"\n---{relativePath} (function: {functionName})---\n{textToInject}\n---End code---\n\n";
+                    }
+                    else
+                    {
+                        return;
+                    }
                 }
-                else
+                else if (option == "Error -> AI")
                 {
-                    return; // User cancelled the selection.
+                    var errorList = CodeSelectionUtilities.GetErrorsFromDTE(dte);
+
+                    if (errorList == null || !errorList.Any())
+                    {
+                        Log("No errors found in the current solution.");
+                        MessageBox.Show("No errors found in the current solution.", "No Errors", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+
+                    var errorSelectionWindow = new ErrorSelectionWindow(errorList);
+                    if (errorSelectionWindow.ShowDialog() == true && errorSelectionWindow.SelectedError != null)
+                    {
+                        var selectedError = errorSelectionWindow.SelectedError;
+
+                        selectedError.DteErrorItem.Navigate();
+
+                        EnvDTE.Window window = dte.ItemOperations.OpenFile(selectedError.FullFile);
+                        window.Activate(); // Ensure the window is focused
+
+                        var errorDocument = dte.ActiveDocument;
+                        if (errorDocument == null)
+                        {
+                            Log("Could not open the error document in Visual Studio.");
+                            MessageBox.Show("Could not navigate to the error location.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            return;
+                        }
+
+                        var textSelection = (TextSelection)errorDocument.Selection;
+                        textSelection.GotoLine(selectedError.Line);
+                        textSelection.SelectLine();
+                        string lineOfCode = textSelection.Text;
+                        textSelection.Cancel(); // Deselect the line in the editor
+
+                        string errorRelativePath = FileUtil.GetRelativePath(solutionPath, selectedError.FullFile);
+
+                        textToInject = $"Error: {selectedError.Description}\nCode:\n{lineOfCode.Trim()}";
+                        sourceDescription = $"\n---{errorRelativePath} (error on line {selectedError.Line})---\n{textToInject}\n---End code---\n\n";
+                    }
+                    else
+                    {
+                        return; // User cancelled the selection.
+                    }
+                }
+
+                if (textToInject != null)
+                {
+                    await InjectTextIntoWebViewAsync(chatWebView, sourceDescription, option);
                 }
             }
-
-            if (textToInject != null)
+            catch
             {
-                await InjectTextIntoWebViewAsync(chatWebView, sourceDescription, option);
+                Log("ExecuteCommandAsync error");
+                return;
             }
         }
 
@@ -343,6 +359,7 @@ namespace Integrated_AI
                 }
 
                 // If loop completes, all selectors failed
+                Log($"Failed to retrieve text from WebView for URL '{currentUrl}': {lastError}");
                 MessageBox.Show($"Could not retrieve text from AI: {lastError}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return null;
             }
@@ -359,6 +376,7 @@ namespace Integrated_AI
         {
             if (webView?.CoreWebView2 == null)
             {
+                Log("Web view is not ready. Cannot inject text.");
                 MessageBox.Show("Web view is not ready. Please wait for the page to load.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -430,6 +448,7 @@ namespace Integrated_AI
                 if (result == null)
                 {
                     string fullErrorMessage = $"Failed to append {sourceOfText}: {lastError}";
+                    Log(fullErrorMessage);
                     MessageBox.Show(fullErrorMessage, "Injection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     Log(fullErrorMessage);
                 }
@@ -441,6 +460,7 @@ namespace Integrated_AI
             catch (Exception ex)
             {
                 string errorMsg = $"Failed to prepare for text injection ('{sourceOfText}'). Problem: {ex.Message}";
+                Log(errorMsg + "\nStackTrace: " + ex.StackTrace);
                 MessageBox.Show(errorMsg, "Preparation Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 Log(errorMsg + "\nStackTrace: " + ex.StackTrace);
             }

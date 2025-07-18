@@ -32,6 +32,7 @@ namespace Integrated_AI.Utilities
             ThreadHelper.ThrowIfNotOnUIThread();
             if (activeDoc == null || currentCode == null || aiCodeFullFileContents == null)
             {
+                WebViewUtilities.Log("OpenDiffView: Invalid input - activeDoc, currentCode, or aiCodeFullFileContents is null.");
                 MessageBox.Show("Invalid input: DTE active document or code strings are null.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return null;
             }
@@ -69,8 +70,9 @@ namespace Integrated_AI.Utilities
                 var diffService = Package.GetGlobalService(typeof(SVsDifferenceService)) as IVsDifferenceService;
                 if (diffService == null)
                 {
-                    MessageBox.Show("Visual Studio Difference Service unavailable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     WebViewUtilities.Log("OpenDiffView: Diff service unavailable.");
+                    MessageBox.Show("Visual Studio Difference Service unavailable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    
                     return FileUtil.CleanUpTempFiles(context);
                 }
 
@@ -102,8 +104,9 @@ namespace Integrated_AI.Utilities
 
                 if (context.DiffFrame == null)
                 {
-                    MessageBox.Show("Failed to create diff window.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     WebViewUtilities.Log("OpenDiffView: Failed to create diff window.");
+                    MessageBox.Show("Failed to create diff window.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    
                     return FileUtil.CleanUpTempFiles(context);
                 }
 
@@ -114,8 +117,9 @@ namespace Integrated_AI.Utilities
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error opening diff view: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 WebViewUtilities.Log($"OpenDiffView: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
+                MessageBox.Show($"Error opening diff view: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                
                 return FileUtil.CleanUpTempFiles(context);
             }
         }
@@ -126,6 +130,7 @@ namespace Integrated_AI.Utilities
             ThreadHelper.ThrowIfNotOnUIThread();
             if (dte == null || restoreFiles == null || restoreFiles.Count == 0)
             {
+                WebViewUtilities.Log("OpenMultiFileDiffView: Invalid input - DTE or restore files are null or empty.");
                 MessageBox.Show("Invalid input: DTE or restore files are null or empty.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return null;
             }
@@ -231,6 +236,7 @@ namespace Integrated_AI.Utilities
 
             if (diffContexts.Count == 0)
             {
+                WebViewUtilities.Log("OpenMultiFileDiffView: No differences found or unable to open diff views for the selected restore.");
                 MessageBox.Show("No differences found or unable to open diff views for the selected restore.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                 return null;
             }
@@ -244,30 +250,34 @@ namespace Integrated_AI.Utilities
             ThreadHelper.ThrowIfNotOnUIThread();
             if (dte == null || activeDoc == null)
             {
-                MessageBox.Show("No active document or DTE unavailable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 WebViewUtilities.Log("ApplyChanges: DTE or active document is null.");
+                MessageBox.Show("No active document or DTE unavailable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                
                 return;
             }
 
             if (aiCode == null)
             {
-                MessageBox.Show("AI code is null.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 WebViewUtilities.Log("ApplyChanges: AI code is null.");
+                MessageBox.Show("AI code is null.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                
                 return;
             }
 
             var textDoc = activeDoc.Object("TextDocument") as TextDocument;
             if (textDoc == null)
             {
-                MessageBox.Show($"Document '{activeDoc.Name}' is not editable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 WebViewUtilities.Log($"ApplyChanges: '{activeDoc.FullName}' is not a text document.");
+                MessageBox.Show($"Document '{activeDoc.Name}' is not editable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                
                 return;
             }
 
             if (activeDoc.ReadOnly)
             {
-                MessageBox.Show($"Document '{activeDoc.Name}' is read-only.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 WebViewUtilities.Log($"ApplyChanges: '{activeDoc.FullName}' is read-only.");
+                MessageBox.Show($"Document '{activeDoc.Name}' is read-only.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                
                 return;
             }
 
@@ -281,8 +291,9 @@ namespace Integrated_AI.Utilities
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error applying changes to '{activeDoc.Name}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 WebViewUtilities.Log($"ApplyChanges: Exception for '{activeDoc.FullName}': {ex}");
+                MessageBox.Show($"Error applying changes to '{activeDoc.Name}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                
             }
         }
 

@@ -31,8 +31,10 @@
                  Margin="0,0,0,10"/>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">
-            <Button x:Name="CopyButton" Content="Copy to Clipboard" Width="130" Click="CopyButton_Click" />
-            <Button x:Name="CloseButton" Content="Close" Margin="10,0,0,0" Width="130" Click="CloseButton_Click" />
+            <Button x:Name="CopyButton" Content="Copy to Clipboard" Width="130" Click="CopyButton_Click" >
+            </Button>
+            <Button x:Name="CloseButton" Content="Close" Margin="10,0,0,0" Width="130" Click="CloseButton_Click" >
+            </Button>
         </StackPanel>
     </Grid>
 </hc:Window>

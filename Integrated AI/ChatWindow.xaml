@@ -56,7 +56,9 @@
             </hc:SplitButton>
             
             <Button x:Name="AcceptButton" Content="Accept" Style="{StaticResource ButtonSuccess}" Click="AcceptButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="5,0,0,0" Visibility="Collapsed"/>
-            <Button x:Name="ChooseButton" Content="Choose code" Click="ChooseButton_Click" Style="{StaticResource ButtonWarning}" hc:BorderElement.CornerRadius="0" Margin="0" Visibility="Collapsed"/>
+            <Button x:Name="ChooseButton" Content="Replace different code" Click="ChooseButton_Click" Style="{StaticResource ButtonWarning}" hc:BorderElement.CornerRadius="0" Margin="0" Visibility="Collapsed"
+                    ToolTip="Choose a different code block to replace it with the AI code"
+                    ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
             <Button x:Name="DeclineButton" Content="Decline" Style="{StaticResource ButtonDanger}" Click="DeclineButton_Click" hc:BorderElement.CornerRadius="0,4,4,0" Margin="0,0,5,0" Visibility="Collapsed"/>
             <Button x:Name="RestoreButton" Content="Restore" Click="RestoreButton_Click" Margin="5,5,0,5" hc:BorderElement.CornerRadius="4,0,0,4"
                     ToolTip="Select code in the chat to go to the backup that was made right before the code was applied"
@@ -100,9 +102,10 @@
                             <ToggleButton x:Name="AutoRestore" Margin="0,0,10,0" ToolTip="Toggle creation of restore point every time a diff is accepted" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoRestore, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
+                        <!-- Show Log Window -->
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
                             <TextBlock Text="Open logs" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
-                            <Button x:Name="OpenLogWindow" Content="Open..." Padding="0" VerticalAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,10,0" Click="OpenLogButton_Click" ToolTip="Logs can be copied from this window" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                            <Button x:Name="OpenLogWindow" Content="Open..." Padding="5,0,5,0" VerticalAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,10,0" Click="OpenLogButton_Click" ToolTip="Logs can be copied from this window" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
                         <!-- Show Log Messages -->

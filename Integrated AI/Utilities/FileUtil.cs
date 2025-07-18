@@ -25,28 +25,43 @@ namespace Integrated_AI.Utilities
 
         public static List<string> LoadRecentFunctions(string recentFunctionsFilePath)
         {
-            if (string.IsNullOrEmpty(recentFunctionsFilePath))
+            try
             {
-                // If the file doesn't exist, return null
+                if (string.IsNullOrEmpty(recentFunctionsFilePath))
+                {
+                    // If the file doesn't exist, return null
+                    return null;
+                }
+
+                var recentFunctions = new List<string>();
+                if (File.Exists(recentFunctionsFilePath))
+                {
+                    recentFunctions = File.ReadAllLines(recentFunctionsFilePath).Take(3).ToList();
+                }
+                return recentFunctions;
+            }
+            catch
+            {
+                WebViewUtilities.Log("LoadRecentFunctions error");
                 return null;
             }
-
-            var recentFunctions = new List<string>();
-            if (File.Exists(recentFunctionsFilePath))
-            {
-                recentFunctions = File.ReadAllLines(recentFunctionsFilePath).Take(3).ToList();
-            }
-            return recentFunctions;
         }
 
         public static void UpdateRecentFunctions(List<string> recentFunctions, string functionName, string recentFunctionsFilePath)
         {
-            if (string.IsNullOrEmpty(functionName) || functionName.StartsWith("-----")) return;
+            try
+            {
+                if (string.IsNullOrEmpty(functionName) || functionName.StartsWith("-----")) return;
 
-            recentFunctions.Remove(functionName); // Remove if already exists to avoid duplicates
-            recentFunctions.Insert(0, functionName); // Add to top
-            recentFunctions = recentFunctions.Take(3).ToList(); // Keep only top 3
-            File.WriteAllLines(recentFunctionsFilePath, recentFunctions);
+                recentFunctions.Remove(functionName); // Remove if already exists to avoid duplicates
+                recentFunctions.Insert(0, functionName); // Add to top
+                recentFunctions = recentFunctions.Take(3).ToList(); // Keep only top 3
+                File.WriteAllLines(recentFunctionsFilePath, recentFunctions);
+            }
+            catch
+            {
+                WebViewUtilities.Log("UpdateRecentFunctions error");
+            }
         }
 
         public static string GetRelativePath(string solutionPath, string filePath)
@@ -68,7 +83,7 @@ namespace Integrated_AI.Utilities
                 }
                 catch (IOException ex)
                 {
-                    Debug.WriteLine($"Error deleting temp file {filePath}: {ex.Message}");
+                    WebViewUtilities.Log($"Error deleting temp file {filePath}: {ex.Message}");
                 }
             }
         }
@@ -81,52 +96,6 @@ namespace Integrated_AI.Utilities
                 DeleteTempFile(context.TempAiFile);
             }
             return null;
-        }
-
-        public static string CreateTempFile(string content, string extension)
-        {
-            // Ensure extension starts with a dot
-            if (!extension.StartsWith("."))
-            {
-                extension = "." + extension;
-            }
-
-            string tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + extension);
-            try
-            {
-                // Handle null content
-                File.WriteAllText(tempPath, content ?? string.Empty);
-                if (!File.Exists(tempPath))
-                {
-                    System.Diagnostics.Debug.WriteLine($"Temp file not created: {tempPath}");
-                    MessageBox.Show($"Temp file not created: {tempPath}", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return null;
-                }
-
-                // Verify file is accessible
-                File.ReadAllText(tempPath); // Test read access
-                System.Diagnostics.Debug.WriteLine($"Temp file created successfully: {tempPath}");
-                MessageBox.Show($"Temp file created successfully: {tempPath}", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Information);
-                return tempPath;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to create temp file {tempPath}: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                MessageBox.Show($"Failed to create temp file {tempPath}: {ex.Message}", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Error);
-                if (File.Exists(tempPath))
-                {
-                    try
-                    {
-                        File.Delete(tempPath);
-                    }
-                    catch (Exception deleteEx)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Failed to delete temp file {tempPath}: {deleteEx.Message}");
-                        MessageBox.Show($"Failed to delete temp file {tempPath}: {deleteEx.Message}", "Debug Info", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                }
-                return null; // Return null instead of rethrowing to simplify caller handling
-            }
         }
 
         public static string GetAICode(string tempAiFile)
@@ -225,6 +194,7 @@ namespace Integrated_AI.Utilities
                     catch (Exception ex)
                     {
                         // Log error for specific file but continue processing others
+                        WebViewUtilities.Log($"Error reading file {file}: {ex.Message}");
                         MessageBox.Show($"Error reading file {file}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                     }
                 }
@@ -237,6 +207,7 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 // Log directory-level error but continue processing
+                WebViewUtilities.Log($"Error processing directory {sourceDir}: {ex.Message}");
                 MessageBox.Show($"Error processing directory {sourceDir}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
             }
         }

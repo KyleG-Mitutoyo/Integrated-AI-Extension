@@ -1,6 +1,7 @@
 using Integrated_AI.Utilities;
 using System;
 using System.Windows;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using Window = HandyControl.Controls.Window;
 
@@ -8,7 +9,7 @@ namespace Integrated_AI
 {
     public partial class LogWindow : Window
     {
-        public LogWindow()
+        public LogWindow(Popup popup)
         {
             InitializeComponent();
             NonClientAreaBackground = Brushes.Transparent;
@@ -17,6 +18,9 @@ namespace Integrated_AI
             LogTextBox.Text = LoggingService.GetAllLogs();
             LogTextBox.ScrollToEnd();
             LoggingService.MessageLogged += OnMessageLogged;
+
+            //Close the options menu so the window can focus
+            popup.IsOpen = false;
 
             // Ensure we unsubscribe when the window is closed to prevent memory leaks
             this.Closed += (s, e) => LoggingService.MessageLogged -= OnMessageLogged;
@@ -38,8 +42,17 @@ namespace Integrated_AI
 
         private void CopyButton_Click(object sender, RoutedEventArgs e)
         {
-            Clipboard.SetText(LogTextBox.Text);
-            LoggingService.Log("Log content copied to clipboard.");
+            try
+            {
+                Clipboard.SetText(LogTextBox.Text);
+                LoggingService.Log("Log content copied to clipboard.");
+            }
+            catch (Exception ex)
+            {
+                LoggingService.Log($"Error copying log content: {ex.Message}");
+                MessageBox.Show("Failed to copy log content to clipboard.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)

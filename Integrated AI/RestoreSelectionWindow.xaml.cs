@@ -122,12 +122,12 @@ namespace Integrated_AI
                 return;
             }
 
-            string normalizedSelection = StringUtil.NormalizeCodeSimple(_selectedAiText);
+            string normalizedSelection = StringUtil.NormalizeCode(_selectedAiText);
 
             // Find all potential text matches within the candidate list.
             var textMatchingCandidates = searchCandidates.Where(b =>
                 !string.IsNullOrEmpty(b.AICode) &&
-                (StringUtil.NormalizeCodeSimple(b.AICode).Contains(normalizedSelection) || normalizedSelection.Contains(StringUtil.NormalizeCodeSimple(b.AICode)))
+                (StringUtil.NormalizeCode(b.AICode).Contains(normalizedSelection) || normalizedSelection.Contains(StringUtil.NormalizeCode(b.AICode)))
             ).ToList();
 
             BackupItem itemToSelect;
@@ -145,7 +145,7 @@ namespace Integrated_AI
             else
             {
                 // Multiple text matches found, find the one with the smallest length difference.
-                itemToSelect = textMatchingCandidates.OrderBy(b => Math.Abs(StringUtil.NormalizeCodeSimple(b.AICode).Length - normalizedSelection.Length))
+                itemToSelect = textMatchingCandidates.OrderBy(b => Math.Abs(StringUtil.NormalizeCode(b.AICode).Length - normalizedSelection.Length))
                                                       .First();
             }
 
@@ -198,6 +198,7 @@ namespace Integrated_AI
                 }
                 catch (Exception ex)
                 {
+                    WebViewUtilities.Log($"RestoreSelectionWindow.DeleteButton_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
                     MessageBox.Show($"Error deleting backups: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
@@ -229,6 +230,7 @@ namespace Integrated_AI
                     var restoreFiles = BackupUtilities.GetRestoreFiles(_dte, _backupRootPath, selectedRestore);
                     if (restoreFiles == null || restoreFiles.Count == 0)
                     {
+                        WebViewUtilities.Log($"RestoreSelectionWindow.CompareButton_Click: No files found for restore point {selectedRestore}");
                         MessageBox.Show("No files found for the selected restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                         return;
                     }
@@ -249,13 +251,14 @@ namespace Integrated_AI
                 }
                 else
                 {
+                    WebViewUtilities.Log("RestoreSelectionWindow.CompareButton_Click: Invalid restore point selected.");
                     MessageBox.Show("Invalid restore point selected.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error opening diff views: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 WebViewUtilities.Log($"RestoreSelectionWindow.CompareButton_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
+                MessageBox.Show($"Error opening diff views: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -263,6 +266,7 @@ namespace Integrated_AI
         {
             if (!FileUtil.OpenFolder(_backupRootPath))
             {
+                WebViewUtilities.Log($"RestoreSelectionWindow.OpenBackups_Click: Failed to open backup folder at {_backupRootPath}");
                 MessageBox.Show("Failed to open the backup folder.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
