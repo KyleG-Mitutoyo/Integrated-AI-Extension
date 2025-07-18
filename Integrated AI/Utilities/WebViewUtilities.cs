@@ -1,23 +1,25 @@
 ﻿using EnvDTE;
 using EnvDTE80;
 using HandyControl.Themes;
+using Integrated_AI.Properties;
 using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Web.WebView2.Wpf;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net; // For WebUtility
+using System.Text.Json; // For JSON parsing
 using System.Threading.Tasks;
 using System.Windows;
-using System.Text.Json; // For JSON parsing
 using static Integrated_AI.ChatWindow;
 using MessageBox = HandyControl.Controls.MessageBox;
 using WebView2 = Microsoft.Web.WebView2.Wpf.WebView2;
-using System.Globalization;
 
 namespace Integrated_AI
 {
@@ -512,7 +514,17 @@ namespace Integrated_AI
 
         public static void Log(string message)
         {
-            System.Diagnostics.Debug.WriteLine($"INTEGRATED AI LOG: {message}");
+            System.Diagnostics.Debug.WriteLine($"INTEGRATED AI: {message}");
+
+            // Use the new centralized logging service
+            LoggingService.Log(message);
+
+            // You can keep the status bar update if you still want it
+            if (Settings.Default.showStatusLog) // Assuming you have a setting like this
+            {
+                IVsStatusbar statusBar = (IVsStatusbar)ServiceProvider.GlobalProvider.GetService(typeof(SVsStatusbar));
+                statusBar.SetText($"INTEGRATED AI: {message}");
+            }
         }
     }
 }

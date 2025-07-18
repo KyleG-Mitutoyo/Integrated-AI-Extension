@@ -900,6 +900,13 @@ namespace Integrated_AI
             }
         }
 
+        private void OpenLogButton_Click(object sender, RoutedEventArgs e)
+        {
+            var logWindow = new LogWindow();
+
+            logWindow.Show();
+        }
+
         private void TestWebMessageButton_Click(object sender, RoutedEventArgs e)
         {
             if (ChatWebView?.CoreWebView2 == null)

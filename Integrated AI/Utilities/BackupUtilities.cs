@@ -18,6 +18,8 @@ namespace Integrated_AI.Utilities
         // Creates a backup of the entire solution in a dated folder, within the solution's folder
         public static string CreateSolutionBackup(DTE2 dte, string backupRootPath, string aiCode, string aiChat, string url)
         {
+            string backupPath = null; 
+
             try
             {
                 if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName))
@@ -31,7 +33,8 @@ namespace Integrated_AI.Utilities
 
                 // Create backup folder with unique solution folder and datetime stamp
                 string backupFolderName = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-                string backupPath = Path.Combine(backupRootPath, uniqueSolutionFolder, backupFolderName);
+                
+                backupPath = Path.Combine(backupRootPath, uniqueSolutionFolder, backupFolderName);
                 Directory.CreateDirectory(backupPath);
 
                 // Save AI code and chat metadata to a JSON file
@@ -44,7 +47,7 @@ namespace Integrated_AI.Utilities
                     BackupTime = backupFolderName
                 };
                 File.WriteAllText(metadataPath, JsonConvert.SerializeObject(metadata, Formatting.Indented));
-                
+
                 // Copy solution file
                 string solutionFileName = Path.GetFileName(dte.Solution.FullName);
                 File.Copy(dte.Solution.FullName, Path.Combine(backupPath, solutionFileName));
@@ -66,6 +69,22 @@ namespace Integrated_AI.Utilities
             }
             catch (Exception ex)
             {
+                // If the backup path was determined and the directory was created, attempt to delete it.
+                if (!string.IsNullOrEmpty(backupPath) && Directory.Exists(backupPath))
+                {
+                    try
+                    {
+                        // Delete the incomplete backup folder and all its contents.
+                        Directory.Delete(backupPath, true); 
+                    }
+                    catch (Exception deleteEx)
+                    {
+                        // If cleanup also fails, inform the user to manually remove it.
+                        MessageBox.Show($"Backup failed: {ex.Message}\n\nAdditionally, failed to clean up the incomplete backup folder '{backupPath}'. Please remove it manually.\nCleanup error: {deleteEx.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                        return null;
+                    }
+                }
+
                 MessageBox.Show($"Backup failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return null;
             }
@@ -250,6 +269,7 @@ namespace Integrated_AI.Utilities
 
             // Get the file's path relative to the solution root.
             string relativePath = Uri.UnescapeDataString(solutionUri.MakeRelativeUri(sourceUri).ToString().Replace('/', Path.DirectorySeparatorChar));
+
 
             // The target path is simply the backup root plus the item's relative path.
             string targetPath = Path.Combine(backupRootPath, relativePath);

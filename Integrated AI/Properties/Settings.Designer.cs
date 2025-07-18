@@ -82,5 +82,17 @@ namespace Integrated_AI.Properties {
                 this["autoRestore"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool showStatusLog {
+            get {
+                return ((bool)(this["showStatusLog"]));
+            }
+            set {
+                this["showStatusLog"] = value;
+            }
+        }
     }
 }

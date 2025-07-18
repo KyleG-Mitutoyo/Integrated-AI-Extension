@@ -99,6 +99,17 @@
                             <TextBlock Text="Create Restore on Accept" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
                             <ToggleButton x:Name="AutoRestore" Margin="0,0,10,0" ToolTip="Toggle creation of restore point every time a diff is accepted" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoRestore, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
+
+                        <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
+                            <TextBlock Text="Open logs" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
+                            <Button x:Name="OpenLogWindow" Content="Open..." Padding="0" VerticalAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,10,0" Click="OpenLogButton_Click" ToolTip="Logs can be copied from this window" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                        </DockPanel>
+
+                        <!-- Show Log Messages -->
+                        <!--<DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
+                            <TextBlock Text="Log in status bar" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
+                            <ToggleButton x:Name="ShowStatusLog" Margin="0,0,10,0" ToolTip="Show log messages in the Visual Studio status bar at the bottom" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=showStatusLog, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                        </DockPanel>-->
                     </StackPanel>
                 </Border>
             </Popup>

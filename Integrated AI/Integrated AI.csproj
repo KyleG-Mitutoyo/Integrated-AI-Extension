@@ -67,6 +67,7 @@
     <Compile Include="FunctionSelectionWindow.xaml.cs">
       <DependentUpon>FunctionSelectionWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="LogWindow.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Settings.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -77,6 +78,7 @@
       <DependentUpon>RestoreSelectionWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Utilities\BackupUtilities.cs" />
+    <Compile Include="Utilities\LoggingService.cs" />
     <Compile Include="Utilities\StringUtil.cs" />
     <Compile Include="Utilities\ThemeUtility.cs" />
     <Compile Include="Utilities\WebViewUtilities.cs" />
@@ -176,6 +178,10 @@
     <Page Include="FunctionSelectionWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="LogWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
     </Page>
     <Page Include="RestoreSelectionWindow.xaml">
       <SubType>Designer</SubType>
