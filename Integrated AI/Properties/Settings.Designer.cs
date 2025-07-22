@@ -94,5 +94,17 @@ namespace Integrated_AI.Properties {
                 this["showStatusLog"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string selectedChatUrl {
+            get {
+                return ((string)(this["selectedChatUrl"]));
+            }
+            set {
+                this["selectedChatUrl"] = value;
+            }
+        }
     }
 }

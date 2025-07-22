@@ -35,7 +35,7 @@
                         <MenuItem Header="File -> AI" Click="MenuItemToAI_Click" Tag="File -> AI"/>
                         <MenuItem Header="Snippet -> AI" Click="MenuItemToAI_Click" Tag="Snippet -> AI"/>
                         <MenuItem Header="Function -> AI" Click="MenuItemToAI_Click" Tag="Function -> AI"/>
-                        <MenuItem Header="Error -> AI" Click="MenuItemToAI_Click" Tag="Error -> AI"/>
+                        <!--<MenuItem Header="Error -> AI" Click="MenuItemToAI_Click" Tag="Error -> AI"/>-->
                     </StackPanel>
                 </hc:SplitButton.DropDownContent>
             </hc:SplitButton>
@@ -93,7 +93,7 @@
                         <!-- Auto Function Match -->
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
                             <TextBlock Text="Auto Function Match" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
-                            <ToggleButton x:Name="AutoFunctionMatch" Margin="0,0,10,0" ToolTip="Experimental: Toggle function matching for Function -> VS button during manual diff mode" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoFunctionMatch, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                            <ToggleButton x:Name="AutoFunctionMatch" Margin="0,0,10,0" ToolTip="Experimental: Toggle auto function matching for Function -> VS command" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoFunctionMatch, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
                         <!-- Create Restore on Accept -->

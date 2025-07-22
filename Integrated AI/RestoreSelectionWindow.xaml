@@ -38,8 +38,8 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        
-                        <TextBlock Text="{Binding DisplayName}" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                        <TextBlock Text="{Binding DisplayName}" Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="14"/>
                         <hc:Tag Margin="5" Height="20" Grid.Column="1" Padding="10,0,10,0" Background="{DynamicResource InfoBrush}" VerticalContentAlignment="Center" VerticalAlignment="Center" HorizontalAlignment="Right" ShowCloseButton="False" IsSelected="True" Content="{Binding AIChatTag}" />
                     </Grid>
                 </DataTemplate>

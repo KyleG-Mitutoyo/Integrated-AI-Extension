@@ -1,4 +1,20 @@
-﻿using EnvDTE80;
+﻿// Integrated AI
+// Copyright (C) 2025 Kyle Grubbs
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any other later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+using EnvDTE80;
 using HandyControl.Controls;
 using HandyControl.Themes;
 using Integrated_AI.Utilities;
@@ -108,27 +124,28 @@ namespace Integrated_AI
                 var urlMatchingBackups = allBackups.Where(b => b.Url == currentUrl).ToList();
                 if (urlMatchingBackups.Any())
                 {
-                    // If backups for the current URL exist, we will ONLY search within them.
                     searchCandidates = urlMatchingBackups;
                 }
-                // If no backups for this URL exist, searchCandidates remains as allBackups (graceful fallback).
             }
 
             // If there's no selected text, just select the most recent backup from our search scope.
             if (string.IsNullOrWhiteSpace(_selectedAiText))
             {
-                BackupListBox.SelectedItem = searchCandidates.First(); // Already sorted descending by date.
+                BackupListBox.SelectedItem = searchCandidates.First();
                 BackupListBox.ScrollIntoView(searchCandidates.First());
                 return;
             }
 
             string normalizedSelection = StringUtil.NormalizeCode(_selectedAiText);
 
-            // Find all potential text matches within the candidate list.
-            var textMatchingCandidates = searchCandidates.Where(b =>
-                !string.IsNullOrEmpty(b.AICode) &&
-                (StringUtil.NormalizeCode(b.AICode).Contains(normalizedSelection) || normalizedSelection.Contains(StringUtil.NormalizeCode(b.AICode)))
-            ).ToList();
+            // Find all potential text matches using a case-insensitive, framework-compatible search.
+            var textMatchingCandidates = searchCandidates
+                .Select(b => new { Backup = b, NormalizedAiCode = string.IsNullOrEmpty(b.AICode) ? string.Empty : StringUtil.NormalizeCode(b.AICode) })
+                .Where(x => !string.IsNullOrEmpty(x.NormalizedAiCode) &&
+                            (x.NormalizedAiCode.IndexOf(normalizedSelection, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                             normalizedSelection.IndexOf(x.NormalizedAiCode, StringComparison.OrdinalIgnoreCase) >= 0))
+                .Select(x => x.Backup)
+                .ToList();
 
             BackupItem itemToSelect;
 
@@ -136,17 +153,20 @@ namespace Integrated_AI
             {
                 // No text match found, so select the most recent backup in the current search scope.
                 itemToSelect = searchCandidates.First();
+                WebViewUtilities.Log($"RestoreSelectionWindow.SelectMatchingBackup: No text match found for '{_selectedAiText}'. Selecting most recent backup: {itemToSelect.DisplayName}");
             }
             else if (textMatchingCandidates.Count == 1)
             {
                 // A single, perfect text match.
                 itemToSelect = textMatchingCandidates.First();
+                WebViewUtilities.Log($"RestoreSelectionWindow.SelectMatchingBackup: Single text match found for '{_selectedAiText}': {itemToSelect.DisplayName}");
             }
             else
             {
                 // Multiple text matches found, find the one with the smallest length difference.
                 itemToSelect = textMatchingCandidates.OrderBy(b => Math.Abs(StringUtil.NormalizeCode(b.AICode).Length - normalizedSelection.Length))
                                                       .First();
+                WebViewUtilities.Log($"RestoreSelectionWindow.SelectMatchingBackup: Multiple text matches found for '{_selectedAiText}'. Selecting closest match: {itemToSelect.DisplayName}");
             }
 
             if (itemToSelect != null)

@@ -36,7 +36,7 @@
                      hc:ListBoxAttach.IsOddEvenRow="True" AlternationCount="2" Margin="0,0,5,0">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding ListBoxDisplayName}">
+                        <TextBlock Text="{Binding ListBoxDisplayName}" FontSize="14" TextWrapping="Wrap">
                             <TextBlock.ToolTip>
                                 <TextBlock Text="{Binding FullName}"/>
                             </TextBlock.ToolTip>
@@ -49,7 +49,7 @@
                      hc:ListBoxAttach.IsOddEvenRow="True" AlternationCount="2" Margin="5,0,0,0">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding ListBoxDisplayName}">
+                        <TextBlock Text="{Binding ListBoxDisplayName}" FontSize="14" TextWrapping="Wrap">
                             <TextBlock.ToolTip>
                                 <TextBlock Text="{Binding FullName}"/>
                             </TextBlock.ToolTip>

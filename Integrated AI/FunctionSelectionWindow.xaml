@@ -25,7 +25,7 @@
                  hc:ListBoxAttach.IsOddEvenRow="True" AlternationCount="2">
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <TextBlock Text="{Binding ListBoxDisplayName}">
+                    <TextBlock Text="{Binding ListBoxDisplayName}" FontSize="14" TextWrapping="Wrap">
                         <TextBlock.ToolTip>
                             <TextBlock Text="{Binding FullName}"/>
                         </TextBlock.ToolTip>

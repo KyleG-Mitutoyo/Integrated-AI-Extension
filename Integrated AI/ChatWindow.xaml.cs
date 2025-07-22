@@ -1,4 +1,20 @@
-﻿using EnvDTE;
+﻿// Integrated AI
+// Copyright (C) 2025 Kyle Grubbs
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any other later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+using EnvDTE;
 using EnvDTE80;
 using HandyControl.Controls;
 using HandyControl.Themes;
@@ -39,15 +55,16 @@ namespace Integrated_AI
         {
             public string DisplayName { get; set; }
             public string Url { get; set; }
+            public string DefaultUrl { get; set; }
         }
 
         // Existing fields...
         public List<UrlOption> _urlOptions = new List<UrlOption>
         {
-            new UrlOption { DisplayName = "Grok", Url = "https://grok.com" },
-            new UrlOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com" },
-            new UrlOption { DisplayName = "ChatGPT", Url = "https://chatgpt.com" },
-            new UrlOption { DisplayName = "Claude", Url = "https://claude.ai" }
+            new UrlOption { DisplayName = "Grok", Url = "https://grok.com", DefaultUrl = "https://grok.com" },
+            new UrlOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com", DefaultUrl = "https://aistudio.google.com"},
+            new UrlOption { DisplayName = "ChatGPT", Url = "https://chatgpt.com", DefaultUrl = "https://chatgpt.com" },
+            new UrlOption { DisplayName = "Claude", Url = "https://claude.ai" , DefaultUrl = "https://claude.ai"}
         };
 
         private readonly string _webViewDataFolder;
@@ -112,6 +129,19 @@ namespace Integrated_AI
                 if (savedOption != null)
                 {
                     UrlSelector.SelectedItem = savedOption;
+                    if (!string.IsNullOrEmpty(Settings.Default.selectedChatUrl))
+                    {
+                        // Update the URL to the saved value
+                        foreach (UrlOption option in _urlOptions)
+                        {
+                            // Check if the display name matches the saved option
+                            if (option.DisplayName == savedOption.DisplayName)
+                            {
+                                option.Url = Settings.Default.selectedChatUrl;
+                                WebViewUtilities.Log($"InitializeUrlSelector: Restored URL for {option.DisplayName} to {option.Url}");
+                            }
+                        }
+                    } 
                 }
             }
         }
@@ -329,18 +359,28 @@ namespace Integrated_AI
 
         private void UrlSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // ---- THE FIX ----
             // Do not allow navigation until our async initialization is 100% complete.
             if (!_isWebViewInitialized)
             {
                 return;
             }
-            // ---- END FIX ----
 
             if (UrlSelector.SelectedItem is UrlOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
             {
                 try
                 {
+                    // First update the old selected option URL with the surrent URL before navigating, to save the state for later.
+                    string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
+                    foreach (UrlOption option in _urlOptions)
+                    {
+                        // Check if the display name matches the selected option
+                        if (option.DisplayName == Settings.Default.selectedChat)
+                        {
+                            option.Url = currentUrl;
+                            WebViewUtilities.Log($"UrlSelector_SelectionChanged: Updated URL for {option.DisplayName} to {option.Url}");
+                        }
+                    }
+
                     // This check is still good practice.
                     if (ChatWebView?.CoreWebView2 != null)
                     {
@@ -719,6 +759,7 @@ namespace Integrated_AI
                             UrlSelector.SelectedItem = optionToSelect;
                             Settings.Default.selectedChat = optionToSelect.DisplayName;
                             Settings.Default.Save();
+                            WebViewUtilities.Log($"RestoreButton_Click: Saved selected chat: {optionToSelect.DisplayName}");
                         }
                         finally
                         {
@@ -845,6 +886,10 @@ namespace Integrated_AI
             {
                 _documentEvents.DocumentClosing -= OnDocumentClosing;
             }
+
+            Settings.Default.selectedChatUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
+            Settings.Default.Save(); // Save the selected chat URL when the window is closed to start back later
+            WebViewUtilities.Log($"ChatWindow_Unloaded: Current URL saved: {Settings.Default.selectedChatUrl}");
         }
 
         private void OnDocumentClosing(Document document)
@@ -1001,6 +1046,9 @@ namespace Integrated_AI
             if (e.IsSuccess)
             {
                 Log($"Navigation successful to: {ChatWebView.Source?.ToString()}");
+                Settings.Default.selectedChatUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
+                Settings.Default.Save(); // Save the selected chat URL after successful navigation
+                Log($"CoreWebView2_NavigationCompleted: Current URL saved: {Settings.Default.selectedChatUrl}");
             }
             else
             {
