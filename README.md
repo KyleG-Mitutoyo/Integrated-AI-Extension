@@ -90,7 +90,7 @@ _![Automatic solution backup on diff acceptance](https://via.placeholder.com/800
 
 ## ⚙️ Configuration
 
-You can configure the extension's behavior by going to the gear button to the right of the command buttons.
+You can configure the extension's behavior by clicking the gear icon at the top right of the chat window.
 
 - **Theme**: Set all windows to light or dark mode.
 - **Auto Diff Compare**: Toggle auto AI code detection during code replacement and diffing.
