@@ -29,7 +29,7 @@ Integrated AI brings the power of web AI chats directly into your IDE, creating 
 - ✅ **Automatic Safety Net:** Your solution is automatically backed up when you accept changes, so you can experiment with confidence.
 
 ![Demonstration of the core workflow](https://via.placeholder.com/800x450.gif?text=Feature+GIF+placeholder)
-*(More demo GIFs below!)*
+*(Demos coming soon!)*
 
 ## 🚀 Core Features
 
@@ -66,6 +66,8 @@ Integrated AI brings the power of web AI chats directly into your IDE, creating 
 
 See how easy it is to send context to the AI. This shows sending a selected snippet, and then an entire function with just a couple clicks into the same prompt.
 
+(Coming soon)
+
 _![Sending code from VS to the AI Chat](https://via.placeholder.com/800x450.gif?text=VS-to-AI.gif)_
 
 </details>
@@ -75,6 +77,8 @@ _![Sending code from VS to the AI Chat](https://via.placeholder.com/800x450.gif?
 
 Watch how the extension takes a code block from the AI, automatically finds its place in your source file, and presents a clear, actionable diff. No more manual searching!
 
+(Coming soon)
+
 _![Applying changes from AI to VS via a diff view](https://via.placeholder.com/800x450.gif?text=AI-to-VS-Diff.gif)_
 
 </details>
@@ -83,6 +87,8 @@ _![Applying changes from AI to VS via a diff view](https://via.placeholder.com/8
 <summary><b>Demo: Automatic Backups</b></summary>
 
 This demonstrates the peace of mind you get from automatic backups. After accepting a diff, a backup is created of the previous solution state.
+
+(Coming soon)
 
 _![Automatic solution backup on diff acceptance](https://via.placeholder.com/800x450.gif?text=Backup-Feature.gif)_
 
@@ -102,7 +108,7 @@ You can configure the extension's behavior by clicking the gear icon at the top 
 
 -   **The AI window is blank or shows an incorrect page?**
     -   Try refreshing the window with Ctrl-R (or right-click the window and select "Refresh") or restarting VS.
--   **A chat page logged me out?**
+-   **AI chat page logged me out?**
     -   This is an automatic security feature of some chat pages which happens in a normal browser as well, the only fix is to just log back in.
 -   **The "Auto Diff" didn't find the right code for replacement?**
     -   This feature is experimental for now. The diff logic works best when the AI provides a complete function, file, or a clearly defined snippet. If the AI's response is heavily modified or partial, the logic may struggle. Try asking the AI to provide the complete function, file, or snippet in its response.
@@ -115,6 +121,7 @@ For any other issues, please report them on the GitHub page.
 
 This is a tool for developers, by a developer. Your feedback is invaluable!
 
+-   ⭐ **Review us** on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=YourPublisher.AI-Code-Companion&ssr=false#review-details).
 -   🐞 **Report a bug** or **request a feature** by opening an [Issue on GitHub](https://github.com/YourUsername/YourRepo/issues).
 -   🛠️ **Contribute** to the project via [Pull Requests](https://github.com/YourUsername/YourRepo/pulls).
 

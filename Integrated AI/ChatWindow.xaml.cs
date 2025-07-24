@@ -93,13 +93,13 @@ namespace Integrated_AI
             // Define base folder for the extension
             var baseFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "AIChatExtension",
+                "IntegratedAIExtension",
                 Environment.UserName);
             Directory.CreateDirectory(baseFolder);
 
             // Define separate folders for WebView2, app data, and backups
             _webViewDataFolder = Path.Combine(baseFolder, "WebViewData");
-            _appDataFolder = Path.Combine(baseFolder, "AppData");
+            _appDataFolder = Path.Combine(baseFolder, "Data");
             _backupsFolder = Path.Combine(baseFolder, "Backups");
             Directory.CreateDirectory(_webViewDataFolder);
             Directory.CreateDirectory(_appDataFolder);

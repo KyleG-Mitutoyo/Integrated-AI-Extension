@@ -24,7 +24,7 @@
                  MouseDoubleClick="ErrorListBox_MouseDoubleClick">
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <TextBlock Text="{Binding ListBoxDisplayName}" TextWrapping="Wrap" Padding="5">
+                    <TextBlock Text="{Binding ListBoxDisplayName}" TextWrapping="Wrap" Padding="5" FontSize="14">
                         <TextBlock.ToolTip>
                             <TextBlock Text="{Binding FullFile}"/>
                         </TextBlock.ToolTip>

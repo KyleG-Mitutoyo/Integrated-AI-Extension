@@ -174,6 +174,15 @@ namespace Integrated_AI
                 Type = "new_function"
             });
 
+            // Insert at cursor/replace selected text option
+            functions.Add(new ChooseCodeWindow.ReplacementItem
+            {
+                DisplayName = "Snippet",
+                ListBoxDisplayName = "Insert at cursor or replace selected text",
+                FullName = "Replace highlighted text in the code editor or insert at cursor position if no text is highlighted",
+                Type = "snippet"
+            });
+
             var recentFunctions = FileUtil.LoadRecentFunctions(FileUtil._recentFunctionsFilePath);
             var activeFunctions = CodeSelectionUtilities.GetFunctionsFromDocument(activeDoc);
             var matchedRecentFunctions = activeFunctions.Where(func => recentFunctions != null && 
