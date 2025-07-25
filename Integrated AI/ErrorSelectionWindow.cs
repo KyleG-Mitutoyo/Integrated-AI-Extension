@@ -25,7 +25,7 @@ using MessageBox = HandyControl.Controls.MessageBox;
 
 namespace Integrated_AI
 {
-    public partial class ErrorSelectionWindow : Window
+    public partial class ErrorSelectionWindow : ThemedWindow
     {
         public class ErrorItem
         {

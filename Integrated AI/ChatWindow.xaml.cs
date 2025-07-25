@@ -45,8 +45,9 @@ using System.Windows.Media;
 using static Integrated_AI.RestoreSelectionWindow;
 using static Integrated_AI.Utilities.DiffUtility;
 using static Integrated_AI.WebViewUtilities;
-using MessageBox = HandyControl.Controls.MessageBox;
 using Configuration = System.Configuration;
+using Window = System.Windows.Window;
+using HcMessageBox = HandyControl.Controls.MessageBox;
 
 
 namespace Integrated_AI
@@ -82,11 +83,14 @@ namespace Integrated_AI
         public BackupItem _selectedBackup;
         private DocumentEvents _documentEvents;
         private bool _isWebViewInitialized = false;
+        private ResourceDictionary _colorThemeDictionary;
+        private bool _isThemeInitialized = false;
 
 
         public ChatWindow()
         {
             InitializeComponent();
+
             var dummy = typeof(HandyControl.Controls.Window);
             InitializeUrlSelector();
             _dte = (DTE2)Package.GetGlobalService(typeof(DTE));
@@ -114,9 +118,38 @@ namespace Integrated_AI
             Unloaded += ChatWindow_Unloaded;
 
             PopupConfig.Closed += PopupConfig_Closed;
+            this.Loaded += ChatWindow_ThemeLoader;
         }
 
         #region Helper Methods
+
+        private void UpdateTheme(ApplicationTheme newTheme)
+        {
+            string newThemeSource = (newTheme == ApplicationTheme.Dark)
+                ? "pack://application:,,,/HandyControl;component/Themes/Basic/Colors/Dark.xaml"
+                : "pack://application:,,,/HandyControl;component/Themes/Basic/Colors/Light.xaml";
+
+            if (_colorThemeDictionary != null)
+            {
+                _colorThemeDictionary.Source = new Uri(newThemeSource);
+            }
+        }
+
+        /// <summary>
+        /// Shows a HandyControl MessageBox that is correctly themed by associating it with the parent window.
+        /// </summary>
+        private MessageBoxResult ShowThemedMessageBox(
+                    string message,
+                    string caption,
+                    MessageBoxButton button = MessageBoxButton.OK,
+                    MessageBoxImage icon = MessageBoxImage.None)
+        {
+            // The types here are the standard System.Windows enums, which is correct.
+            var owner = Window.GetWindow(this);
+
+            // Call our new, bulletproof helper.
+            return ThemedMessageBox.Show(owner, message, caption, button, icon);
+        }
 
         private void InitializeUrlSelector()
         {
@@ -215,14 +248,15 @@ namespace Integrated_AI
                 if (_dte == null)
                 {
                     Log("PasteButton_ClickLogic: DTE service not available.");
-                    MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    // *** CHANGE 3: Use the themed MessageBox helper ***
+                    ShowThemedMessageBox("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
                 if (string.IsNullOrEmpty(aiCode))
                 {
                     Log("PasteButton_ClickLogic: No AI code retrieved from WebView or clipboard.");
-                    MessageBox.Show("No code retrieved from clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    ShowThemedMessageBox("No code retrieved from clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
@@ -230,7 +264,7 @@ namespace Integrated_AI
                 if (activeDocument == null)
                 {
                     Log("PasteButton_ClickLogic: No active document found.");
-                    MessageBox.Show("No active document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    ShowThemedMessageBox("No active document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
@@ -245,8 +279,8 @@ namespace Integrated_AI
                 }
 
                 _diffContext = new DiffUtility.DiffContext { };
-                modifiedCode = StringUtil.CreateDocumentContent(_dte, modifiedCode, aiCode, activeDocument, selectedItem, _diffContext);
-                _diffContext = DiffUtility.OpenDiffView(activeDocument, currentCode, modifiedCode, aiCode, _diffContext);
+                modifiedCode = StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), modifiedCode, aiCode, activeDocument, selectedItem, _diffContext);
+                _diffContext = DiffUtility.OpenDiffView(Window.GetWindow(this), activeDocument, currentCode, modifiedCode, aiCode, _diffContext);
 
                 if (_diffContext == null)
                 {
@@ -269,12 +303,12 @@ namespace Integrated_AI
                 if (_dte == null)
                 {
                     Log("ExecuteToVSCommand: DTE service not available.");
-                    MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    ShowThemedMessageBox("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
                 //Get AI code either from selected text or the clipboard if no text is selected
-                string aiCode = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
+                string aiCode = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView, Window.GetWindow(this));
 
 
                 if (aiCode == null || aiCode == "null" || string.IsNullOrEmpty(aiCode))
@@ -349,7 +383,7 @@ namespace Integrated_AI
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"ExecuteToVSCommand: Error executing {_selectedOptionToVS} - {ex.Message}");
-                MessageBox.Show($"Error executing {_selectedOptionToVS}: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowThemedMessageBox($"Error executing {_selectedOptionToVS}: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
         }
@@ -433,7 +467,7 @@ namespace Integrated_AI
         {
             if (_executeCommandOnClick)
             {
-                await WebViewUtilities.ExecuteCommandAsync(_selectedOptionToAI, _dte, ChatWebView, _webViewDataFolder);
+                await WebViewUtilities.ExecuteCommandAsync(_selectedOptionToAI, _dte, Window.GetWindow(this), ChatWebView, _webViewDataFolder);
             }
             _executeCommandOnClick = true;
         }
@@ -448,7 +482,7 @@ namespace Integrated_AI
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"SplitButtonToVS_Click: Error executing {_selectedOptionToVS} - {ex.Message}");
-                MessageBox.Show($"Error executing {_selectedOptionToVS}: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowThemedMessageBox($"Error executing {_selectedOptionToVS}: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
 
             finally
@@ -479,7 +513,7 @@ namespace Integrated_AI
             {
                 _selectedOptionToAI = option;
                 VSToAISplitButton.Content = option;
-                await WebViewUtilities.ExecuteCommandAsync(option, _dte, ChatWebView, _webViewDataFolder);
+                await WebViewUtilities.ExecuteCommandAsync(option, _dte, Window.GetWindow(this), ChatWebView, _webViewDataFolder);
             }
         }
 
@@ -524,7 +558,7 @@ namespace Integrated_AI
 
                 if (contextToClose?.TempAiFile != null && File.Exists(contextToClose.TempAiFile))
                 {
-                    aiCodeFullFile = FileUtil.GetAICode(contextToClose.TempAiFile);
+                    aiCodeFullFile = FileUtil.GetAICode(Window.GetWindow(this), contextToClose.TempAiFile);
                     if (string.IsNullOrEmpty(aiCodeFullFile))
                     {
                         WebViewUtilities.Log("AcceptButton_Click: AI code is empty.");
@@ -547,7 +581,7 @@ namespace Integrated_AI
                 {
                     if (contextToClose.ActiveDocumentPath != null)
                     {
-                        DiffUtility.ApplyChanges(_dte, documentToModify, aiCodeFullFile);
+                        DiffUtility.ApplyChanges(_dte, Window.GetWindow(this), documentToModify, aiCodeFullFile);
                     }
                 }
 
@@ -557,7 +591,7 @@ namespace Integrated_AI
                     // If we want to add the code extension to get syntax highlghting in the restore window
                     // we'd use documentToModify file extension
                     string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
-                    BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, contextToClose.AICodeBlock, GetUrlSelectorText(), currentUrl);
+                    BackupUtilities.CreateSolutionBackup(_dte, Window.GetWindow(this), _backupsFolder, contextToClose.AICodeBlock, GetUrlSelectorText(), currentUrl);
                 }
 
                 // Save the document after making the backup
@@ -589,7 +623,7 @@ namespace Integrated_AI
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"AcceptButton_Click: Error in AcceptButton_Click - {ex.Message}");
-                MessageBox.Show($"Error in AcceptButton_Click: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowThemedMessageBox($"Error in AcceptButton_Click: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 // If an error occurs, we should still try to clean up the diff context
                 if (_diffContext != null)
                 {
@@ -641,7 +675,7 @@ namespace Integrated_AI
                 if (activeDocument == null)
                 {
                     Log($"ChooseButton_Click: Active document not found for path: {originalDocPath}");
-                    MessageBox.Show($"Could not re-acquire a handle to document: {originalDocPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    ShowThemedMessageBox($"Could not re-acquire a handle to document: {originalDocPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     UpdateButtonsForDiffView(false);
                     return;
                 }
@@ -651,7 +685,7 @@ namespace Integrated_AI
                 if (currentCode == null)
                 {
                     Log("ChooseButton_Click: Unable to retrieve current code from document.");
-                    MessageBox.Show("Unable to retrieve current code from document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    ShowThemedMessageBox("Unable to retrieve current code from document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     UpdateButtonsForDiffView(false);
                     return;
                 }
@@ -681,7 +715,7 @@ namespace Integrated_AI
                         catch (Exception ex)
                         {
                             WebViewUtilities.Log($"ChooseButton_Click: Error opening selected file '{targetFilePath}': {ex.Message}");
-                            MessageBox.Show($"Error opening selected file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            ShowThemedMessageBox($"Error opening selected file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                             return;
                         }
                     }
@@ -695,10 +729,10 @@ namespace Integrated_AI
                 var newDiffContext = new DiffUtility.DiffContext { };
 
                 // Calculate the modified code based on the user's selection, using the correct target document and code.
-                string modifiedCode = StringUtil.CreateDocumentContent(_dte, codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
+                string modifiedCode = StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
 
                 // Open a new diff view and assign the fully populated context to our member field.
-                _diffContext = DiffUtility.OpenDiffView(targetDoc, codeToModify, modifiedCode, aiCode, newDiffContext);
+                _diffContext = DiffUtility.OpenDiffView(Window.GetWindow(this), targetDoc, codeToModify, modifiedCode, aiCode, newDiffContext);
 
                 // If opening the diff view failed, reset the UI.
                 if (_diffContext == null)
@@ -710,7 +744,7 @@ namespace Integrated_AI
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"ChooseButton_Click: Error in ChooseButton_Click - {ex.Message}");
-                MessageBox.Show($"Error in ChooseButton_Click: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowThemedMessageBox($"Error in ChooseButton_Click: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 UpdateButtonsForDiffView(false);
             }
         }
@@ -737,7 +771,7 @@ namespace Integrated_AI
             if (_dte.Solution == null || string.IsNullOrEmpty(_dte.Solution.FullName))
             {
                 Log("RestoreButton_Click: No solution is currently open.");
-                MessageBox.Show("No solution is currently open to restore.", "Error", MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.None);
+                ShowThemedMessageBox("No solution is currently open to restore.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -745,7 +779,7 @@ namespace Integrated_AI
             CloseDiffButtonLogic();
 
             var solutionBackupsFolder = Path.Combine(_backupsFolder, BackupUtilities.GetUniqueSolutionFolder(_dte));
-            string selectedTextForSearch = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView);
+            string selectedTextForSearch = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView, Window.GetWindow(this));
 
             var restoreWindow = new RestoreSelectionWindow(_dte, ChatWebView, solutionBackupsFolder, selectedTextForSearch);
             bool? result = restoreWindow.ShowDialog();
@@ -762,10 +796,10 @@ namespace Integrated_AI
                 if (result == true)
                 {
                     string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
-                    if (BackupUtilities.RestoreSolution(_dte, restoreWindow.SelectedBackup.FolderPath, solutionDir))
+                    if (BackupUtilities.RestoreSolution(_dte, Window.GetWindow(this), restoreWindow.SelectedBackup.FolderPath, solutionDir))
                     {
                         Log("RestoreButton_Click: Solution restored successfully.");
-                        MessageBox.Show("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                        ShowThemedMessageBox("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
                     }
                 }
 
@@ -786,7 +820,16 @@ namespace Integrated_AI
                         optionToSelect.Url = restoreWindow.SelectedBackup.Url;
                         WebViewUtilities.Log($"RestoreButton_Click: Preparing to navigate to '{optionToSelect.DisplayName}' at URL '{optionToSelect.Url}'.");
 
-                        UrlSelector.SelectedItem = optionToSelect;
+                        // If the selected option is the one currently displayed, we need to navigate directly. Otherwise, let
+                        // the SelectionChanged event handle it.
+                        if (UrlSelector.SelectedItem == optionToSelect)
+                        {
+                            ChatWebView.Source = new Uri(optionToSelect.Url);
+                        }
+                        else
+                        {
+                            UrlSelector.SelectedItem = optionToSelect;
+                        }
                     }
                 }
             }
@@ -798,19 +841,19 @@ namespace Integrated_AI
             try
             {
                 string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
-                string path = BackupUtilities.CreateSolutionBackup(_dte, _backupsFolder, "(Manual save: No AI code available.)", GetUrlSelectorText(), currentUrl);
+                string path = BackupUtilities.CreateSolutionBackup(_dte, Window.GetWindow(this), _backupsFolder, "(Manual save: No AI code available.)", GetUrlSelectorText(), currentUrl);
 
                 if (path != null)
                 {
                     string lastFolder = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar));
                     WebViewUtilities.Log($"Manual backup created at: {path}");
-                    MessageBox.Show($"Backup created successfully: {lastFolder}", "Success");
+                    ShowThemedMessageBox($"Backup created successfully: {lastFolder}", "Success");
                 }
             }
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error creating manual backup: {ex.ToString()}");
-                MessageBox.Show($"Failed to create backup: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowThemedMessageBox($"Failed to create backup: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -824,16 +867,16 @@ namespace Integrated_AI
             try
             {
                 string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
-                if (BackupUtilities.RestoreSolution(_dte, _selectedBackup.FolderPath, solutionDir))
+                if (BackupUtilities.RestoreSolution(_dte, Window.GetWindow(this), _selectedBackup.FolderPath, solutionDir))
                 {
                     Log("Solution restored successfully from backup.");
-                    MessageBox.Show("Solution restored successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    ShowThemedMessageBox("Solution restored successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error restoring solution from backup: {ex.ToString()}");
-                MessageBox.Show($"Failed to restore solution: {ex.Message}", "Restore Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowThemedMessageBox($"Failed to restore solution: {ex.Message}", "Restore Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -844,15 +887,16 @@ namespace Integrated_AI
         private void ButtonConfig_Click(object sender, RoutedEventArgs e) => PopupConfig.IsOpen = true;
 
         private void ButtonSkins_OnClick(object sender, RoutedEventArgs e)
-        {
-            if (e.OriginalSource is Button button)
             {
-                if (button.Tag is ApplicationTheme themeTag)
+                if (e.OriginalSource is Button button)
                 {
-                    ThemeUtility.ChangeTheme(themeTag);
+                    if (button.Tag is ApplicationTheme themeTag)
+                    {
+                        // Call the central manager to broadcast the change to all listeners.
+                        Utilities.ThemeUtility.ChangeTheme(themeTag);
+                    }
                 }
             }
-        }
 
         private void OpenLogButton_Click(object sender, RoutedEventArgs e)
         {
@@ -866,7 +910,7 @@ namespace Integrated_AI
             if (ChatWebView?.CoreWebView2 == null)
             {
                 WebViewUtilities.Log("TestWebMessageButton_Click: CoreWebView2 is not initialized.");
-                MessageBox.Show("CoreWebView2 is not initialized.", "Error");
+                ShowThemedMessageBox("CoreWebView2 is not initialized.", "Error");
                 return;
             }
 
@@ -879,7 +923,7 @@ namespace Integrated_AI
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"TestWebMessageButton_Click: Failed to execute script - {ex.Message}");
-                MessageBox.Show($"Failed to execute script: {ex.Message}", "Error");
+                ShowThemedMessageBox($"Failed to execute script: {ex.Message}", "Error");
             }
         }
 
@@ -918,6 +962,28 @@ namespace Integrated_AI
                 Settings.Default.Save();
                 WebViewUtilities.Log($"ChatWindow_Unloaded: Final URL updated: {Settings.Default.selectedChatUrl}");
             }
+        }
+
+        private void ChatWindow_ThemeLoader(object sender, RoutedEventArgs e)
+        {
+            if (_isThemeInitialized) return;
+
+            // Create this control's personal set of dictionaries.
+            _colorThemeDictionary = new ResourceDictionary();
+            this.Resources.MergedDictionaries.Add(new HandyControl.Themes.ThemeResources());
+            this.Resources.MergedDictionaries.Add(new HandyControl.Themes.Theme());
+            this.Resources.MergedDictionaries.Add(_colorThemeDictionary);
+
+            // Apply the current theme.
+            UpdateTheme(Utilities.ThemeUtility.CurrentTheme);
+
+            // Subscribe to future theme changes.
+            Utilities.ThemeUtility.ThemeChanged += UpdateTheme;
+
+            // Unsubscribe when this control is unloaded from the visual tree.
+            this.Unloaded += (s, ev) => Utilities.ThemeUtility.ThemeChanged -= UpdateTheme;
+
+            _isThemeInitialized = true;
         }
 
         private void OnDocumentClosing(Document document)
@@ -1010,7 +1076,7 @@ namespace Integrated_AI
                     {
                         // Catch exceptions from clipboard access or ToVSButton_ClickLogic
                         WebViewUtilities.Log($"Error processing web message signal: {ex.Message}");
-                        MessageBox.Show($"An error occurred while processing the code from the chat window: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        ShowThemedMessageBox($"An error occurred while processing the code from the chat window: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 });
             }
@@ -1063,7 +1129,7 @@ namespace Integrated_AI
             catch (Exception ex)
             {
                 Log($"A critical error occurred during WebView initialization: {ex.Message}");
-                MessageBox.Show($"The AI Chat panel could not be initialized. Please try restarting Visual Studio.\n\nError: {ex.Message}", "Fatal Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowThemedMessageBox($"The AI Chat panel could not be initialized. Please try restarting Visual Studio.\n\nError: {ex.Message}", "Fatal Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1105,7 +1171,7 @@ namespace Integrated_AI
                 }
 
                 WebViewUtilities.Log(errorMessage);
-                MessageBox.Show(errorMessage, "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowThemedMessageBox(errorMessage, "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 

@@ -24,7 +24,7 @@ using Window = HandyControl.Controls.Window;
 
 namespace Integrated_AI
 {
-    public partial class LogWindow : Window
+    public partial class LogWindow : ThemedWindow
     {
         public LogWindow(Popup popup)
         {
@@ -78,7 +78,7 @@ namespace Integrated_AI
             catch (Exception ex)
             {
                 LoggingService.Log($"Error copying log content: {ex.Message}");
-                MessageBox.Show("Failed to copy log content to clipboard.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ThemedMessageBox.Show(this, "Failed to copy log content to clipboard.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
         }

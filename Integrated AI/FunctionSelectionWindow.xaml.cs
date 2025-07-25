@@ -29,7 +29,7 @@ using Window = HandyControl.Controls.Window;
 
 namespace Integrated_AI
 {
-    public partial class FunctionSelectionWindow : Window
+    public partial class FunctionSelectionWindow : ThemedWindow
     {
         public class FunctionItem
         {

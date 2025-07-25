@@ -30,7 +30,7 @@ using Window = HandyControl.Controls.Window;
 
 namespace Integrated_AI
 {
-    public partial class ChooseCodeWindow : Window
+    public partial class ChooseCodeWindow : ThemedWindow
     {
         public class ReplacementItem
         {

@@ -26,13 +26,14 @@ using MessageBox = HandyControl.Controls.MessageBox;
 using Newtonsoft.Json;
 using Microsoft.Web.WebView2.Wpf;
 using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
 
 namespace Integrated_AI.Utilities
 {
     public static class BackupUtilities
     {
         // Creates a backup of the entire solution in a dated folder, within the solution's folder
-        public static string CreateSolutionBackup(DTE2 dte, string backupRootPath, string aiCode, string aiChat, string url)
+        public static string CreateSolutionBackup(DTE2 dte, System.Windows.Window window, string backupRootPath, string aiCode, string aiChat, string url)
         {
             string backupPath = null; 
 
@@ -97,13 +98,13 @@ namespace Integrated_AI.Utilities
                     {
                         // If cleanup also fails, inform the user to manually remove it.
                         WebViewUtilities.Log($"Failed to clean up incomplete backup folder '{backupPath}': {deleteEx.Message}");
-                        MessageBox.Show($"Backup failed: {ex.Message}\n\nAdditionally, failed to clean up the incomplete backup folder '{backupPath}'. Please remove it manually.\nCleanup error: {deleteEx.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                        ThemedMessageBox.Show(window, $"Backup failed: {ex.Message}\n\nAdditionally, failed to clean up the incomplete backup folder '{backupPath}'. Please remove it manually.\nCleanup error: {deleteEx.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                         return null;
                     }
                 }
 
                 WebViewUtilities.Log($"Backup failed: {ex.Message}");
-                MessageBox.Show($"Backup failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                ThemedMessageBox.Show(window, $"Backup failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return null;
             }
         }
@@ -138,7 +139,7 @@ namespace Integrated_AI.Utilities
         }
 
         // Restores a solution from a backup folder
-        public static bool RestoreSolution(DTE dte, string backupPath, string solutionDir)
+        public static bool RestoreSolution(DTE dte, System.Windows.Window window, string backupPath, string solutionDir)
         {
             try
             {
@@ -165,7 +166,7 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"RestoreSolution error: {ex.Message}");
-                MessageBox.Show($"Restore failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                ThemedMessageBox.Show(window, $"Restore failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return false;
             }
         }
@@ -238,14 +239,14 @@ namespace Integrated_AI.Utilities
         }
 
         // Retrieves file paths and contents from a specific backup folder
-        public static Dictionary<string, string> GetRestoreFiles(DTE2 dte, string backupRootPath, string restorePoint)
+        public static Dictionary<string, string> GetRestoreFiles(DTE2 dte, System.Windows.Window window, string backupRootPath, string restorePoint)
         {
             try
             {
                 if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName) || string.IsNullOrEmpty(restorePoint))
                 {
                     WebViewUtilities.Log("Invalid input: Solution or restore point is missing.");
-                    MessageBox.Show("Invalid input: Solution or restore point is missing.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    ThemedMessageBox.Show(window, "Invalid input: Solution or restore point is missing.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                     return new Dictionary<string, string>(); // Return empty dictionary instead of null
                 }
 
@@ -254,19 +255,19 @@ namespace Integrated_AI.Utilities
                 if (!Directory.Exists(backupPath))
                 {
                     WebViewUtilities.Log($"Backup directory does not exist: {backupPath}");
-                    MessageBox.Show($"Backup directory does not exist: {backupPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    ThemedMessageBox.Show(window, $"Backup directory does not exist: {backupPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                     return new Dictionary<string, string>(); // Return empty dictionary instead of null
                 }
 
                 var files = new Dictionary<string, string>();
 
                 // Recursively get all files in the backup folder
-                FileUtil.CollectFiles(backupPath, files);
+                FileUtil.CollectFiles(window, backupPath, files);
 
                 if (files.Count == 0)
                 {
                     WebViewUtilities.Log($"No files found in backup directory: {backupPath}");
-                    MessageBox.Show($"No files found in backup directory: {backupPath}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    ThemedMessageBox.Show(window, $"No files found in backup directory: {backupPath}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                 }
 
                 return files;
@@ -274,14 +275,14 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error retrieving restore files: {ex.Message}");
-                MessageBox.Show($"Error retrieving restore files: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                ThemedMessageBox.Show(window, $"Error retrieving restore files: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return new Dictionary<string, string>(); // Return empty dictionary instead of null
             }
         }
 
         // Retrieves AI code and chat metadata from a specific backup folder
         public static (string aiCode, string aiChat, string url) 
-            GetBackupMetadata(string solutionBackupRootPath, string restorePoint)
+            GetBackupMetadata(System.Windows.Window window, string solutionBackupRootPath, string restorePoint)
         {
             try
             {
@@ -304,7 +305,7 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error retrieving backup metadata: {ex.Message}");
-                MessageBox.Show($"Error retrieving backup metadata: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                ThemedMessageBox.Show(window, $"Error retrieving backup metadata: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return (null, null, null);
             }
         }

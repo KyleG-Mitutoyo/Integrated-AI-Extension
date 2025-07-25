@@ -155,7 +155,7 @@ namespace Integrated_AI.Utilities
             return 1.0 - (double)matrix[source.Length, target.Length] / maxLength;
         }
 
-        public static string InsertAtCursorOrAppend(string currentCode, string aiCode, Document activeDoc)
+        public static string InsertAtCursorOrAppend(System.Windows.Window window, string currentCode, string aiCode, Document activeDoc)
         {
             try
             {
@@ -198,12 +198,12 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error in InsertAtCursorOrAppend: {ex.Message}");
-                MessageBox.Show($"Error inserting code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ThemedMessageBox.Show(window, $"Error inserting code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return currentCode; // Return unchanged code if error occurs
             }
         }
 
-        public static string ReplaceCodeBlock(string documentContent, int startIndex, int startLine, int length, string newCode, bool fixDoubleIndent)
+        public static string ReplaceCodeBlock(System.Windows.Window window, string documentContent, int startIndex, int startLine, int length, string newCode, bool fixDoubleIndent)
         {
             try
             {
@@ -293,7 +293,7 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error in ReplaceCodeBlock: {ex.Message}");
-                MessageBox.Show($"Error replacing code block: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ThemedMessageBox.Show(window, $"Error replacing code block: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 
                 return documentContent; // Return original content if error occurs
             }
@@ -315,7 +315,7 @@ namespace Integrated_AI.Utilities
             return (double)commonCount / Math.Max(source.Length, target.Length);
         }
 
-        public static string CreateDocumentContent(DTE2 dte, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
+        public static string CreateDocumentContent(DTE2 dte, System.Windows.Window window, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
         {
             try
             {
@@ -364,7 +364,7 @@ namespace Integrated_AI.Utilities
                             // Remove comments (C# // or VB ' or REM) above the function definition, also remove header/footer
                             aiCode = RemoveHeaderFooterComments(aiCode);
                             context.NewCodeStartIndex = startIndex;
-                            return ReplaceCodeBlock(currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode, true);
+                            return ReplaceCodeBlock(window, currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode, true);
                         }
                     }
                     else
@@ -404,13 +404,13 @@ namespace Integrated_AI.Utilities
 
                             // Use ReplaceCodeBlock to insert the new function with correct indentation
                             context.NewCodeStartIndex = startIndex;
-                            return ReplaceCodeBlock(currentCode, startIndex, startLine, 0, aiCode, false);
+                            return ReplaceCodeBlock(window, currentCode, startIndex, startLine, 0, aiCode, false);
                         }
                         else
                         {
                             // No functions in the document, append at the end with default indentation
                             WebViewUtilities.Log("No functions found in the document. Appending new function at the end.");
-                            return InsertAtCursorOrAppend(currentCode, aiCode, activeDoc);
+                            return InsertAtCursorOrAppend(window, currentCode, aiCode, activeDoc);
                         }
                     }
                     else if (chosenItem.Type == "new_file")
@@ -450,17 +450,17 @@ namespace Integrated_AI.Utilities
 
                         context.NewCodeStartIndex = startIndex;
 
-                        return ReplaceCodeBlock(currentCode, startIndex, startLine, length, aiCode, true);
+                        return ReplaceCodeBlock(window, currentCode, startIndex, startLine, length, aiCode, true);
                     }
                 }
 
                 // Fallback: Insert at cursor position or append if selection was empty or other errors
-                return StringUtil.InsertAtCursorOrAppend(currentCode, aiCode, activeDoc);
+                return StringUtil.InsertAtCursorOrAppend(window, currentCode, aiCode, activeDoc);
             }
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error in CreateDocumentContent: {ex.Message}");
-                MessageBox.Show($"Error creating document content: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ThemedMessageBox.Show(window, $"Error creating document content: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return currentCode; // Return unchanged code if error occurs
             }
         }

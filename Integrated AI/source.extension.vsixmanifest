@@ -5,7 +5,6 @@
         <DisplayName>Integrated AI</DisplayName>
         <Description xml:space="preserve">Enhances VS with an AI chat window for seamless code interaction, diff code compare, and backup functionality.</Description>
         <Icon>Resources\IAI-logo.png</Icon>
-        <PreviewImage>Resources\AIChatCommand.png</PreviewImage>
         <Tags>AI, Chat, Productivity, Code, Visual Studio</Tags>
     </Metadata>
     <Installation>

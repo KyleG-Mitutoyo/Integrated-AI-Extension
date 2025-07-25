@@ -114,7 +114,7 @@ namespace Integrated_AI
             }
         }
 
-        public static async Task ExecuteCommandAsync(string option, DTE2 dte, WebView2 chatWebView, string userDataFolder)
+        public static async Task ExecuteCommandAsync(string option, DTE2 dte, System.Windows.Window window, WebView2 chatWebView, string userDataFolder)
         {
             try
             {
@@ -122,7 +122,7 @@ namespace Integrated_AI
                 if (dte == null)
                 {
                     Log("DTE service is not available. Cannot execute command.");
-                    MessageBox.Show("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    ThemedMessageBox.Show(window, "DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
@@ -130,7 +130,7 @@ namespace Integrated_AI
                 if (option != "Error -> AI" && dte.ActiveDocument == null)
                 {
                     Log("No active document in Visual Studio. Cannot execute command.");
-                    MessageBox.Show("No active document in Visual Studio.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ThemedMessageBox.Show(window, "No active document in Visual Studio.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
@@ -149,7 +149,7 @@ namespace Integrated_AI
                     if (string.IsNullOrEmpty(textSelection?.Text))
                     {
                         Log("No text selected in Visual Studio for snippet injection.");
-                        MessageBox.Show("No text selected in Visual Studio.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        ThemedMessageBox.Show(window, "No text selected in Visual Studio.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
                     textToInject = textSelection.Text;
@@ -162,14 +162,14 @@ namespace Integrated_AI
                     if (string.IsNullOrEmpty(text))
                     {
                         Log("Active document is empty. Cannot inject file contents.");
-                        MessageBox.Show("The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        ThemedMessageBox.Show(window, "The active document is empty.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
-                    string currentContent = await RetrieveTextFromWebViewAsync(chatWebView);
+                    string currentContent = await RetrieveTextFromWebViewAsync(chatWebView, window);
                     if (currentContent != null && currentContent.Contains($"---{relativePath} (whole file contents)---"))
                     {
                         Log("This file's contents have already been injected into the chat.");
-                        MessageBox.Show("This file's contents have already been injected.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        ThemedMessageBox.Show(window, "This file's contents have already been injected.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
                     textToInject = text;
@@ -183,7 +183,7 @@ namespace Integrated_AI
                     if (!functions.Any())
                     {
                         Log("No functions found in the active document.");
-                        MessageBox.Show("No functions found in the active document.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        ThemedMessageBox.Show(window, "No functions found in the active document.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
 
@@ -207,7 +207,7 @@ namespace Integrated_AI
                     if (errorList == null || !errorList.Any())
                     {
                         Log("No errors found in the current solution.");
-                        MessageBox.Show("No errors found in the current solution.", "No Errors", MessageBoxButton.OK, MessageBoxImage.Information);
+                        ThemedMessageBox.Show(window, "No errors found in the current solution.", "No Errors", MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
 
@@ -218,14 +218,14 @@ namespace Integrated_AI
 
                         selectedError.DteErrorItem.Navigate();
 
-                        EnvDTE.Window window = dte.ItemOperations.OpenFile(selectedError.FullFile);
-                        window.Activate(); // Ensure the window is focused
+                        EnvDTE.Window windowDte = dte.ItemOperations.OpenFile(selectedError.FullFile);
+                        windowDte.Activate(); // Ensure the window is focused
 
                         var errorDocument = dte.ActiveDocument;
                         if (errorDocument == null)
                         {
                             Log("Could not open the error document in Visual Studio.");
-                            MessageBox.Show("Could not navigate to the error location.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            ThemedMessageBox.Show(window, "Could not navigate to the error location.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                             return;
                         }
 
@@ -248,7 +248,7 @@ namespace Integrated_AI
 
                 if (textToInject != null)
                 {
-                    await InjectTextIntoWebViewAsync(chatWebView, sourceDescription, option);
+                    await InjectTextIntoWebViewAsync(chatWebView, window, sourceDescription, option);
                 }
             }
             catch
@@ -298,7 +298,7 @@ namespace Integrated_AI
                 string scriptToExecute = jsFunctionName == "injectTextIntoElement"
                     ? $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}', '{preparedTextForJs}', {isChatGpt.ToString().ToLowerInvariant()}, {isClaude.ToString().ToLowerInvariant()});"
                     : $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}');";
-                Log($"{operationName} - Attempting with selector: '{selector}'. Script (first 500 chars of file may be shown):\n{scriptFileContent.Substring(0, Math.Min(scriptFileContent.Length, 500))}\n{scriptToExecute.Split('\n').Last()}");
+                Log($"{operationName} - Attempting with selector: '{selector}'.");
 
                 try
                 {
@@ -349,7 +349,7 @@ namespace Integrated_AI
             return (null, lastError);
         }
 
-        public static async Task<string> RetrieveTextFromWebViewAsync(WebView2 webView)
+        public static async Task<string> RetrieveTextFromWebViewAsync(WebView2 webView, System.Windows.Window window)
         {
             if (webView?.CoreWebView2 == null)
             {
@@ -376,24 +376,24 @@ namespace Integrated_AI
 
                 // If loop completes, all selectors failed
                 Log($"Failed to retrieve text from WebView for URL '{currentUrl}': {lastError}");
-                MessageBox.Show($"Could not retrieve text from AI: {lastError}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ThemedMessageBox.Show(window, $"Could not retrieve text from AI: {lastError}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return null;
             }
             catch (Exception ex)
             {
                 Log($"Error in RetrieveTextFromWebViewAsync: {ex.Message}\n{ex.StackTrace}");
-                MessageBox.Show($"Could not retrieve text from AI: {ex.Message}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ThemedMessageBox.Show(window, $"Could not retrieve text from AI: {ex.Message}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return null;
             }
         }
 
 
-        public static async Task InjectTextIntoWebViewAsync(WebView2 webView, string textToInject, string sourceOfText)
+        public static async Task InjectTextIntoWebViewAsync(WebView2 webView, System.Windows.Window window, string textToInject, string sourceOfText)
         {
             if (webView?.CoreWebView2 == null)
             {
                 Log("Web view is not ready. Cannot inject text.");
-                MessageBox.Show("Web view is not ready. Please wait for the page to load.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ThemedMessageBox.Show(window, "Web view is not ready. Please wait for the page to load.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -465,7 +465,7 @@ namespace Integrated_AI
                 {
                     string fullErrorMessage = $"Failed to append {sourceOfText}: {lastError}";
                     Log(fullErrorMessage);
-                    MessageBox.Show(fullErrorMessage, "Injection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ThemedMessageBox.Show(window, fullErrorMessage, "Injection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     Log(fullErrorMessage);
                 }
                 else
@@ -477,12 +477,12 @@ namespace Integrated_AI
             {
                 string errorMsg = $"Failed to prepare for text injection ('{sourceOfText}'). Problem: {ex.Message}";
                 Log(errorMsg + "\nStackTrace: " + ex.StackTrace);
-                MessageBox.Show(errorMsg, "Preparation Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ThemedMessageBox.Show(window, errorMsg, "Preparation Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 Log(errorMsg + "\nStackTrace: " + ex.StackTrace);
             }
         }
 
-        public static async Task<string> RetrieveSelectedTextFromWebViewAsync(WebView2 webView)
+        public static async Task<string> RetrieveSelectedTextFromWebViewAsync(WebView2 webView, System.Windows.Window window)
         {
             if (webView?.CoreWebView2 == null)
             {
@@ -497,12 +497,11 @@ namespace Integrated_AI
                 {
                     string errorMessage = "Problem loading script file: " + scriptFileContent.Replace("LoadScript ERROR: ", "");
                     Log($"Failed to retrieve selected text: {errorMessage}");
-                    MessageBox.Show(errorMessage, "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ThemedMessageBox.Show(window, errorMessage, "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return null;
                 }
 
                 string scriptToExecute = $"{scriptFileContent}\nretrieveSelectedText();";
-                Log($"RetrieveSelectedText - Full scriptToExecute (first 500 chars of scriptFileContent may be shown):\n{scriptFileContent.Substring(0, Math.Min(scriptFileContent.Length, 500))}\nretrieveSelectedText();\n---END SCRIPT PREVIEW---");
 
                 string result = await webView.ExecuteScriptAsync(scriptToExecute);
                 Log($"Raw result from RetrieveSelectedText ExecuteScriptAsync: {(result == null ? "C# null" : $"\"{result}\"")}");
@@ -512,7 +511,7 @@ namespace Integrated_AI
                 if (result == null)
                 {
                     Log("Failed to retrieve selected text: ExecuteScriptAsync returned C# null (JS syntax error or severe issue).");
-                    MessageBox.Show("Could not retrieve selected text: Script execution failed.", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ThemedMessageBox.Show(window, "Could not retrieve selected text: Script execution failed.", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return null;
                 }
                 if (result == "null") // JS 'null' or 'undefined' often means no text selected or function error
@@ -525,7 +524,7 @@ namespace Integrated_AI
                 {
                     string failureMessage = result.Replace("FAILURE: ", "");
                     Log($"Failed to retrieve selected text: {failureMessage}");
-                    MessageBox.Show($"Could not retrieve selected text: {failureMessage}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ThemedMessageBox.Show(window, $"Could not retrieve selected text: {failureMessage}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return null;
                 }
                 // LoadScript ERROR is already checked when loading scriptFileContent
@@ -538,7 +537,7 @@ namespace Integrated_AI
             catch (Exception ex)
             {
                 Log($"Error in RetrieveSelectedTextFromWebViewAsync: {ex.Message}\n{ex.StackTrace}");
-                MessageBox.Show($"Could not retrieve selected text from AI: {ex.Message}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ThemedMessageBox.Show(window, $"Could not retrieve selected text from AI: {ex.Message}", "Retrieval Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return null;
             }
         }

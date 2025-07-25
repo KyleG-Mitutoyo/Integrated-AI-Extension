@@ -4,9 +4,7 @@
 [![Version](https://img.shields.io/visual-studio-marketplace/i/YourPublisher.AI-Code-Companion?style=for-the-badge&label=Installs)](https://marketplace.visualstudio.com/items?itemName=YourPublisher.AI-Code-Companion)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0)
 
-Seamlessly bridge your code editor with web AI chats, **no API keys needed!** Refactor, debug, and generate code with a fluid, integrated workflow right inside Visual Studio. This extension is meant for those who want full control of the coding process, rather than vibe coding with agentic code editors, and don't want to mess with API keys, token costs, and limits. You can use this extension with your favorite AI chat, for free or with a subscription that you already have, along with all the features of the chat site such as projects and memory. With Integrated AI, you don't have to give up control and your creative vision to vibe coding, and you also don't have to deal with the old way of copying and pasting code blocks.
-
-The included AI chat sites are Google AI Studio, Grok, Claude, and ChatGPT.
+Seamlessly bridge your code editor with web AI chats, **no API keys needed!** Refactor, debug, and generate code with a fluid, integrated workflow right inside Visual Studio. This extension is meant for those who want full control of the coding process, rather than vibe coding with agentic code editors, and don't want to mess with API keys, token costs, and limits. 
 
 ---
 
@@ -27,6 +25,15 @@ Integrated AI brings the power of web AI chats directly into your IDE, creating 
 - ✅ **One-Click Context:** Send selected code, the current function, or the entire file to the AI in a single click with built-in context.
 - ✅ **Intelligent Code Merging:** Review AI suggestions in a familiar diff view before applying them.
 - ✅ **Automatic Safety Net:** Your solution is automatically backed up when you accept changes, so you can experiment with confidence.
+
+You can use this extension with your favorite AI chat, for free or with a subscription that you already have, along with all the features you're already used to such as projects and memory. With Integrated AI, you don't have to give up control and your creative vision to vibe coding, and you also don't have to deal with the old way of copying and pasting code blocks.
+
+#### 🤖 Included AI chat sites:
+
+- **Google AI Studio**
+- **Grok**
+- **Claude**
+- **ChatGPT**
 
 ![Demonstration of the core workflow](https://via.placeholder.com/800x450.gif?text=Feature+GIF+placeholder)
 *(Demos coming soon!)*

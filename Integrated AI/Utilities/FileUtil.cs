@@ -114,7 +114,7 @@ namespace Integrated_AI.Utilities
             return null;
         }
 
-        public static string GetAICode(string tempAiFile)
+        public static string GetAICode(System.Windows.Window window, string tempAiFile)
         {
             if (string.IsNullOrEmpty(tempAiFile) || !File.Exists(tempAiFile))
             {
@@ -129,7 +129,7 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error reading AI code file '{tempAiFile}': {ex.Message}");
-                MessageBox.Show($"Error reading AI code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ThemedMessageBox.Show(window, $"Error reading AI code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return string.Empty;
             }
         }
@@ -166,7 +166,7 @@ namespace Integrated_AI.Utilities
                         return $"console.error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}'); throw new Error('LoadScript ERROR: {errorMsg.Replace("'", "\\'")}');";
                     }
                     _scriptCache[scriptName] = scriptContent;
-                    WebViewUtilities.Log($"Successfully loaded script: {scriptName}. Length: {scriptContent.Length}. First 100 chars: {scriptContent.Substring(0, Math.Min(100, scriptContent.Length))}");
+                    WebViewUtilities.Log($"Successfully loaded script: {scriptName}. Length: {scriptContent.Length}.");
                     return scriptContent;
                 }
                 else
@@ -188,7 +188,7 @@ namespace Integrated_AI.Utilities
 
         // Recursively collects file paths and contents, mapping to solution-relative paths
         // Only used for restore compare functionality
-        public static void CollectFiles(string sourceDir, Dictionary<string, string> files)
+        public static void CollectFiles(System.Windows.Window window, string sourceDir, Dictionary<string, string> files)
         {
             try
             {
@@ -211,20 +211,20 @@ namespace Integrated_AI.Utilities
                     {
                         // Log error for specific file but continue processing others
                         WebViewUtilities.Log($"Error reading file {file}: {ex.Message}");
-                        MessageBox.Show($"Error reading file {file}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                        ThemedMessageBox.Show(window, $"Error reading file {file}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                     }
                 }
 
                 foreach (string dir in Directory.GetDirectories(sourceDir))
                 {
-                    CollectFiles(dir, files);
+                    CollectFiles(window, dir, files);
                 }
             }
             catch (Exception ex)
             {
                 // Log directory-level error but continue processing
                 WebViewUtilities.Log($"Error processing directory {sourceDir}: {ex.Message}");
-                MessageBox.Show($"Error processing directory {sourceDir}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                ThemedMessageBox.Show(window, $"Error processing directory {sourceDir}: {ex.Message}", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
             }
         }
 

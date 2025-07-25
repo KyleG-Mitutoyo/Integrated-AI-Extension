@@ -77,6 +77,8 @@
     <Compile Include="RestoreSelectionWindow.xaml.cs">
       <DependentUpon>RestoreSelectionWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="ThemedMessageBox.cs" />
+    <Compile Include="ThemedWindow.cs" />
     <Compile Include="Utilities\BackupUtilities.cs" />
     <Compile Include="Utilities\LoggingService.cs" />
     <Compile Include="Utilities\StringUtil.cs" />
@@ -87,16 +89,17 @@
     <Compile Include="Utilities\CodeSelectionUtilities.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="..\README.md">
+      <Link>README.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
     <None Include="app.config" />
     <None Include="Key.snk" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
-    <Content Include="README.md">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <IncludeInVSIX>true</IncludeInVSIX>
-    </Content>
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>

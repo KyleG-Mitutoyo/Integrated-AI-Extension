@@ -36,7 +36,7 @@ using Window = HandyControl.Controls.Window;
 
 namespace Integrated_AI
 {
-    public partial class RestoreSelectionWindow : Window
+    public partial class RestoreSelectionWindow : ThemedWindow
     {
         public class BackupItem
         {
@@ -87,7 +87,7 @@ namespace Integrated_AI
                     if (DateTime.TryParseExact(dir.Name, "yyyy-MM-dd_HH-mm-ss", null, System.Globalization.DateTimeStyles.None, out var backupTime))
                     {
                         // Retrieve AI chat and AI code from metadata
-                        var (aiCode, aiChat, url) = BackupUtilities.GetBackupMetadata(_backupRootPath, dir.Name);
+                        var (aiCode, aiChat, url) = BackupUtilities.GetBackupMetadata(Window.GetWindow(this), _backupRootPath, dir.Name);
                         string aiChatTag = string.IsNullOrEmpty(aiChat) ? "n/a" : aiChat.Length > 30 ? aiChat.Substring(0, 27) + "..." : aiChat;
 
                         backups.Add(new BackupItem
@@ -201,7 +201,7 @@ namespace Integrated_AI
 
         private void DeleteButton_Click(object sender, RoutedEventArgs e)
         {
-            var result = MessageBox.Show("Are you sure you want to delete all backups for the current solution?",
+            var result = ThemedMessageBox.Show(this, "Are you sure you want to delete all backups for the current solution?",
                 "Confirm Delete All", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (result == MessageBoxResult.Yes)
             {
@@ -219,7 +219,7 @@ namespace Integrated_AI
                 catch (Exception ex)
                 {
                     WebViewUtilities.Log($"RestoreSelectionWindow.DeleteButton_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
-                    MessageBox.Show($"Error deleting backups: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    ThemedMessageBox.Show(this, $"Error deleting backups: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -235,7 +235,7 @@ namespace Integrated_AI
             ThreadHelper.ThrowIfNotOnUIThread();
             if (BackupListBox.SelectedItem == null)
             {
-                MessageBox.Show(this, "Please select a restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ThemedMessageBox.Show(this, "Please select a restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -247,16 +247,16 @@ namespace Integrated_AI
                     string selectedRestore = selected.BackupTime.ToString("yyyy-MM-dd_HH-mm-ss");
 
                     // Retrieve restore files (Dictionary<string, string> of file paths and contents)
-                    var restoreFiles = BackupUtilities.GetRestoreFiles(_dte, _backupRootPath, selectedRestore);
+                    var restoreFiles = BackupUtilities.GetRestoreFiles(_dte, Window.GetWindow(this), _backupRootPath, selectedRestore);
                     if (restoreFiles == null || restoreFiles.Count == 0)
                     {
                         WebViewUtilities.Log($"RestoreSelectionWindow.CompareButton_Click: No files found for restore point {selectedRestore}");
-                        MessageBox.Show("No files found for the selected restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        ThemedMessageBox.Show(this, "No files found for the selected restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                         return;
                     }
 
                     // Open diff views for all changed files
-                    DiffContexts = DiffUtility.OpenMultiFileDiffView(_dte, restoreFiles);
+                    DiffContexts = DiffUtility.OpenMultiFileDiffView(_dte, Window.GetWindow(this), restoreFiles);
                     if (DiffContexts == null || DiffContexts.Count == 0)
                     {
                         // Message already shown in OpenMultiFileDiffView
@@ -272,13 +272,13 @@ namespace Integrated_AI
                 else
                 {
                     WebViewUtilities.Log("RestoreSelectionWindow.CompareButton_Click: Invalid restore point selected.");
-                    MessageBox.Show("Invalid restore point selected.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    ThemedMessageBox.Show(this, "Invalid restore point selected.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"RestoreSelectionWindow.CompareButton_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
-                MessageBox.Show($"Error opening diff views: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ThemedMessageBox.Show(this, $"Error opening diff views: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -287,7 +287,7 @@ namespace Integrated_AI
             if (!FileUtil.OpenFolder(_backupRootPath))
             {
                 WebViewUtilities.Log($"RestoreSelectionWindow.OpenBackups_Click: Failed to open backup folder at {_backupRootPath}");
-                MessageBox.Show("Failed to open the backup folder.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ThemedMessageBox.Show(this, "Failed to open the backup folder.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -306,13 +306,13 @@ namespace Integrated_AI
                     }
                     else
                     {
-                        MessageBox.Show("This backup has no recorded URL.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        ThemedMessageBox.Show(this, "This backup has no recorded URL.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
 
                 }
                 catch (Exception ex)
                 {
-                    //MessageBox.Show($"Exception in GoToRestore.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    //ThemedMessageBox.Show(this, $"Exception in GoToRestore.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     WebViewUtilities.Log($"RestoreSelectionWindow.GoToRestore_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
                 }
             }

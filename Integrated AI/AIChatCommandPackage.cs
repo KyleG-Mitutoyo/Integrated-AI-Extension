@@ -87,7 +87,7 @@ namespace Integrated_AI
             // Do any initialization that requires the UI thread after switching to the UI thread.
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
 
-            ThemeUtility.InitializeApplicationTheme();
+            ThemeUtility.Initialize();
 
             await AIChatCommand.InitializeAsync(this);
         }
