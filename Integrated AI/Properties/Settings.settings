@@ -2,9 +2,6 @@
 <SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="Integrated_AI.Properties" GeneratedClassName="Settings">
   <Profiles />
   <Settings>
-    <Setting Name="selectedChat" Type="System.String" Scope="User">
-      <Value Profile="(Default)">Google AI Studio</Value>
-    </Setting>
     <Setting Name="theme" Type="System.String" Scope="User">
       <Value Profile="(Default)">Dark</Value>
     </Setting>
@@ -21,7 +18,7 @@
       <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="selectedChatUrl" Type="System.String" Scope="User">
-      <Value Profile="(Default)" />
+      <Value Profile="(Default)">"https://aistudio.google.com"</Value>
     </Setting>
   </Settings>
 </SettingsFile>

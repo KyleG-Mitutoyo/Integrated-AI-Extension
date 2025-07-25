@@ -25,18 +25,6 @@ namespace Integrated_AI.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("Google AI Studio")]
-        public string selectedChat {
-            get {
-                return ((string)(this["selectedChat"]));
-            }
-            set {
-                this["selectedChat"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("Dark")]
         public string theme {
             get {
@@ -97,7 +85,7 @@ namespace Integrated_AI.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        [global::System.Configuration.DefaultSettingValueAttribute("\"https://aistudio.google.com\"")]
         public string selectedChatUrl {
             get {
                 return ((string)(this["selectedChatUrl"]));

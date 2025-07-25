@@ -297,11 +297,9 @@ namespace Integrated_AI
             {
                 try
                 {
-                    //Also need to set the url combobox
                     if (!string.IsNullOrEmpty(selected.Url))
                     {
                         SelectedBackup = selected;
-                        _webView.CoreWebView2.Navigate(selected.Url);
                         NavigateToUrl = true;
                         DialogResult = false;
                         Close();

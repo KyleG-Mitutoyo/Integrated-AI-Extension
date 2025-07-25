@@ -107,7 +107,7 @@ You can configure the extension's behavior by clicking the gear icon at the top 
 ## 🚨 Troubleshooting
 
 -   **The AI window is blank or shows an incorrect page?**
-    -   Try refreshing the window with Ctrl-R (or right-click the window and select "Refresh") or restarting VS.
+    -   Try refreshing the window with Ctrl-R (or right-click the window and select "Refresh") or choosing a different chat page.
 -   **AI chat page logged me out?**
     -   This is an automatic security feature of some chat pages which happens in a normal browser as well, the only fix is to just log back in.
 -   **The "Auto Diff" didn't find the right code for replacement?**

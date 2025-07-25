@@ -36,6 +36,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Configuration;
 using System.Windows.Documents;
 using System.Windows.Forms.VisualStyles;
 using System.Windows.Input;
@@ -45,6 +46,7 @@ using static Integrated_AI.RestoreSelectionWindow;
 using static Integrated_AI.Utilities.DiffUtility;
 using static Integrated_AI.WebViewUtilities;
 using MessageBox = HandyControl.Controls.MessageBox;
+using Configuration = System.Configuration;
 
 
 namespace Integrated_AI
@@ -121,29 +123,47 @@ namespace Integrated_AI
             // Populate ComboBox with URL options
             UrlSelector.ItemsSource = _urlOptions;
 
-            // Load saved selection
-            if (!string.IsNullOrEmpty(Settings.Default.selectedChat))
+            var savedUrl = Settings.Default.selectedChatUrl;
+            UrlOption optionToSelect = null;
+
+            // Try to find an option that corresponds to the saved URL.
+            if (!string.IsNullOrEmpty(savedUrl))
             {
-                var savedOption = (UrlSelector.ItemsSource as List<UrlOption>)
-                    ?.FirstOrDefault(option => option.DisplayName == Settings.Default.selectedChat);
-                if (savedOption != null)
+                string name = GetChatNameFromUrl(savedUrl);
+                if (!string.IsNullOrEmpty(name))
                 {
-                    UrlSelector.SelectedItem = savedOption;
-                    if (!string.IsNullOrEmpty(Settings.Default.selectedChatUrl))
-                    {
-                        // Update the URL to the saved value
-                        foreach (UrlOption option in _urlOptions)
-                        {
-                            // Check if the display name matches the saved option
-                            if (option.DisplayName == savedOption.DisplayName)
-                            {
-                                option.Url = Settings.Default.selectedChatUrl;
-                                WebViewUtilities.Log($"InitializeUrlSelector: Restored URL for {option.DisplayName} to {option.Url}");
-                            }
-                        }
-                    } 
+                    // Find the option in our list by the name we derived.
+                    optionToSelect = _urlOptions.FirstOrDefault(o => o.DisplayName == name);
                 }
             }
+
+            if (optionToSelect != null)
+            {
+                optionToSelect.Url = savedUrl;
+                WebViewUtilities.Log($"InitializeUrlSelector: Restored URL for {optionToSelect.DisplayName} to {optionToSelect.Url}");
+            }
+            else
+            {
+                // This is the fallback for a fresh install, corrupted setting, or obsolete URL.
+                // Default to a known-good provider.
+                optionToSelect = _urlOptions.FirstOrDefault(o => o.DisplayName == "Google AI Studio")
+                               ?? _urlOptions.FirstOrDefault(); // Fallback to the first if default is missing.
+
+                if (optionToSelect != null)
+                {
+                    optionToSelect.Url = optionToSelect.DefaultUrl;
+
+                    WebViewUtilities.Log($"InitializeUrlSelector: No valid saved URL found. Defaulting to {optionToSelect.DisplayName} at {optionToSelect.Url}.");
+                }
+                else
+                {
+                    // This should never happen since _urlOptions is hardcoded.
+                    WebViewUtilities.Log("InitializeUrlSelector: CRITICAL - No URL options available to select.");
+                }
+            }
+
+            // This ensures that SelectedItem is always set, preventing a blank ComboBox.
+            UrlSelector.SelectedItem = optionToSelect;
         }
 
         private string GetUrlSelectorText()
@@ -153,6 +173,31 @@ namespace Integrated_AI
                 return selectedOption.DisplayName; // Returns the display text
             }
             return string.Empty; // Return empty string if nothing is selected
+        }
+
+        private string GetChatNameFromUrl(string url)
+        {
+            // Handle null or empty URL input gracefully.
+            if (string.IsNullOrEmpty(url))
+            {
+                return null;
+            }
+
+            var matchingOptions = _urlOptions
+                .Where(option => !string.IsNullOrEmpty(option.DefaultUrl) && url.StartsWith(option.DefaultUrl, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (!matchingOptions.Any())
+            {
+                // No match found.
+                return null;
+            }
+
+            var bestMatch = matchingOptions
+                .OrderByDescending(option => option.DefaultUrl.Length)
+                .FirstOrDefault();
+
+            return bestMatch?.DisplayName;
         }
 
 
@@ -360,39 +405,26 @@ namespace Integrated_AI
         private void UrlSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             // Do not allow navigation until our async initialization is 100% complete.
-            if (!_isWebViewInitialized)
+            if (!_isWebViewInitialized || ChatWebView?.CoreWebView2 == null)
             {
                 return;
             }
+
+            // The previous item's state (`Url` property) is now updated automatically by NavigationCompleted.
+            // We no longer need to manually save the state of the tab we are leaving.
 
             if (UrlSelector.SelectedItem is UrlOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
             {
                 try
                 {
-                    // First update the old selected option URL with the surrent URL before navigating, to save the state for later.
-                    string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
-                    foreach (UrlOption option in _urlOptions)
-                    {
-                        // Check if the display name matches the selected option
-                        if (option.DisplayName == Settings.Default.selectedChat)
-                        {
-                            option.Url = currentUrl;
-                            WebViewUtilities.Log($"UrlSelector_SelectionChanged: Updated URL for {option.DisplayName} to {option.Url}");
-                        }
-                    }
-
-                    // This check is still good practice.
-                    if (ChatWebView?.CoreWebView2 != null)
-                    {
-                        ChatWebView.Source = new Uri(selectedOption.Url);
-                        Settings.Default.selectedChat = selectedOption.DisplayName;
-                        Settings.Default.Save();
-                    }
+                    // The only job of this event is to navigate to the selected option's last known URL.
+                    ChatWebView.Source = new Uri(selectedOption.Url);
                 }
                 catch (UriFormatException ex)
                 {
                     Log($"Invalid URL '{selectedOption.Url}': {ex.Message}");
-                    MessageBox.Show($"Invalid URL '{selectedOption.Url}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    // Optional: Fallback to DefaultUrl if the cached Url is somehow invalid.
+                    ChatWebView.Source = new Uri(selectedOption.DefaultUrl);
                 }
             }
         }
@@ -694,9 +726,10 @@ namespace Integrated_AI
             UpdateButtonsForDiffView(false);
         }
 
-        private async void DebugButton_Click(object sender, RoutedEventArgs e)
+        // This button can be relabeled in XAML to "Reset Settings" for clarity.
+        private void DebugButton_Click(object sender, RoutedEventArgs e)
         {
-
+            
         }
 
         private async void RestoreButton_Click(object sender, RoutedEventArgs e)
@@ -745,31 +778,20 @@ namespace Integrated_AI
                 // Handle the Go To Chat button
                 else
                 {
-                    // 1. Find the UrlOption object that matches the DisplayName from the backup.
                     var optionToSelect = (UrlSelector.ItemsSource as List<UrlOption>)
                         ?.FirstOrDefault(option => option.DisplayName == restoreWindow.SelectedBackup.AIChatTag);
 
                     if (optionToSelect != null)
                     {
-                        // 2. Temporarily unsubscribe from the event.
-                        UrlSelector.SelectionChanged -= UrlSelector_SelectionChanged;
-                        try
-                        {
-                            // 3. Set the selected item. This will now NOT fire the event handler.
-                            UrlSelector.SelectedItem = optionToSelect;
-                            Settings.Default.selectedChat = optionToSelect.DisplayName;
-                            Settings.Default.Save();
-                            WebViewUtilities.Log($"RestoreButton_Click: Saved selected chat: {optionToSelect.DisplayName}");
-                        }
-                        finally
-                        {
-                            // 4. Re-subscribe to the event so it works for user interactions.
-                            UrlSelector.SelectionChanged += UrlSelector_SelectionChanged;
-                        }
+                        optionToSelect.Url = restoreWindow.SelectedBackup.Url;
+                        WebViewUtilities.Log($"RestoreButton_Click: Preparing to navigate to '{optionToSelect.DisplayName}' at URL '{optionToSelect.Url}'.");
+
+                        UrlSelector.SelectedItem = optionToSelect;
                     }
                 }
             }
         }
+
 
         private void SaveBackupButton_Click(object sender, RoutedEventArgs e)
         {
@@ -887,9 +909,15 @@ namespace Integrated_AI
                 _documentEvents.DocumentClosing -= OnDocumentClosing;
             }
 
-            Settings.Default.selectedChatUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
-            Settings.Default.Save(); // Save the selected chat URL when the window is closed to start back later
-            WebViewUtilities.Log($"ChatWindow_Unloaded: Current URL saved: {Settings.Default.selectedChatUrl}");
+            // The saving logic is now handled by CoreWebView2_NavigationCompleted,
+            // but saving here as a final fallback is okay.
+            string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
+            if (!string.IsNullOrEmpty(currentUrl) && Settings.Default.selectedChatUrl != currentUrl)
+            {
+                Settings.Default.selectedChatUrl = currentUrl;
+                Settings.Default.Save();
+                WebViewUtilities.Log($"ChatWindow_Unloaded: Final URL updated: {Settings.Default.selectedChatUrl}");
+            }
         }
 
         private void OnDocumentClosing(Document document)
@@ -1045,10 +1073,27 @@ namespace Integrated_AI
         {
             if (e.IsSuccess)
             {
-                Log($"Navigation successful to: {ChatWebView.Source?.ToString()}");
-                Settings.Default.selectedChatUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
-                Settings.Default.Save(); // Save the selected chat URL after successful navigation
-                Log($"CoreWebView2_NavigationCompleted: Current URL saved: {Settings.Default.selectedChatUrl}");
+                string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
+                Log($"Navigation successful to: {currentUrl}");
+
+                // 1. Persist this URL for the next time Visual Studio starts. 
+                Settings.Default.selectedChatUrl = currentUrl;
+                Settings.Default.Save();
+                Log($"CoreWebView2_NavigationCompleted: Saved last known URL for session restore: {Settings.Default.selectedChatUrl}");
+
+                // 2. Update the in-memory cache for the current UrlOption.
+                // This ensures if the user navigates within the site (e.g., opens a specific chat),
+                // we remember that new URL when they switch tabs within the extension.
+                string chatName = GetChatNameFromUrl(currentUrl);
+                if (!string.IsNullOrEmpty(chatName))
+                {
+                    var currentOption = _urlOptions.FirstOrDefault(o => o.DisplayName == chatName);
+                    if (currentOption != null && currentOption.Url != currentUrl)
+                    {
+                        currentOption.Url = currentUrl;
+                        Log($"Updated in-memory URL for '{chatName}' to: {currentUrl}");
+                    }
+                }
             }
             else
             {
