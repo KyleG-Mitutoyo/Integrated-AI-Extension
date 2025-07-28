@@ -35,8 +35,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 - **Claude**
 - **ChatGPT**
 
-![Demonstration of the core workflow](https://via.placeholder.com/800x450.gif?text=Feature+GIF+placeholder)
-*(Demos coming soon!)*
+![Demonstration of the core workflow](./assets/main%20demo.gif)
 
 ## 🚀 Core Features
 
@@ -69,35 +68,41 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 ### 🎬 Feature Deep Dive
 
 <details>
-<summary><b>Demo: Smart "VS to AI" Transfer</b></summary>
+<summary><b>"VS to AI" Transfers</b></summary>
 
-See how easy it is to send context to the AI. This shows sending a selected snippet, and then an entire function with just a couple clicks into the same prompt.
+Code is sent to the AI chat with the "-> AI" button commands. Code blocks get a context header so the AI knows useful info such as filepath and type.
 
-(Coming soon)
+_![VS to AI commands](./assets/To%20AI%20commands.png)_
 
-_![Sending code from VS to the AI Chat](https://via.placeholder.com/800x450.gif?text=VS-to-AI.gif)_
+_![Snippet in the prompt area](./assets/snippet.png)_
 
-</details>
-
-<details>
-<summary><b>Demo: Intelligent "AI to VS" Diffing</b></summary>
-
-Watch how the extension takes a code block from the AI, automatically finds its place in your source file, and presents a clear, actionable diff. No more manual searching!
-
-(Coming soon)
-
-_![Applying changes from AI to VS via a diff view](https://via.placeholder.com/800x450.gif?text=AI-to-VS-Diff.gif)_
+_![Function in the prompt area](./assets/function.png)_
 
 </details>
 
 <details>
-<summary><b>Demo: Automatic Backups</b></summary>
+<summary><b>Intelligent "AI to VS" Diffing</b></summary>
 
-This demonstrates the peace of mind you get from automatic backups. After accepting a diff, a backup is created of the previous solution state.
+The "-> VS" commands are used to send highlighted or copied code from the AI chat to your editor. The code is merged into your existing file automatically, showing a diff view before applying changes. If a different code block to replace is needed, you can use the "Replace Different Code" button. There is also a new file option that will create one with the AI code and add it to the project.
 
-(Coming soon)
+If "Auto Diff" in the options is turned on, you don't even need to use button commands! This only woks with the artifact copy buttons. This is turned off by default.
 
-_![Automatic solution backup on diff acceptance](https://via.placeholder.com/800x450.gif?text=Backup-Feature.gif)_
+For "Function -> VS" command, auto matching attempts to find the function to replace by name, or adds it below the last existing function as a new function. This can also be toggled in the options.
+
+_![Replace Different Code window](./assets/choose%20code.png)_
+
+</details>
+
+<details>
+<summary><b>Automatic Backups and Restore Window</b></summary>
+
+After accepting a diff, a backup is created of the previous solution state (this can be disabled in the options). The AI code that was used for that diff and the chat page is also saved to allow for easy searching later.
+
+For restores a separate window opens with different options. There is a list of restores showing the AI code used right after that restore point. If you highlight some AI code in the chat window, the restore window will open to that restore point if it exists. You can also use "Go To Chat" to navigate there. Compare will show multiple diff views with each changed file, and you can use that restore or close the diff views from there.
+
+_![Restore Window](./assets/restore%20window.png)_
+
+_![Restore Window Compare](./assets/compare.gif)_
 
 </details>
 
