@@ -1,8 +1,8 @@
 # Integrated AI Extension for Visual Studio 2022
 
-[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/YourPublisher.AI-Code-Companion?style=for-the-badge&label=VS%20Marketplace&color=5C2D91)](https://marketplace.visualstudio.com/items?itemName=YourPublisher.AI-Code-Companion)
-[![Version](https://img.shields.io/visual-studio-marketplace/i/YourPublisher.AI-Code-Companion?style=for-the-badge&label=Installs)](https://marketplace.visualstudio.com/items?itemName=YourPublisher.AI-Code-Companion)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0)
+[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/Kyle-Grubbs.integrated-ai?style=flat&label=VS%20Marketplace&color=5C2D91)](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai)
+[![Version](https://img.shields.io/visual-studio-marketplace/i/Kyle-Grubbs.integrated-ai?style=flat&label=Installs)](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat)](https://www.gnu.org/licenses/gpl-3.0)
 
 Seamlessly bridge your code editor with web AI chats, **no API keys needed!** Refactor, debug, and generate code with a fluid, integrated workflow right inside Visual Studio. This extension is meant for those who want full control of the coding process, rather than vibe coding with agentic code editors, and don't want to mess with API keys, token costs, and limits. 
 
@@ -35,7 +35,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 - **Claude**
 - **ChatGPT**
 
-![Demonstration of the core workflow](./assets/main%20demo.gif)
+![Demonstration of the core workflow](https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension/blob/main/assets/main%20demo.gif?raw=true)
 
 ## 🚀 Core Features
 
@@ -51,8 +51,8 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 
 1.  Open Visual Studio 2022.
 2.  Navigate to `Extensions` > `Manage Extensions`.
-3.  In the `Browse` tab, search for **"Integrated AI Extension"**.
-4.  Click **Download** and follow the instructions to install.
+3.  In the `Browse` tab, search for **"Integrated AI"**.
+4.  Click **Install** and follow the instructions.
 5.  Restart Visual Studio.
 
 ## 💡 How to Use: A Quick Start Guide
@@ -72,24 +72,24 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 
 Code is sent to the AI chat with the "-> AI" button commands. Code blocks get a context header so the AI knows useful info such as filepath and type.
 
-_![VS to AI commands](./assets/To%20AI%20commands.png)_
+_![VS to AI commands](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/To%20AI%20commands.png)_
 
-_![Snippet in the prompt area](./assets/snippet.png)_
+_![Snippet in the prompt area](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/snippet.png)_
 
-_![Function in the prompt area](./assets/function.png)_
+_![Function in the prompt area](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/function.png)_
 
 </details>
 
 <details>
 <summary><b>Intelligent "AI to VS" Diffing</b></summary>
 
-The "-> VS" commands are used to send highlighted or copied code from the AI chat to your editor. The code is merged into your existing file automatically, showing a diff view before applying changes. If a different code block to replace is needed, you can use the "Replace Different Code" button. There is also a new file option that will create one with the AI code and add it to the project.
+The "-> VS" commands are used to send highlighted or copied code from the AI chat to your editor. First it will check for highlighted text within the chat window, and if nothing is highlighted it will use whatever is in the clipboard. The code is merged into your existing file automatically, showing a diff view before applying changes. If a different code block to replace is needed, you can use the "Replace Different Code" button. There is also a new file option that will create one with the AI code and add it to the project.
 
-If "Auto Diff" in the options is turned on, you don't even need to use button commands! This only woks with the artifact copy buttons. This is turned off by default.
+If "Auto Diff" in the options is turned on, you don't even need to use button commands! This only woks with the artifact copy buttons. This is turned off by default. It works best with C# and VB code.
 
-For "Function -> VS" command, auto matching attempts to find the function to replace by name, or adds it below the last existing function as a new function. This can also be toggled in the options.
+For the "Function -> VS" command, auto matching attempts to find the function to replace by name, or adds it below the last existing function as a new function. This can also be toggled in the [options](#️configuration).
 
-_![Replace Different Code window](./assets/choose%20code.png)_
+_![Replace Different Code window](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/choose%20code.png)_
 
 </details>
 
@@ -100,9 +100,9 @@ After accepting a diff, a backup is created of the previous solution state (this
 
 For restores a separate window opens with different options. There is a list of restores showing the AI code used right after that restore point. If you highlight some AI code in the chat window, the restore window will open to that restore point if it exists. You can also use "Go To Chat" to navigate there. Compare will show multiple diff views with each changed file, and you can use that restore or close the diff views from there.
 
-_![Restore Window](./assets/restore%20window.png)_
+_![Restore Window](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/restore%20window.png)_
 
-_![Restore Window Compare](./assets/compare.gif)_
+_![Restore Window Compare](https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension/blob/main/assets/compare.gif?raw=true)_
 
 </details>
 
@@ -133,12 +133,12 @@ For any other issues, please report them on the GitHub page.
 
 This is a tool for developers, by a developer. Your feedback is invaluable!
 
--   ⭐ **Review us** on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=YourPublisher.AI-Code-Companion&ssr=false#review-details).
--   🐞 **Report a bug** or **request a feature** by opening an [Issue on GitHub](https://github.com/YourUsername/YourRepo/issues).
--   🛠️ **Contribute** to the project via [Pull Requests](https://github.com/YourUsername/YourRepo/pulls).
+-   ⭐ **Review us** on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai&ssr=false#review-details).
+-   🐞 **Report a bug** or **request a feature** by opening an [Issue on GitHub](https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension/issues).
+-   🛠️ **Contribute** to the project via [Pull Requests](https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension/pulls).
 
 ## 📄 License
 
 This project is licensed under the GNU General Public License v3.0. This means it is free and open source, and any modifications or distributions must also be licensed under the same terms.
 
-See the [LICENSE](LICENSE) file for the full license text.
+See the [LICENSE](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/LICENSE) file for the full license text.

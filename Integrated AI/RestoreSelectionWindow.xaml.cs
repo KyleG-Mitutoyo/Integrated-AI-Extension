@@ -128,11 +128,9 @@ namespace Integrated_AI
                 }
             }
 
-            // If there's no selected text, just select the most recent backup from our search scope.
+            // If there's no selected text, just show the first item as selected.
             if (string.IsNullOrWhiteSpace(_selectedAiText))
             {
-                BackupListBox.SelectedItem = searchCandidates.First();
-                BackupListBox.ScrollIntoView(searchCandidates.First());
                 return;
             }
 
