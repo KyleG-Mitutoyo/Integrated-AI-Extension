@@ -70,7 +70,9 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 <details>
 <summary><b>"VS to AI" Transfers</b></summary>
 
-Code is sent to the AI chat with the "-> AI" button commands. Code blocks get a context header so the AI knows useful info such as filepath and type.
+Code is sent to the AI chat with the "-> AI" button commands. Code blocks get a context header so the AI knows useful info such as filepath and type. Using "Function -> AI" opens a selection window with the functions in the active document, as seen in the main demo.
+
+Note: The function commands only work with files that are native to Visual Studio, such as C#, VB, C++, and F#. Files such as XAML and Javascript will still work with snippets and full file transfers.
 
 _![VS to AI commands](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/To%20AI%20commands.png)_
 
@@ -87,7 +89,7 @@ The "-> VS" commands are used to send highlighted or copied code from the AI cha
 
 If "Auto Diff" in the options is turned on, you don't even need to use button commands! This only woks with the artifact copy buttons. This is turned off by default. It works best with C# and VB code.
 
-For the "Function -> VS" command, auto matching attempts to find the function to replace by name, or adds it below the last existing function as a new function. This can also be toggled in the [options](#️configuration).
+For the "Function -> VS" command, auto matching attempts to find the function to replace by name, or adds it below the last existing function as a new function. This can also be toggled in the options.
 
 _![Replace Different Code window](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/choose%20code.png)_
 
@@ -114,12 +116,13 @@ You can configure the extension's behavior by clicking the gear icon at the top 
 - **Auto Diff Compare**: Toggle auto AI code detection during code replacement and diffing.
 - **Auto Function Match**: Toggle auto function matching by name for Function -> VS command.
 - **Create Restore on Accept**: Toggle creation of restore point every time a diff is accepted.
+- **Reset URLs**: URLs to chat pages are saved to make switching chats easy. The last-used URL is also saved when closing VS. This button can be used in case a chat page is incorrect.
 - **Show Log Window**: Used for error reporting and debugging.
 
 ## 🚨 Troubleshooting
 
 -   **The AI window is blank or shows an incorrect page?**
-    -   Try refreshing the window with Ctrl-R (or right-click the window and select "Refresh") or choosing a different chat page.
+    -   Try refreshing the window with Ctrl-R (or right-click the window and select "Refresh") or choosing a different chat page. You can also use the "Reset URLs" button in the options.
 -   **AI chat page logged me out?**
     -   This is an automatic security feature of some chat pages which happens in a normal browser as well, the only fix is to just log back in.
 -   **The "Auto Diff" didn't find the right code for replacement?**
@@ -136,6 +139,12 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 -   ⭐ **Review us** on the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai&ssr=false#review-details).
 -   🐞 **Report a bug** or **request a feature** by opening an [Issue on GitHub](https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension/issues).
 -   🛠️ **Contribute** to the project via [Pull Requests](https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension/pulls).
+
+## 📝 Changelog
+
+- **1.0.2** Fix theme not setting correctly sometimes on the main chat page, fix URL saving, add `Reset URLs` button
+- **1.0.1** Fix README links
+- **1.0.0** Initial release
 
 ## 📄 License
 

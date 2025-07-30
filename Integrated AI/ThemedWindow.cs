@@ -14,67 +14,65 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-using HandyControl.Controls;
 using HandyControl.Themes;
-using Integrated_AI.Utilities;
 using System;
+using System.Linq; 
 using System.Windows;
 using Window = HandyControl.Controls.Window;
 
 namespace Integrated_AI
 {
-    /// <summary>
-    /// A base window that manages its own theme resources and responds to global theme changes.
-    /// It initializes its theme in the Loaded event to ensure stability when hosted in VS.
-    /// </summary>
     public class ThemedWindow : Window
     {
-        private ResourceDictionary _colorThemeDictionary;
         private bool _isThemeInitialized = false;
 
         public ThemedWindow()
         {
-            // Do NOT add resources here. Subscribe to events only.
             this.Loaded += ThemedWindow_Loaded;
-            this.Unloaded += ThemedWindow_Unloaded;
+            // The Unloaded handler will be added dynamically in the Loaded event.
         }
 
         private void ThemedWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            // The Loaded event is the safest place to manipulate resource dictionaries.
             if (_isThemeInitialized) return;
 
-            // 1. Create and add this window's personal set of dictionaries.
-            _colorThemeDictionary = new ResourceDictionary();
+            // 1. Add the base theme dictionaries LOCALLY to this window.
             this.Resources.MergedDictionaries.Add(new HandyControl.Themes.ThemeResources());
             this.Resources.MergedDictionaries.Add(new HandyControl.Themes.Theme());
-            this.Resources.MergedDictionaries.Add(_colorThemeDictionary);
 
-            // 2. Apply the current theme from the manager.
+            // 2. Apply the current theme correctly for the first time.
+            // This fixes the race condition because ThemeUtility is already initialized.
             UpdateTheme(Utilities.ThemeUtility.CurrentTheme);
 
             // 3. Subscribe to future theme changes.
             Utilities.ThemeUtility.ThemeChanged += UpdateTheme;
 
-            _isThemeInitialized = true;
-        }
+            // 4. Important: Unsubscribe when the window is unloaded to prevent memory leaks.
+            this.Unloaded += (s, ev) => Utilities.ThemeUtility.ThemeChanged -= UpdateTheme;
 
-        private void ThemedWindow_Unloaded(object sender, RoutedEventArgs e)
-        {
-            // Unsubscribe to prevent memory leaks.
-            Utilities.ThemeUtility.ThemeChanged -= UpdateTheme;
+            _isThemeInitialized = true;
         }
 
         private void UpdateTheme(ApplicationTheme newTheme)
         {
+            var dictionaries = this.Resources.MergedDictionaries;
+
+            // Find and remove the old color theme dictionary if it exists.
+            var oldThemeDictionary = dictionaries
+                .FirstOrDefault(d => d.Source != null && d.Source.ToString().Contains("/Colors/"));
+            
+            if (oldThemeDictionary != null)
+            {
+                dictionaries.Remove(oldThemeDictionary);
+            }
+
+            // Define the URI for the new color theme.
             string newThemeSource = (newTheme == ApplicationTheme.Dark)
                 ? "pack://application:,,,/HandyControl;component/Themes/Basic/Colors/Dark.xaml"
                 : "pack://application:,,,/HandyControl;component/Themes/Basic/Colors/Light.xaml";
 
-            if (_colorThemeDictionary != null)
-            {
-                _colorThemeDictionary.Source = new Uri(newThemeSource);
-            }
+            // Add the new color theme dictionary.
+            dictionaries.Add(new ResourceDictionary { Source = new Uri(newThemeSource) });
         }
     }
 }

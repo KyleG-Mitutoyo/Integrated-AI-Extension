@@ -83,7 +83,6 @@ namespace Integrated_AI
         public BackupItem _selectedBackup;
         private DocumentEvents _documentEvents;
         private bool _isWebViewInitialized = false;
-        private ResourceDictionary _colorThemeDictionary;
         private bool _isThemeInitialized = false;
 
 
@@ -123,18 +122,6 @@ namespace Integrated_AI
 
         #region Helper Methods
 
-        private void UpdateTheme(ApplicationTheme newTheme)
-        {
-            string newThemeSource = (newTheme == ApplicationTheme.Dark)
-                ? "pack://application:,,,/HandyControl;component/Themes/Basic/Colors/Dark.xaml"
-                : "pack://application:,,,/HandyControl;component/Themes/Basic/Colors/Light.xaml";
-
-            if (_colorThemeDictionary != null)
-            {
-                _colorThemeDictionary.Source = new Uri(newThemeSource);
-            }
-        }
-
         /// <summary>
         /// Shows a HandyControl MessageBox that is correctly themed by associating it with the parent window.
         /// </summary>
@@ -149,6 +136,28 @@ namespace Integrated_AI
 
             // Call our new, bulletproof helper.
             return ThemedMessageBox.Show(owner, message, caption, button, icon);
+        }
+
+        private void UpdateTheme(ApplicationTheme newTheme)
+        {
+            var dictionaries = this.Resources.MergedDictionaries;
+
+            // Find and remove the old color theme dictionary if it exists.
+            var oldThemeDictionary = dictionaries
+                .FirstOrDefault(d => d.Source != null && d.Source.ToString().Contains("/Colors/"));
+
+            if (oldThemeDictionary != null)
+            {
+                dictionaries.Remove(oldThemeDictionary);
+            }
+
+            // Define the URI for the new color theme.
+            string newThemeSource = (newTheme == ApplicationTheme.Dark)
+                ? "pack://application:,,,/HandyControl;component/Themes/Basic/Colors/Dark.xaml"
+                : "pack://application:,,,/HandyControl;component/Themes/Basic/Colors/Light.xaml";
+
+            // Add the new color theme dictionary.
+            dictionaries.Add(new ResourceDictionary { Source = new Uri(newThemeSource) });
         }
 
         private void InitializeUrlSelector()
@@ -216,20 +225,14 @@ namespace Integrated_AI
                 return null;
             }
 
-            var matchingOptions = _urlOptions
+            // ALWAYS match against the DefaultUrl, which is the stable base URL for the service.
+            // The Url property is dynamic and stores the last-visited page, so it should not be used for matching.
+            var bestMatch = _urlOptions
                 .Where(option => !string.IsNullOrEmpty(option.DefaultUrl) && url.StartsWith(option.DefaultUrl, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            if (!matchingOptions.Any())
-            {
-                // No match found.
-                return null;
-            }
-
-            var bestMatch = matchingOptions
-                .OrderByDescending(option => option.DefaultUrl.Length)
+                .OrderByDescending(option => option.DefaultUrl.Length) // Also order by the length of the URL we matched on.
                 .FirstOrDefault();
 
+            //WebViewUtilities.Log($"GetChatNameFromUrl: Matched URL '{url}' to chat provider '{bestMatch?.DisplayName}'.");
             return bestMatch?.DisplayName;
         }
 
@@ -444,14 +447,23 @@ namespace Integrated_AI
                 return;
             }
 
-            // The previous item's state (`Url` property) is now updated automatically by NavigationCompleted.
-            // We no longer need to manually save the state of the tab we are leaving.
-
             if (UrlSelector.SelectedItem is UrlOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
             {
                 try
                 {
-                    // The only job of this event is to navigate to the selected option's last known URL.
+                    // First update the old selected option URL with the surrent URL before navigating, to save the state for later.
+                    string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
+
+                    foreach (UrlOption option in _urlOptions)
+                    {
+                        // Check if the display name matches the selected option
+                        if (option.DisplayName == GetChatNameFromUrl(currentUrl))
+                        {
+                            option.Url = currentUrl;
+                            WebViewUtilities.Log($"UrlSelector_SelectionChanged: Updated URL for {option.DisplayName} to {option.Url}");
+                        }
+                    }
+
                     ChatWebView.Source = new Uri(selectedOption.Url);
                 }
                 catch (UriFormatException ex)
@@ -905,6 +917,33 @@ namespace Integrated_AI
             logWindow.Show();
         }
 
+        private void Reseturls_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                WebViewUtilities.Log("User confirmed URL reset. Proceeding...");
+
+                // Reset the in-memory URL for each option to its default.
+                foreach (var option in _urlOptions)
+                {
+                    option.Url = option.DefaultUrl;
+                }
+                WebViewUtilities.Log("All in-memory URLs have been reset to their defaults.");
+
+                // 4. Reset the persisted setting for the next session and save it.
+                Settings.Default.selectedChatUrl = "https://aistudio.google.com";
+                Settings.Default.Save();
+                WebViewUtilities.Log($"Persisted setting 'selectedChatUrl' reset to: {Settings.Default.selectedChatUrl}");
+
+                ShowThemedMessageBox("URLs have been successfully reset.", "Reset Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log($"An error occurred during URL reset: {ex.ToString()}");
+                ShowThemedMessageBox($"Failed to reset URLs: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void TestWebMessageButton_Click(object sender, RoutedEventArgs e)
         {
             if (ChatWebView?.CoreWebView2 == null)
@@ -968,19 +1007,17 @@ namespace Integrated_AI
         {
             if (_isThemeInitialized) return;
 
-            // Create this control's personal set of dictionaries.
-            _colorThemeDictionary = new ResourceDictionary();
+            // 1. Add base dictionaries LOCALLY.
             this.Resources.MergedDictionaries.Add(new HandyControl.Themes.ThemeResources());
             this.Resources.MergedDictionaries.Add(new HandyControl.Themes.Theme());
-            this.Resources.MergedDictionaries.Add(_colorThemeDictionary);
 
-            // Apply the current theme.
+            // 2. Apply the current theme correctly on first load.
             UpdateTheme(Utilities.ThemeUtility.CurrentTheme);
 
-            // Subscribe to future theme changes.
+            // 3. Subscribe to future theme changes.
             Utilities.ThemeUtility.ThemeChanged += UpdateTheme;
 
-            // Unsubscribe when this control is unloaded from the visual tree.
+            // 4. Unsubscribe on unload.
             this.Unloaded += (s, ev) => Utilities.ThemeUtility.ThemeChanged -= UpdateTheme;
 
             _isThemeInitialized = true;
@@ -1148,8 +1185,7 @@ namespace Integrated_AI
                 Log($"CoreWebView2_NavigationCompleted: Saved last known URL for session restore: {Settings.Default.selectedChatUrl}");
 
                 // 2. Update the in-memory cache for the current UrlOption.
-                // This ensures if the user navigates within the site (e.g., opens a specific chat),
-                // we remember that new URL when they switch tabs within the extension.
+                // This is mainly for the go to chat button
                 string chatName = GetChatNameFromUrl(currentUrl);
                 if (!string.IsNullOrEmpty(chatName))
                 {
@@ -1174,6 +1210,7 @@ namespace Integrated_AI
                 ShowThemedMessageBox(errorMessage, "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
+
 
         #endregion
 

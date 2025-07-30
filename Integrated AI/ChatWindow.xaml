@@ -108,6 +108,12 @@
                             <Button x:Name="OpenLogWindow" Content="Open..." Padding="5,0,5,0" VerticalAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,10,0" Click="OpenLogButton_Click" ToolTip="Logs can be copied from this window" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
+                        <!-- Reset URLs -->
+                        <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
+                            <TextBlock Text="Reset saved AI chat page URLs" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
+                            <Button x:Name="ResetUrls" Content="Reset" Padding="5,0,5,0" VerticalAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,10,0" Click="Reseturls_Click" ToolTip="Reset saved URLs that were saved when switching chats or closing VS" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                        </DockPanel>
+
                         <!-- Show Log Messages -->
                         <!--<DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
                             <TextBlock Text="Log in status bar" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
