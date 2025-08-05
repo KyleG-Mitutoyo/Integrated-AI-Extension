@@ -46,6 +46,13 @@ namespace Integrated_AI
         {
             { "https://grok.com", new List<string> { "textarea[aria-label=\"Ask Grok anything\"]" } },
             { "https://chatgpt.com", new List<string> { "div#prompt-textarea" } },
+            { 
+                "https://gemini.google.com/app", new List<string>
+                {
+                    "div.ql-editor", // Primary selector for the rich text editor
+                    "div[contenteditable=\"true\"]" // Fallback selector
+                }
+            },
             {
                 "https://aistudio.google.com", new List<string>
                 {
@@ -200,51 +207,6 @@ namespace Integrated_AI
                         return;
                     }
                 }
-                else if (option == "Error -> AI")
-                {
-                    var errorList = CodeSelectionUtilities.GetErrorsFromDTE(dte);
-
-                    if (errorList == null || !errorList.Any())
-                    {
-                        Log("No errors found in the current solution.");
-                        ThemedMessageBox.Show(window, "No errors found in the current solution.", "No Errors", MessageBoxButton.OK, MessageBoxImage.Information);
-                        return;
-                    }
-
-                    var errorSelectionWindow = new ErrorSelectionWindow(errorList);
-                    if (errorSelectionWindow.ShowDialog() == true && errorSelectionWindow.SelectedError != null)
-                    {
-                        var selectedError = errorSelectionWindow.SelectedError;
-
-                        selectedError.DteErrorItem.Navigate();
-
-                        EnvDTE.Window windowDte = dte.ItemOperations.OpenFile(selectedError.FullFile);
-                        windowDte.Activate(); // Ensure the window is focused
-
-                        var errorDocument = dte.ActiveDocument;
-                        if (errorDocument == null)
-                        {
-                            Log("Could not open the error document in Visual Studio.");
-                            ThemedMessageBox.Show(window, "Could not navigate to the error location.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                            return;
-                        }
-
-                        var textSelection = (TextSelection)errorDocument.Selection;
-                        textSelection.GotoLine(selectedError.Line);
-                        textSelection.SelectLine();
-                        string lineOfCode = textSelection.Text;
-                        textSelection.Cancel(); // Deselect the line in the editor
-
-                        string errorRelativePath = FileUtil.GetRelativePath(solutionPath, selectedError.FullFile);
-
-                        textToInject = $"Error: {selectedError.Description}\nCode:\n{lineOfCode.Trim()}";
-                        sourceDescription = $"\n---{errorRelativePath} (error on line {selectedError.Line})---\n{textToInject}\n---End code---\n\n";
-                    }
-                    else
-                    {
-                        return; // User cancelled the selection.
-                    }
-                }
 
                 if (textToInject != null)
                 {
@@ -275,9 +237,9 @@ namespace Integrated_AI
             string operationName,
             string jsFunctionName,
             bool stopOnSuccess = true,
-            // CHANGE: Add isClaude as a parameter
             bool isChatGpt = false,
-            bool isClaude = false, 
+            bool isClaude = false,
+            bool isGemini = false, // CHANGE: Add new isGemini parameter
             string preparedTextForJs = null)
         {
             string scriptFileContent = FileUtil.LoadScript(scriptFileName);
@@ -294,9 +256,9 @@ namespace Integrated_AI
             foreach (string selector in selectors)
             {
                 string escapedSelectorForJs = selector.Replace("'", "\\'");
-                // CHANGE: Add the new isClaude flag to the JavaScript function call
+                // CHANGE: Add the new isGemini flag to the JavaScript function call
                 string scriptToExecute = jsFunctionName == "injectTextIntoElement"
-                    ? $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}', '{preparedTextForJs}', {isChatGpt.ToString().ToLowerInvariant()}, {isClaude.ToString().ToLowerInvariant()});"
+                    ? $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}', '{preparedTextForJs}', {isChatGpt.ToString().ToLowerInvariant()}, {isClaude.ToString().ToLowerInvariant()}, {isGemini.ToString().ToLowerInvariant()});"
                     : $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}');";
                 Log($"{operationName} - Attempting with selector: '{selector}'.");
 
@@ -306,7 +268,7 @@ namespace Integrated_AI
                     Log($"Raw result from {operationName} ExecuteScriptAsync for selector '{selector}': {(result == null ? "C# null" : $"\"{result}\"")}");
                     result = result?.Trim('"');
 
-                    if (result == null) 
+                    if (result == null)
                     {
                         lastError = $"ExecuteScriptAsync returned C# null for selector '{selector}'. This often indicates a JavaScript syntax error in the generated script or a problem with the WebView. Check JS console in WebView DevTools.";
                         Log($"{operationName} attempt failed: {lastError}");
@@ -316,19 +278,19 @@ namespace Integrated_AI
                     {
                         lastError = $"Script returned JavaScript 'null' or 'undefined' for selector '{selector}'. This commonly means the function (e.g., '{jsFunctionName}') was not defined, or the element was not found and the function returned null. Check JS console in WebView DevTools.";
                         Log($"{operationName} attempt failed: {lastError}");
-                        continue; 
+                        continue;
                     }
                     if (result.StartsWith("FAILURE: Element not found", StringComparison.OrdinalIgnoreCase))
                     {
                         lastError = $"Element not found with selector '{selector}'.";
                         Log($"{operationName} attempt: {lastError}");
-                        continue; 
+                        continue;
                     }
                     if (result.StartsWith("FAILURE:"))
                     {
                         lastError = result.Replace("FAILURE: ", "");
                         Log($"{operationName} attempt for selector '{selector}' failed critically: {lastError}");
-                        continue; 
+                        continue;
                     }
 
                     Log($"{operationName} succeeded using selector '{selector}'. Result: {result}");
@@ -402,6 +364,8 @@ namespace Integrated_AI
                 string currentUrl = webView.Source?.ToString() ?? "";
                 bool isChatGpt = currentUrl.StartsWith("https://chatgpt.com", StringComparison.OrdinalIgnoreCase);
                 bool isClaude = currentUrl.StartsWith("https://claude.ai", StringComparison.OrdinalIgnoreCase);
+                // CHANGE: Add a new flag for Gemini
+                bool isGemini = currentUrl.StartsWith("https://gemini.google.com/app", StringComparison.OrdinalIgnoreCase);
 
                 string preparedTextForJs;
                 if (isChatGpt)
@@ -413,9 +377,10 @@ namespace Integrated_AI
                 }
                 else
                 {
-                    if (isClaude)
+                    // CHANGE: Group Gemini with Claude to use the same JSON command logic
+                    if (isClaude || isGemini)
                     {
-                        // For Claude, create a JSON payload of commands to avoid any delimiter issues.
+                        // For Claude and Gemini, create a JSON payload of commands to avoid any delimiter issues.
                         var lines = textToInject.Replace("\r\n", "\n").Split('\n');
                         var commands = new List<string>();
 
@@ -457,8 +422,9 @@ namespace Integrated_AI
                     "InjectText",
                     "injectTextIntoElement",
                     true,
-                    isChatGpt, 
-                    isClaude,   
+                    isChatGpt,
+                    isClaude,
+                    isGemini,
                     preparedTextForJs);
 
                 if (result == null)
@@ -466,7 +432,6 @@ namespace Integrated_AI
                     string fullErrorMessage = $"Failed to append {sourceOfText}: {lastError}";
                     Log(fullErrorMessage);
                     ThemedMessageBox.Show(window, fullErrorMessage, "Injection Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    Log(fullErrorMessage);
                 }
                 else
                 {
@@ -478,7 +443,6 @@ namespace Integrated_AI
                 string errorMsg = $"Failed to prepare for text injection ('{sourceOfText}'). Problem: {ex.Message}";
                 Log(errorMsg + "\nStackTrace: " + ex.StackTrace);
                 ThemedMessageBox.Show(window, errorMsg, "Preparation Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                Log(errorMsg + "\nStackTrace: " + ex.StackTrace);
             }
         }
 

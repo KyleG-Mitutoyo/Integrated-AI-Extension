@@ -39,6 +39,10 @@
       <Group guid="guidAIChatCommandPackageCmdSet" id="MyMenuGroup" priority="0x0600">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS"/>
       </Group>
+
+      <Group guid="guidAIChatCommandPackageCmdSet" id="ErrorListGroup" priority="0x0100">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_ERRORLIST"/>
+      </Group>
     </Groups>
 
     <!--Buttons section. -->
@@ -57,6 +61,14 @@
         <Icon guid="guidImages" id="bmpPic1" />
         <Strings>
           <ButtonText>Open AI Chat Window</ButtonText>
+        </Strings>
+      </Button>
+
+      <Button guid="guidAIChatCommandPackageCmdSet" id="cmdidSendErrorToAI" priority="0x0100" type="Button">
+        <Parent guid="guidAIChatCommandPackageCmdSet" id="ErrorListGroup" />
+        <Icon guid="guidImages" id="bmpPic1" />
+        <Strings>
+          <ButtonText>Send to AI Chat</ButtonText>
         </Strings>
       </Button>
     </Buttons>
@@ -80,12 +92,15 @@
     <GuidSymbol name="guidAIChatCommandPackageCmdSet" value="{3e9439f0-9188-4415-b861-b894c074a254}">
       <IDSymbol name="MyMenuGroup" value="0x1020" />
       <IDSymbol name="AIChatCommandId" value="0x0100" />
+      <IDSymbol name="cmdidSendErrorToAI" value="0x0105" />
+      
+      <IDSymbol name="ErrorListGroup" value="0x1021" />
     </GuidSymbol>
 
-	<GuidSymbol name="guidChatToolWindow" value="{7513ff4e-9271-4984-bbcd-46ff9e185399}" />
+    <GuidSymbol name="guidChatToolWindow" value="{7513ff4e-9271-4984-bbcd-46ff9e185399}" />
 
-	  <GuidSymbol name="guidImages" value="{018a9736-b812-4126-9de9-0bb4bf5477bd}">
-		  <IDSymbol name="bmpPic1" value="1" />
-	  </GuidSymbol>
+    <GuidSymbol name="guidImages" value="{018a9736-b812-4126-9de9-0bb4bf5477bd}">
+      <IDSymbol name="bmpPic1" value="1" />
+    </GuidSymbol>
   </Symbols>
 </CommandTable>

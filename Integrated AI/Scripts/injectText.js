@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-function injectTextIntoElement(selector, textToInject, isChatGptSite, isClaudeSite) {
+function injectTextIntoElement(selector, textToInject, isChatGptSite, isClaudeSite, isGeminiSite) {
     try {
         const elem = document.querySelector(selector);
         if (!elem) {
@@ -36,7 +36,7 @@ function injectTextIntoElement(selector, textToInject, isChatGptSite, isClaudeSi
         } 
         else if (elem.isContentEditable) {
             
-            if (isClaudeSite) {
+            if (isClaudeSite || isGeminiSite) {
                 // THE DEFINITIVE SOLUTION: Parse a JSON payload of commands from C#.
                 // This completely avoids any "magic string" delimiters.
                 const commands = JSON.parse(textToInject);

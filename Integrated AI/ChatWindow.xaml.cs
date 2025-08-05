@@ -66,6 +66,7 @@ namespace Integrated_AI
         {
             new UrlOption { DisplayName = "Grok", Url = "https://grok.com", DefaultUrl = "https://grok.com" },
             new UrlOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com", DefaultUrl = "https://aistudio.google.com"},
+            new UrlOption { DisplayName = "Gemini", Url = "https://gemini.google.com/app", DefaultUrl = "https://gemini.google.com/app"},
             new UrlOption { DisplayName = "ChatGPT", Url = "https://chatgpt.com", DefaultUrl = "https://chatgpt.com" },
             new UrlOption { DisplayName = "Claude", Url = "https://claude.ai" , DefaultUrl = "https://claude.ai"}
         };
@@ -237,65 +238,64 @@ namespace Integrated_AI
         }
 
 
-        private void ToVSButton_ClickLogic(string aiCode, string pasteType = null, string functionName = null)
+        private async Task ToVSButton_ClickLogicAsync(string aiCode, string pasteType = null, string functionName = null)
         {
-            ThreadHelper.Generic.BeginInvoke(() =>
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Check if a diff window is already open. The new _isProcessingClipboardAction handles the race condition.
+            if (_diffContext != null)
             {
-                // Check if a diff window is already open. The new _isProcessingClipboardAction handles the race condition.
-                if (_diffContext != null)
-                {
-                    Log("PasteButton_ClickLogic: Diff window already open. Aborting.");
-                    return;
-                }
+                Log("PasteButton_ClickLogic: Diff window already open. Aborting.");
+                return;
+            }
 
-                if (_dte == null)
-                {
-                    Log("PasteButton_ClickLogic: DTE service not available.");
-                    // *** CHANGE 3: Use the themed MessageBox helper ***
-                    ShowThemedMessageBox("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
+            if (_dte == null)
+            {
+                Log("PasteButton_ClickLogic: DTE service not available.");
+                // *** CHANGE 3: Use the themed MessageBox helper ***
+                ShowThemedMessageBox("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
 
-                if (string.IsNullOrEmpty(aiCode))
-                {
-                    Log("PasteButton_ClickLogic: No AI code retrieved from WebView or clipboard.");
-                    ShowThemedMessageBox("No code retrieved from clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
+            if (string.IsNullOrEmpty(aiCode))
+            {
+                Log("PasteButton_ClickLogic: No AI code retrieved from WebView or clipboard.");
+                ShowThemedMessageBox("No code retrieved from clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
 
-                var activeDocument = _dte.ActiveDocument;
-                if (activeDocument == null)
-                {
-                    Log("PasteButton_ClickLogic: No active document found.");
-                    ShowThemedMessageBox("No active document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
+            var activeDocument = _dte.ActiveDocument;
+            if (activeDocument == null)
+            {
+                Log("PasteButton_ClickLogic: No active document found.");
+                ShowThemedMessageBox("No active document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
 
-                string currentCode = DiffUtility.GetDocumentText(activeDocument);
-                string modifiedCode = currentCode;
-                ChooseCodeWindow.ReplacementItem selectedItem = null;
-                if (pasteType != null || functionName != null)
-                {
-                    selectedItem = new ChooseCodeWindow.ReplacementItem();
-                    selectedItem.Type = pasteType;
-                    selectedItem.DisplayName = functionName;
-                }
+            string currentCode = DiffUtility.GetDocumentText(activeDocument);
+            string modifiedCode = currentCode;
+            ChooseCodeWindow.ReplacementItem selectedItem = null;
+            if (pasteType != null || functionName != null)
+            {
+                selectedItem = new ChooseCodeWindow.ReplacementItem();
+                selectedItem.Type = pasteType;
+                selectedItem.DisplayName = functionName;
+            }
 
-                _diffContext = new DiffUtility.DiffContext { };
-                modifiedCode = StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), modifiedCode, aiCode, activeDocument, selectedItem, _diffContext);
-                _diffContext = DiffUtility.OpenDiffView(Window.GetWindow(this), activeDocument, currentCode, modifiedCode, aiCode, _diffContext);
+            _diffContext = new DiffUtility.DiffContext { };
+            modifiedCode = await StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), modifiedCode, aiCode, activeDocument, selectedItem, _diffContext);
+            _diffContext = DiffUtility.OpenDiffView(Window.GetWindow(this), activeDocument, currentCode, modifiedCode, aiCode, _diffContext);
 
-                if (_diffContext == null)
-                {
-                    return;
-                }
+            if (_diffContext == null)
+            {
+                return;
+            }
 
-                // If diff view opened successfully, the lock remains active.
-                // Update UI on the main thread.
-                Dispatcher.Invoke(() =>
-                {
-                    UpdateButtonsForDiffView(true);
-                });
+            // If diff view opened successfully, the lock remains active.
+            // Update UI on the main thread.
+            Dispatcher.Invoke(() =>
+            {
+                UpdateButtonsForDiffView(true);
             });
         }
 
@@ -340,7 +340,7 @@ namespace Integrated_AI
                     if (!functions.Any())
                     {
                         Log("SplitButtonToVS_Click: No functions found in the active document, treating as new function");
-                        ToVSButton_ClickLogic(aiCode, "new_function");
+                        await ToVSButton_ClickLogicAsync(aiCode, "new_function");
                         return;
                     }
 
@@ -365,22 +365,22 @@ namespace Integrated_AI
                         }
                     }
 
-                    ToVSButton_ClickLogic(aiCode, functionType, functionName);
+                    await ToVSButton_ClickLogicAsync(aiCode, functionType, functionName);
                 }
 
                 else if (_selectedOptionToVS == "File -> VS")
                 {
-                    ToVSButton_ClickLogic(aiCode, pasteType: "file");
+                    await ToVSButton_ClickLogicAsync(aiCode, pasteType: "file");
                 }
 
                 else if (_selectedOptionToVS == "Snippet -> VS")
                 {
-                    ToVSButton_ClickLogic(aiCode, pasteType: "snippet");
+                    await ToVSButton_ClickLogicAsync(aiCode, pasteType: "snippet");
                 }
 
                 else if (_selectedOptionToVS == "New File")
                 {
-                    ToVSButton_ClickLogic(aiCode, pasteType: "new_file");
+                    await ToVSButton_ClickLogicAsync(aiCode, pasteType: "new_file");
                 }
             }
             catch (Exception ex)
@@ -529,7 +529,7 @@ namespace Integrated_AI
             }
         }
 
-        private void MenuItemToVS_Click(object sender, RoutedEventArgs e)
+        private async void MenuItemToVS_Click(object sender, RoutedEventArgs e)
         {
             if (sender is MenuItem menuItem && menuItem.Tag is string option)
             {
@@ -651,10 +651,12 @@ namespace Integrated_AI
 
         }
 
-        private void ChooseButton_Click(object sender, RoutedEventArgs e)
+        private async void ChooseButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
                 // Capture necessary data from the existing context before it gets reset.
                 if (_diffContext == null || _diffContext.ActiveDocumentPath == null || string.IsNullOrEmpty(_diffContext.AICodeBlock))
                 {
@@ -741,7 +743,7 @@ namespace Integrated_AI
                 var newDiffContext = new DiffUtility.DiffContext { };
 
                 // Calculate the modified code based on the user's selection, using the correct target document and code.
-                string modifiedCode = StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
+                string modifiedCode = await StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
 
                 // Open a new diff view and assign the fully populated context to our member field.
                 _diffContext = DiffUtility.OpenDiffView(Window.GetWindow(this), targetDoc, codeToModify, modifiedCode, aiCode, newDiffContext);
@@ -1068,54 +1070,61 @@ namespace Integrated_AI
             Settings.Default.Save(); // Save settings when the popup is closed
         }
 
-        private void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs args)
+        private async void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs args)
         {
-            // Only handle copy button clicks if the AutoDiffToggle is enabled.
             if (AutoDiffToggle.IsChecked != true)
             {
-                return; // Exit immediately if the feature is disabled.
+                return; 
             }
 
-            // We are expecting a plain string now.
             string message = args.TryGetWebMessageAsString();
-
-            // Log whatever we get, even if it's empty.
             WebViewUtilities.Log($"Received web message: '{message}'");
 
             if (message == "copy_signal" || message == "manual_test_signal")
             {
-                // IT WORKED! The channel is open.
                 WebViewUtilities.Log("Signal received successfully! Processing clipboard...");
 
-                // Now, we fall back to reading the clipboard, but add a tiny delay
-                // to give the OS time to propagate the change.
-                Dispatcher.Invoke(async () => 
+                // STEP 2: Remove the Dispatcher.Invoke wrapper.
+                // Since the event handler is now async, we can await tasks directly.
+                try
                 {
-                    try // Add try block here
+                    // By making the event handler async, we can properly await the delay.
+                    // This small delay gives the browser time to put the text on the clipboard.
+                    await Task.Delay(100);
+
+                    // STEP 3: Ensure we are on the main thread for clipboard and DTE access.
+                    // This is safer than assuming the event fires on the UI thread.
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    if (_diffContext != null)
                     {
-                        await Task.Delay(100);
-
-                        if (_diffContext != null) return;
-
-                        // Clipboard.GetText() can throw
-                        string clipboardText = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty;
-
-                        if (!string.IsNullOrEmpty(clipboardText))
-                        {
-                            ToVSButton_ClickLogic(clipboardText);
-                        }
-                        else
-                        {
-                            WebViewUtilities.Log("Signal received, but clipboard was empty after delay.");
-                        }
+                        // If a diff is already open, don't start a new one.
+                        return;
                     }
-                    catch (Exception ex)
+
+                    // Clipboard.GetText() can throw and must be on the UI thread.
+                    string clipboardText = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty;
+
+                    if (!string.IsNullOrEmpty(clipboardText))
                     {
-                        // Catch exceptions from clipboard access or ToVSButton_ClickLogic
-                        WebViewUtilities.Log($"Error processing web message signal: {ex.Message}");
-                        ShowThemedMessageBox($"An error occurred while processing the code from the chat window: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        // Now we can properly await our async logic method.
+                        // The UI will remain responsive, and exceptions will be caught by our try/catch block.
+                        await ToVSButton_ClickLogicAsync(clipboardText);
                     }
-                });
+                    else
+                    {
+                        WebViewUtilities.Log("Signal received, but clipboard was empty after delay.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // This catch block will now correctly handle exceptions from both
+                    // clipboard access and the entire ToVSButton_ClickLogicAsync operation.
+                    WebViewUtilities.Log($"Error processing web message signal: {ex.Message}");
+
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(); // Ensure UI thread for message box
+                    ShowThemedMessageBox($"An error occurred while processing the code from the chat window: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 

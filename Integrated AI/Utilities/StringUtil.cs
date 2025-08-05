@@ -315,10 +315,12 @@ namespace Integrated_AI.Utilities
             return (double)commonCount / Math.Max(source.Length, target.Length);
         }
 
-        public static string CreateDocumentContent(DTE2 dte, System.Windows.Window window, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
+        public async static Task<string> CreateDocumentContent(DTE2 dte, System.Windows.Window window, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
         {
             try
             {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
                 var (isFunction, functionName, isFullFile) = (false, string.Empty, false);
 
                 // Determine the language based on the active document's extension
@@ -420,11 +422,12 @@ namespace Integrated_AI.Utilities
                         if (string.IsNullOrEmpty(newFilePath))
                         {
                             WebViewUtilities.Log("New file creation cancelled by user.");
+                            context.IsNewFile = true; // Do this to prevent diff view from showing
                             return currentCode; // Return unchanged if cancelled
                         }
 
                         // Create and add the new file to the solution
-                        FileUtil.CreateNewFileInSolution(dte, newFilePath, aiCode);
+                        await FileUtil.CreateNewFileInSolutionAsync(ThreadHelper.JoinableTaskFactory, dte, newFilePath, aiCode);
                         context.IsNewFile = true; // Indicate that a new file was created
 
                         // Since it's a new file, we don't modify the current document

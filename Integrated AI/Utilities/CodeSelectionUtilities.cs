@@ -46,35 +46,6 @@ namespace Integrated_AI
             return functions;
         }
 
-        public static List<ErrorSelectionWindow.ErrorItem> GetErrorsFromDTE(DTE2 dte)
-        {
-            var errorList = dte.ToolWindows.ErrorList;
-            var errors = new List<ErrorSelectionWindow.ErrorItem>();
-
-            for (int i = 1; i <= errorList.ErrorItems.Count; i++)
-            {
-                var item = errorList.ErrorItems.Item(i);
-                if (item.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelHigh)
-                {
-                    errors.Add(new ErrorSelectionWindow.ErrorItem
-                    {
-                        Description = item.Description,
-                        FullFile = item.FileName,
-                        File = Path.GetFileName(item.FileName),
-                        Line = item.Line,
-                        DteErrorItem = item
-                    });
-                }
-            }
-
-            if (!errors.Any())
-            {
-                return null;
-            }
-
-            return errors;
-        }
-
         private static void CollectFunctions(CodeElement element, List<FunctionSelectionWindow.FunctionItem> functions)
         {
             if (element.Kind == vsCMElement.vsCMElementFunction)

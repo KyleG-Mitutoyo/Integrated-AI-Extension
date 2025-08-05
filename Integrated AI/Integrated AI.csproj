@@ -63,7 +63,6 @@
     <Compile Include="DebugWindow.xaml.cs">
       <DependentUpon>DebugWindow.xaml</DependentUpon>
     </Compile>
-    <Compile Include="ErrorSelectionWindow.cs" />
     <Compile Include="FunctionSelectionWindow.xaml.cs">
       <DependentUpon>FunctionSelectionWindow.xaml</DependentUpon>
     </Compile>
@@ -108,7 +107,9 @@
     <PackageReference Include="HandyControls">
       <Version>3.5.3</Version>
     </PackageReference>
-    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.0.32112.339" ExcludeAssets="runtime" NoWarn="NU1604" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" NoWarn="NU1604">
+      <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2094" NoWarn="NU1604" />
     <PackageReference Include="Microsoft.Web.WebView2">
       <Version>1.0.3240.44</Version>
@@ -185,10 +186,6 @@
     <Page Include="DebugWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="ErrorSelectionWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
     </Page>
     <Page Include="FunctionSelectionWindow.xaml">
       <SubType>Designer</SubType>

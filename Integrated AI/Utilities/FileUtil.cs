@@ -18,6 +18,7 @@ using EnvDTE;
 using EnvDTE80;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.Threading;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -297,22 +298,40 @@ namespace Integrated_AI.Utilities
         }
 
         // Create a new file in the solution and add AI-generated code
-        public static void CreateNewFileInSolution(DTE2 dte, string filePath, string aiCode)
+        public static async Task CreateNewFileInSolutionAsync(JoinableTaskFactory joinableTaskFactory, DTE2 dte, string filePath, string aiCode)
         {
             try
             {
-                // Ensure the directory exists
-                string directory = Path.GetDirectoryName(filePath);
-                if (!Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
+                string directory = null;
 
-                // Write the AI-generated code to the new file
-                File.WriteAllText(filePath, aiCode);
+                // 1. Offload the synchronous, blocking file I/O to a background thread
+                // using the JoinableTaskFactory. This is the key to preventing UI freezes.
+                await joinableTaskFactory.RunAsync(async () =>
+                {
+                    await Task.Delay(5000);
+                    // This lambda now executes on a background thread.
+                    directory = Path.GetDirectoryName(filePath);
+                    if (!Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
+
+                    // The synchronous call is now safe because it's not on the UI thread.
+                    File.WriteAllText(filePath, aiCode);
+                });
+
+                // The await above ensures the file is written before we continue.
+                // We are now back on the original context (likely the UI thread, but we'll
+                // be explicit to be safe).
+
+                // 2. Switch to the main thread to safely interact with DTE.
+                // This is still essential.
+                await joinableTaskFactory.SwitchToMainThreadAsync();
+
+                // --- All code from this point forward executes on the main thread ---
 
                 // Add the file to the solution
-                Project project = FindProjectForPath(dte, directory);
+                Project project = FindProjectForPath(dte, directory); // Assuming directory is captured
                 if (project != null)
                 {
                     project.ProjectItems.AddFromFile(filePath);
@@ -320,9 +339,7 @@ namespace Integrated_AI.Utilities
                 }
                 else
                 {
-                    // Fallback: Add to the solution's Miscellaneous Files
-                    dte.ItemOperations.OpenFile(filePath);
-                    WebViewUtilities.Log($"New file '{filePath}' added as a miscellaneous file.");
+                    WebViewUtilities.Log($"Could not find a project for '{filePath}'. It will be opened as a miscellaneous file.");
                 }
 
                 // Open the new file in the editor
@@ -331,13 +348,14 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error creating new file: {ex.Message}");
-                //MessageBox.Show($"Error creating new file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         // Find the appropriate project for the given directory
         public static Project FindProjectForPath(DTE2 dte, string directory)
         {
+            if (directory == null) return null;
+
             foreach (Project project in dte.Solution.Projects)
             {
                 string projectDir = Path.GetDirectoryName(project.FullName);

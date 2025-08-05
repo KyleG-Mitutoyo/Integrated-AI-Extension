@@ -34,6 +34,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 - **Grok**
 - **Claude**
 - **ChatGPT**
+- **Gemini**
 
 ![Demonstration of the core workflow](https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension/blob/main/assets/main%20demo.gif?raw=true)
 
@@ -44,6 +45,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
   - **Snippet**: Send only the code you've highlighted.
   - **Function**: Choose from the list of functions in the active document.
   - **File**: Send the complete content of the active document.
+- **❗ Error to AI** From the error list, right click an error or warning and select "Send to AI chat". It will send the error description and the line that has the error.
 - **✨ Intelligent AI-to-VS Diffing**: Move code from the AI back to your editor with the "AI -> VS" button commands. You have full control of what gets replaced, with options similar to the VS -> AI commands. The extension can also intelligently analyze the AI's response to find the corresponding function or snippet in your file (turn on Auto Diff and Auto Function Match in the options). It then presents a **rich diff view**, allowing you to review changes line-by-line and accept, decline, or manually choose a different replacement. 
 - **🔒 Automatic Backups**: Never lose work. When you accept a diff, the extension automatically creates a zip backup of your entire solution, giving you a restore point. There is also a manual backup button.
 
@@ -60,7 +62,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 1.  **Open the Chat Window**: Go to `Tools` > `Open AI Chat Window` > to open the chat tool window which can be docked or moved. Select your desired chat site from the dropdown (default is Google AI Studio).
 2.  **Chat with the AI**: Your code will appear in the prompt along with your message. Write your request (e.g., "Refactor this to be more efficient" or "Add exception handling").
 3.  **Send Code**: Open a code file. Then click one of the **"VS -> AI"** button options. You can send multiple code blocks or even multiple files, since each one has its own context.
-4.  **Review the Diff**: Once the AI provides a code block, select it in the chat window (or use the AI's "copy" button) and click an **"AI -> VS"** command. A diff view will appear, showing the proposed changes.
+4.  **Review the Diff**: Once the AI provides a code block, highlight the text in the chat window (or use the AI's "copy" button) and click an **"AI -> VS"** command. A diff view will appear, showing the proposed changes.
 5.  **Accept or Decline**: If you like the changes, click "Accept" in the diff view. A backup of your solution will be created automatically.
 
 ---
@@ -79,6 +81,12 @@ _![VS to AI commands](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrate
 _![Snippet in the prompt area](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/snippet.png)_
 
 _![Function in the prompt area](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/function.png)_
+
+You can send errors or warnings from the VS error list by right-clicking on one and selecting "Send to AI chat". It will paste the error description, line number, and contents of the line into the prompt. It will also navigate to that error in your code, even if a file is closed.
+
+_![Send Error to AI](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/error.png)_
+
+_![Error in the prompt area](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/error%20prompt.png)_
 
 </details>
 
@@ -142,6 +150,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.1.0** Add gemini.google.com to the included chat sites, add "Error to AI" command when right-clicking an error or warning in the VS error list, change new file creation to be on background thread, prevent diff view showing when "new file" is cancelled.
 - **1.0.2** Fix theme not setting correctly sometimes on the main chat page, fix URL saving, add `Reset URLs` button
 - **1.0.1** Fix README links
 - **1.0.0** Initial release

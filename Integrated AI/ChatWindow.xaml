@@ -35,7 +35,6 @@
                         <MenuItem Header="File -> AI" Click="MenuItemToAI_Click" Tag="File -> AI"/>
                         <MenuItem Header="Snippet -> AI" Click="MenuItemToAI_Click" Tag="Snippet -> AI"/>
                         <MenuItem Header="Function -> AI" Click="MenuItemToAI_Click" Tag="Function -> AI"/>
-                        <!--<MenuItem Header="Error -> AI" Click="MenuItemToAI_Click" Tag="Error -> AI"/>-->
                     </StackPanel>
                 </hc:SplitButton.DropDownContent>
             </hc:SplitButton>
