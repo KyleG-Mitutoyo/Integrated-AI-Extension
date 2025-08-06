@@ -302,36 +302,25 @@ namespace Integrated_AI.Utilities
         {
             try
             {
-                string directory = null;
-
-                // 1. Offload the synchronous, blocking file I/O to a background thread
-                // using the JoinableTaskFactory. This is the key to preventing UI freezes.
-                await joinableTaskFactory.RunAsync(async () =>
+                // --- This part runs on a background thread (thanks to Task.Run in the caller) ---
+                // 1. Perform the slow, blocking file I/O directly.
+                //    No need for an extra JTF.RunAsync because we are already off the UI thread.
+                string directory = Path.GetDirectoryName(filePath);
+                if (!Directory.Exists(directory))
                 {
-                    await Task.Delay(5000);
-                    // This lambda now executes on a background thread.
-                    directory = Path.GetDirectoryName(filePath);
-                    if (!Directory.Exists(directory))
-                    {
-                        Directory.CreateDirectory(directory);
-                    }
+                    Directory.CreateDirectory(directory);
+                }
 
-                    // The synchronous call is now safe because it's not on the UI thread.
-                    File.WriteAllText(filePath, aiCode);
-                });
+                File.WriteAllText(filePath, aiCode);
+                WebViewUtilities.Log("File has been written to disk on a background thread.");
 
-                // The await above ensures the file is written before we continue.
-                // We are now back on the original context (likely the UI thread, but we'll
-                // be explicit to be safe).
-
-                // 2. Switch to the main thread to safely interact with DTE.
-                // This is still essential.
+                // --- Now, switch to the main thread for DTE operations ---
+                // 2. This is still the essential step to safely interact with Visual Studio's objects.
                 await joinableTaskFactory.SwitchToMainThreadAsync();
 
-                // --- All code from this point forward executes on the main thread ---
-
-                // Add the file to the solution
-                Project project = FindProjectForPath(dte, directory); // Assuming directory is captured
+                // --- This part now runs safely on the main thread ---
+                // 3. Add the file to the solution and open it.
+                Project project = FindProjectForPath(dte, directory);
                 if (project != null)
                 {
                     project.ProjectItems.AddFromFile(filePath);
@@ -342,19 +331,26 @@ namespace Integrated_AI.Utilities
                     WebViewUtilities.Log($"Could not find a project for '{filePath}'. It will be opened as a miscellaneous file.");
                 }
 
-                // Open the new file in the editor
                 dte.ItemOperations.OpenFile(filePath);
             }
             catch (Exception ex)
             {
-                WebViewUtilities.Log($"Error creating new file: {ex.Message}");
+                // This catch block is important. If anything fails, we need to log it.
+                // Since we don't know which thread it might fail on, we log it directly.
+                // The calling method is responsible for showing UI messages.
+                WebViewUtilities.Log($"Error in CreateNewFileInSolutionAsync: {ex.Message}\n{ex.StackTrace}");
+                // Rethrowing allows the caller's catch block to handle it if necessary.
+                throw;
             }
         }
 
         // Find the appropriate project for the given directory
         public static Project FindProjectForPath(DTE2 dte, string directory)
         {
-            if (directory == null) return null;
+            if (directory == null)
+            {
+                return null; // No directory provided
+            }
 
             foreach (Project project in dte.Solution.Projects)
             {

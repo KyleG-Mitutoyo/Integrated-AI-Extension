@@ -30,6 +30,14 @@ using System.Windows;
 
 namespace Integrated_AI.Utilities
 {
+    public class DocumentContentResult
+    {
+        public string ModifiedCode { get; set; }
+        public bool IsNewFileCreationRequired { get; set; } = false;
+        public string NewFilePath { get; set; }
+        public string NewFileContent { get; set; }
+    }
+
     public static class StringUtil
     {
         // Custom method to unescape JSON-encoded strings
@@ -315,12 +323,10 @@ namespace Integrated_AI.Utilities
             return (double)commonCount / Math.Max(source.Length, target.Length);
         }
 
-        public async static Task<string> CreateDocumentContent(DTE2 dte, System.Windows.Window window, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
+        public static DocumentContentResult CreateDocumentContent(DTE2 dte, System.Windows.Window window, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
         {
             try
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
                 var (isFunction, functionName, isFullFile) = (false, string.Empty, false);
 
                 // Determine the language based on the active document's extension
@@ -345,7 +351,7 @@ namespace Integrated_AI.Utilities
                     if (chosenItem == null || chosenItem.Type != "new_file")
                     {
                         //MessageBox.Show("The AI response is a full file replacement. It will replace the entire document.", "Full File Replacement", MessageBoxButton.OK, MessageBoxImage.Information);
-                        return aiCode; // Replace entire document for "file" type
+                        return new DocumentContentResult { ModifiedCode = aiCode }; // Replace entire document for "file" type
                     }
                 }
 
@@ -366,7 +372,7 @@ namespace Integrated_AI.Utilities
                             // Remove comments (C# // or VB ' or REM) above the function definition, also remove header/footer
                             aiCode = RemoveHeaderFooterComments(aiCode);
                             context.NewCodeStartIndex = startIndex;
-                            return ReplaceCodeBlock(window, currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode, true);
+                            return new DocumentContentResult { ModifiedCode = ReplaceCodeBlock(window, currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode, true) };
                         }
                     }
                     else
@@ -406,32 +412,36 @@ namespace Integrated_AI.Utilities
 
                             // Use ReplaceCodeBlock to insert the new function with correct indentation
                             context.NewCodeStartIndex = startIndex;
-                            return ReplaceCodeBlock(window, currentCode, startIndex, startLine, 0, aiCode, false);
+                            return new DocumentContentResult { ModifiedCode = ReplaceCodeBlock(window, currentCode, startIndex, startLine, 0, aiCode, false) };
                         }
                         else
                         {
                             // No functions in the document, append at the end with default indentation
                             WebViewUtilities.Log("No functions found in the document. Appending new function at the end.");
-                            return InsertAtCursorOrAppend(window, currentCode, aiCode, activeDoc);
+                            return new DocumentContentResult { ModifiedCode = InsertAtCursorOrAppend(window, currentCode, aiCode, activeDoc) };
                         }
                     }
                     else if (chosenItem.Type == "new_file")
                     {
-                        // Prompt user to select a location and file name
+                        // Prompt for the file path on the UI thread. This is quick.
                         string newFilePath = FileUtil.PromptForNewFilePath(dte, isVB ? "vb" : "cs");
                         if (string.IsNullOrEmpty(newFilePath))
                         {
                             WebViewUtilities.Log("New file creation cancelled by user.");
-                            context.IsNewFile = true; // Do this to prevent diff view from showing
-                            return currentCode; // Return unchanged if cancelled
+                            context.IsNewFile = true; // To prevent diff view from opening
+                            return new DocumentContentResult { ModifiedCode = currentCode };
                         }
 
-                        // Create and add the new file to the solution
-                        await FileUtil.CreateNewFileInSolutionAsync(ThreadHelper.JoinableTaskFactory, dte, newFilePath, aiCode);
-                        context.IsNewFile = true; // Indicate that a new file was created
-
-                        // Since it's a new file, we don't modify the current document
-                        return currentCode;
+                        // **THE KEY CHANGE**: Instead of creating the file here,
+                        // we package up the necessary information and return it.
+                        context.IsNewFile = true; // Still useful for the caller
+                        return new DocumentContentResult
+                        {
+                            IsNewFileCreationRequired = true,
+                            NewFilePath = newFilePath,
+                            NewFileContent = aiCode,
+                            ModifiedCode = currentCode // The original document's code remains unchanged
+                        };
                     }
                 }
 
@@ -453,18 +463,18 @@ namespace Integrated_AI.Utilities
 
                         context.NewCodeStartIndex = startIndex;
 
-                        return ReplaceCodeBlock(window, currentCode, startIndex, startLine, length, aiCode, true);
+                        return new DocumentContentResult { ModifiedCode = ReplaceCodeBlock(window, currentCode, startIndex, startLine, length, aiCode, true) };
                     }
                 }
 
                 // Fallback: Insert at cursor position or append if selection was empty or other errors
-                return StringUtil.InsertAtCursorOrAppend(window, currentCode, aiCode, activeDoc);
+                return new DocumentContentResult { ModifiedCode = StringUtil.InsertAtCursorOrAppend(window, currentCode, aiCode, activeDoc) };
             }
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error in CreateDocumentContent: {ex.Message}");
                 ThemedMessageBox.Show(window, $"Error creating document content: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return currentCode; // Return unchanged code if error occurs
+                return new DocumentContentResult { ModifiedCode = currentCode }; // Return unchanged code if error occurs
             }
         }
 

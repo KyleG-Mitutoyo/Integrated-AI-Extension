@@ -240,26 +240,23 @@ namespace Integrated_AI
 
         private async Task ToVSButton_ClickLogicAsync(string aiCode, string pasteType = null, string functionName = null)
         {
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-            // Check if a diff window is already open. The new _isProcessingClipboardAction handles the race condition.
+            // We are already on the main thread thanks to the caller's SwitchToMainThreadAsync.
             if (_diffContext != null)
             {
-                Log("PasteButton_ClickLogic: Diff window already open. Aborting.");
+                Log("ToVSButton_ClickLogic: Diff window already open. Aborting.");
                 return;
             }
 
             if (_dte == null)
             {
-                Log("PasteButton_ClickLogic: DTE service not available.");
-                // *** CHANGE 3: Use the themed MessageBox helper ***
+                Log("ToVSButton_ClickLogic: DTE service not available.");
                 ShowThemedMessageBox("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
             if (string.IsNullOrEmpty(aiCode))
             {
-                Log("PasteButton_ClickLogic: No AI code retrieved from WebView or clipboard.");
+                Log("ToVSButton_ClickLogic: No AI code from clipboard.");
                 ShowThemedMessageBox("No code retrieved from clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -267,128 +264,162 @@ namespace Integrated_AI
             var activeDocument = _dte.ActiveDocument;
             if (activeDocument == null)
             {
-                Log("PasteButton_ClickLogic: No active document found.");
+                Log("ToVSButton_ClickLogic: No active document found.");
                 ShowThemedMessageBox("No active document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
             string currentCode = DiffUtility.GetDocumentText(activeDocument);
-            string modifiedCode = currentCode;
+
             ChooseCodeWindow.ReplacementItem selectedItem = null;
             if (pasteType != null || functionName != null)
             {
-                selectedItem = new ChooseCodeWindow.ReplacementItem();
-                selectedItem.Type = pasteType;
-                selectedItem.DisplayName = functionName;
+                selectedItem = new ChooseCodeWindow.ReplacementItem
+                {
+                    Type = pasteType,
+                    DisplayName = functionName
+                };
             }
 
             _diffContext = new DiffUtility.DiffContext { };
-            modifiedCode = await StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), modifiedCode, aiCode, activeDocument, selectedItem, _diffContext);
-            _diffContext = DiffUtility.OpenDiffView(Window.GetWindow(this), activeDocument, currentCode, modifiedCode, aiCode, _diffContext);
 
-            if (_diffContext == null)
+            // Change 2: Call the synchronous CreateDocumentContent and capture the full result object.
+            var result = StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), currentCode, aiCode, activeDocument, selectedItem, _diffContext);
+
+            // Change 3: Check the result and branch the logic.
+            if (result.IsNewFileCreationRequired)
             {
-                return;
+                // PATH A: NEW FILE (The slow path)
+                // Call our non-blocking async method to create the file.
+                // The UI will NOT freeze while this runs.
+                await FileUtil.CreateNewFileInSolutionAsync(ThreadHelper.JoinableTaskFactory, _dte, result.NewFilePath, result.NewFileContent);
+
+                // No diff view is opened, so we are done.
             }
-
-            // If diff view opened successfully, the lock remains active.
-            // Update UI on the main thread.
-            Dispatcher.Invoke(() =>
+            else
             {
-                UpdateButtonsForDiffView(true);
-            });
+                // PATH B: DIFF VIEW (The fast path)
+                string modifiedCode = result.ModifiedCode;
+
+                // This is a UI operation and must be on the main thread, which we are.
+                _diffContext = DiffUtility.OpenDiffView(Window.GetWindow(this), activeDocument, currentCode, modifiedCode, aiCode, _diffContext);
+
+                if (_diffContext != null)
+                {
+                    // Update UI on the main thread. Dispatcher.Invoke is redundant if already on UI thread.
+                    UpdateButtonsForDiffView(true);
+                }
+            }
         }
 
-        private async void ExecuteToVSCommand()
+        private void ExecuteToVSCommand()
         {
-            try
+            // Wrap the entire command in JTF.RunAsync for stability.
+            // This prevents "async void" issues and safely manages the task's lifetime.
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
             {
-                if (_dte == null)
+                try
                 {
-                    Log("ExecuteToVSCommand: DTE service not available.");
-                    ShowThemedMessageBox("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
+                    // Ensure we are on the main thread to safely interact with DTE and show UI.
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                //Get AI code either from selected text or the clipboard if no text is selected
-                string aiCode = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView, Window.GetWindow(this));
-
-
-                if (aiCode == null || aiCode == "null" || string.IsNullOrEmpty(aiCode))
-                {
-                    aiCode = Clipboard.GetText(); // Fallback to clipboard text if WebView retrieval fails
-                                                  //Optional: check again if aicode is null or empty after clipboard retrieval
-                    WebViewUtilities.Log("ExecuteToVSCommand: Retrieved code from clipboard as WebView retrieval failed.");
-                }
-                else
-                {
-                    // Only remove base indentation if the AI code isn't from the clipboard
-                    aiCode = StringUtil.RemoveBaseIndentation(aiCode);
-                }
-
-                if (_selectedOptionToVS == "Function -> VS")
-                {
-                    // First need to find the function name from the AI code
-                    string functionName = null;
-                    string functionType = "function";
-                    string solutionPath = Path.GetDirectoryName(_dte.Solution.FullName);
-                    string filePath = _dte.ActiveDocument.FullName;
-                    string relativePath = FileUtil.GetRelativePath(solutionPath, filePath);
-
-                    var functions = CodeSelectionUtilities.GetFunctionsFromDocument(_dte.ActiveDocument);
-                    // Finding no functions means we treat it as a new function
-                    if (!functions.Any())
+                    if (_dte == null)
                     {
-                        Log("SplitButtonToVS_Click: No functions found in the active document, treating as new function");
-                        await ToVSButton_ClickLogicAsync(aiCode, "new_function");
+                        Log("ExecuteToVSCommand: DTE service not available.");
+                        ShowThemedMessageBox("DTE service not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                         return;
                     }
 
-                    // If there are functions, show the selection window or auto match
-                    if (AutoFunctionMatch.IsChecked == true)
-                    {
-                        var (isFunction, analyzedFunctionName, isFullFile) = StringUtil.AnalyzeCodeBlock(_dte, _dte.ActiveDocument, aiCode);
-                        if (isFunction) functionName = analyzedFunctionName;
-                    }
+                    // Await the retrieval of code from the WebView. This is now safely managed.
+                    string aiCode = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView, Window.GetWindow(this));
 
+                    if (string.IsNullOrEmpty(aiCode) || aiCode == "null")
+                    {
+                        aiCode = Clipboard.GetText(); // Fallback to clipboard
+                        WebViewUtilities.Log("ExecuteToVSCommand: Retrieved code from clipboard as WebView retrieval failed.");
+                    }
                     else
                     {
-                        var functionSelectionWindow = new FunctionSelectionWindow(functions, FileUtil._recentFunctionsFilePath, relativePath, true);
-                        if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
+                        aiCode = StringUtil.RemoveBaseIndentation(aiCode);
+                    }
+
+                    // If there's still no code, we can't proceed.
+                    if (string.IsNullOrEmpty(aiCode))
+                    {
+                        ShowThemedMessageBox("No code was found in the selection or clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+
+                    // Prepare variables to pass to the logic handler.
+                    string pasteType = null;
+                    string functionName = null;
+
+                    if (_selectedOptionToVS == "Function -> VS")
+                    {
+                        // This block determines the function name and type; it runs on the UI thread, which is correct.
+                        string analyzedFunctionName = null;
+                        string selectedFunctionType = "function"; // Default to replacing an existing function
+                        string solutionPath = Path.GetDirectoryName(_dte.Solution.FullName);
+                        string filePath = _dte.ActiveDocument.FullName;
+                        string relativePath = FileUtil.GetRelativePath(solutionPath, filePath);
+
+                        var functions = CodeSelectionUtilities.GetFunctionsFromDocument(_dte.ActiveDocument);
+                        if (!functions.Any())
                         {
-                            functionType = functionSelectionWindow.SelectedFunction.DisplayName == "New Function" ? "new_function" : "function";
-                            functionName = functionSelectionWindow.SelectedFunction.DisplayName;
+                            Log("ExecuteToVSCommand: No functions found in the active document, treating as a new function.");
+                            pasteType = "new_function";
                         }
                         else
                         {
-                            return;
+                            if (AutoFunctionMatch.IsChecked == true)
+                            {
+                                var (isFunction, autoFunctionName, isFullFile) = StringUtil.AnalyzeCodeBlock(_dte, _dte.ActiveDocument, aiCode);
+                                if (isFunction) analyzedFunctionName = autoFunctionName;
+                            }
+                            else
+                            {
+                                var functionSelectionWindow = new FunctionSelectionWindow(functions, FileUtil._recentFunctionsFilePath, relativePath, true);
+                                if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
+                                {
+                                    selectedFunctionType = functionSelectionWindow.SelectedFunction.DisplayName == "New Function" ? "new_function" : "function";
+                                    analyzedFunctionName = functionSelectionWindow.SelectedFunction.DisplayName;
+                                }
+                                else
+                                {
+                                    return; // User cancelled the selection window.
+                                }
+                            }
+
+                            pasteType = selectedFunctionType;
+                            functionName = analyzedFunctionName;
                         }
                     }
+                    else if (_selectedOptionToVS == "File -> VS")
+                    {
+                        pasteType = "file";
+                    }
+                    else if (_selectedOptionToVS == "Snippet -> VS")
+                    {
+                        pasteType = "snippet";
+                    }
+                    else if (_selectedOptionToVS == "New File")
+                    {
+                        pasteType = "new_file";
+                    }
 
-                    await ToVSButton_ClickLogicAsync(aiCode, functionType, functionName);
+                    // Final, single point of execution. We await the main logic handler,
+                    // which will correctly handle both diffing and non-blocking file creation.
+                    await ToVSButton_ClickLogicAsync(aiCode, pasteType, functionName);
                 }
-
-                else if (_selectedOptionToVS == "File -> VS")
+                catch (Exception ex)
                 {
-                    await ToVSButton_ClickLogicAsync(aiCode, pasteType: "file");
+                    // A robust catch-all for any unexpected errors during the operation.
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(); // Ensure on UI thread for MessageBox
+                    string option = _selectedOptionToVS ?? "the operation";
+                    WebViewUtilities.Log($"ExecuteToVSCommand: Error executing {option} - {ex.Message}\n{ex.StackTrace}");
+                    ShowThemedMessageBox($"An unexpected error occurred while executing '{option}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
-
-                else if (_selectedOptionToVS == "Snippet -> VS")
-                {
-                    await ToVSButton_ClickLogicAsync(aiCode, pasteType: "snippet");
-                }
-
-                else if (_selectedOptionToVS == "New File")
-                {
-                    await ToVSButton_ClickLogicAsync(aiCode, pasteType: "new_file");
-                }
-            }
-            catch (Exception ex)
-            {
-                WebViewUtilities.Log($"ExecuteToVSCommand: Error executing {_selectedOptionToVS} - {ex.Message}");
-                ShowThemedMessageBox($"Error executing {_selectedOptionToVS}: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
+            });
         }
 
         private void UpdateButtonsForDiffView(bool showDiffButons)
@@ -529,7 +560,7 @@ namespace Integrated_AI
             }
         }
 
-        private async void MenuItemToVS_Click(object sender, RoutedEventArgs e)
+        private void MenuItemToVS_Click(object sender, RoutedEventArgs e)
         {
             if (sender is MenuItem menuItem && menuItem.Tag is string option)
             {
@@ -651,16 +682,13 @@ namespace Integrated_AI
 
         }
 
-        private async void ChooseButton_Click(object sender, RoutedEventArgs e)
+        private void ChooseButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                // Capture necessary data from the existing context before it gets reset.
+                // --- Step 1: Initial checks and data gathering (remains the same) ---
                 if (_diffContext == null || _diffContext.ActiveDocumentPath == null || string.IsNullOrEmpty(_diffContext.AICodeBlock))
                 {
-                    // Not enough info to proceed. Reset UI and state.
                     UpdateButtonsForDiffView(false);
                     if (_diffContext != null)
                     {
@@ -674,52 +702,46 @@ namespace Integrated_AI
                 string aiCode = _diffContext.AICodeBlock;
                 var activeDocument = _dte.Documents.Item(originalDocPath);
 
-                // Show the code replacement window. This now uses a valid Document object.
-                // The temp files are passed in so they will be skipped in the ChooseCodeWindow.
+                // Show the code replacement window, which is a blocking (modal) dialog.
                 var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(_dte, activeDocument, _diffContext?.TempCurrentFile, _diffContext?.TempAiFile);
                 if (selectedItem == null)
                 {
-                    // User cancelled the selection. Go back to the diff view that's still open.
+                    // User cancelled, do nothing. The original diff view is still open.
                     return;
                 }
 
-                // First, close the existing diff view. This will invalidate the old _diffContext.ActiveDocument reference.
-                DiffUtility.CloseDiffAndReset(_diffContext);
-
+                // --- Step 2: Determine the target document and code (remains the same) ---
                 if (activeDocument == null)
                 {
                     Log($"ChooseButton_Click: Active document not found for path: {originalDocPath}");
                     ShowThemedMessageBox($"Could not re-acquire a handle to document: {originalDocPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    DiffUtility.CloseDiffAndReset(_diffContext); // Clean up the old view
                     UpdateButtonsForDiffView(false);
                     return;
                 }
-                activeDocument.Activate(); // Good practice to ensure it's the active document.
+                activeDocument.Activate();
 
                 string currentCode = DiffUtility.GetDocumentText(activeDocument);
                 if (currentCode == null)
                 {
                     Log("ChooseButton_Click: Unable to retrieve current code from document.");
                     ShowThemedMessageBox("Unable to retrieve current code from document.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    DiffUtility.CloseDiffAndReset(_diffContext); // Clean up the old view
                     UpdateButtonsForDiffView(false);
                     return;
                 }
 
-
-                // --- START: BUG FIX ---
-                // Default to the active document, but check if the user selected a different file.
                 Document targetDoc = activeDocument;
                 string codeToModify = currentCode;
 
-                // If the user chose a specific file, update the target document and its code.
                 if (selectedItem.Type == "file" || selectedItem.Type == "opened_file")
                 {
                     string targetFilePath = selectedItem.FilePath;
                     try
                     {
-                        // Attempt to get the document if open, otherwise open it.
                         targetDoc = _dte.Documents.Item(targetFilePath);
                     }
-                    catch (ArgumentException) // Not open, so open it
+                    catch (ArgumentException)
                     {
                         try
                         {
@@ -730,35 +752,78 @@ namespace Integrated_AI
                         {
                             WebViewUtilities.Log($"ChooseButton_Click: Error opening selected file '{targetFilePath}': {ex.Message}");
                             ShowThemedMessageBox($"Error opening selected file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            DiffUtility.CloseDiffAndReset(_diffContext); // Clean up the old view
                             return;
                         }
                     }
-
-                    // Retrieve the code from the now-targeted document.
                     codeToModify = DiffUtility.GetDocumentText(targetDoc);
                 }
-                // --- END: BUG FIX ---
 
-                // Create a new context for the new diff view, following the pattern in PasteButton_ClickLogic.
+                // --- Step 3: Call the synchronous decision-making method ---
                 var newDiffContext = new DiffUtility.DiffContext { };
 
-                // Calculate the modified code based on the user's selection, using the correct target document and code.
-                string modifiedCode = await StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
+                // This call is now synchronous. It quickly determines what to do but does NOT
+                // perform the slow file creation itself.
+                var result = StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
 
-                // Open a new diff view and assign the fully populated context to our member field.
-                _diffContext = DiffUtility.OpenDiffView(Window.GetWindow(this), targetDoc, codeToModify, modifiedCode, aiCode, newDiffContext);
+                // --- Step 4: Act based on the result ---
 
-                // If opening the diff view failed, reset the UI.
-                if (_diffContext == null)
+                // At this point, the user has committed, so we close the old diff view.
+                DiffUtility.CloseDiffAndReset(_diffContext);
+                _diffContext = null; // Clear the context
+
+                if (result.IsNewFileCreationRequired)
                 {
+                    // PATH A: NEW FILE CREATION (The slow operation)
+                    // The UI is now free. Reset buttons to their default state.
                     UpdateButtonsForDiffView(false);
+
+                    // Use Task.Run to perform the file I/O on a background thread.
+                    // This prevents the UI from freezing.
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            // This runs in the background.
+                            await FileUtil.CreateNewFileInSolutionAsync(ThreadHelper.JoinableTaskFactory, _dte, result.NewFilePath, result.NewFileContent);
+
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            // If the background task fails, show an error on the UI thread.
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                            WebViewUtilities.Log($"ChooseButton_Click: Background file creation failed - {ex.Message}");
+                            ShowThemedMessageBox($"Failed to create new file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                    });
                 }
-                // If successful, the UI remains in the "diff view open" state with the new diff.
+                else
+                {
+                    // PATH B: MODIFY EXISTING DOCUMENT (The fast operation)
+                    // Get the modified code from the result.
+                    string modifiedCode = result.ModifiedCode;
+
+                    // Open a new diff view with the changes.
+                    _diffContext = DiffUtility.OpenDiffView(Window.GetWindow(this), targetDoc, codeToModify, modifiedCode, aiCode, newDiffContext);
+
+                    if (_diffContext == null)
+                    {
+                        // If opening the new diff view failed for some reason, reset the UI.
+                        UpdateButtonsForDiffView(false);
+                    }
+                }
             }
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"ChooseButton_Click: Error in ChooseButton_Click - {ex.Message}");
                 ShowThemedMessageBox($"Error in ChooseButton_Click: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                // Ensure UI is reset on any failure.
+                if (_diffContext != null)
+                {
+                    DiffUtility.CloseDiffAndReset(_diffContext);
+                    _diffContext = null;
+                }
                 UpdateButtonsForDiffView(false);
             }
         }
@@ -1070,46 +1135,47 @@ namespace Integrated_AI
             Settings.Default.Save(); // Save settings when the popup is closed
         }
 
-        private async void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs args)
+        private void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs args)
         {
             if (AutoDiffToggle.IsChecked != true)
             {
-                return; 
+                return;
             }
 
             string message = args.TryGetWebMessageAsString();
-            WebViewUtilities.Log($"Received web message: '{message}'");
-
-            if (message == "copy_signal" || message == "manual_test_signal")
+            if (message != "copy_signal" && message != "manual_test_signal")
             {
-                WebViewUtilities.Log("Signal received successfully! Processing clipboard...");
+                return;
+            }
 
-                // STEP 2: Remove the Dispatcher.Invoke wrapper.
-                // Since the event handler is now async, we can await tasks directly.
+            WebViewUtilities.Log("Signal received successfully! Starting clipboard processing task...");
+
+            // The CORRECT AND SAFE PATTERN for an event handler kicking off async work.
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            {
                 try
                 {
-                    // By making the event handler async, we can properly await the delay.
-                    // This small delay gives the browser time to put the text on the clipboard.
-                    await Task.Delay(100);
-
-                    // STEP 3: Ensure we are on the main thread for clipboard and DTE access.
-                    // This is safer than assuming the event fires on the UI thread.
+                    // First, switch to the main thread in a non-blocking way.
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                    await Task.Delay(100); // Give clipboard time to update.
 
                     if (_diffContext != null)
                     {
-                        // If a diff is already open, don't start a new one.
+                        WebViewUtilities.Log("Diff context is not null, aborting.");
                         return;
                     }
 
-                    // Clipboard.GetText() can throw and must be on the UI thread.
                     string clipboardText = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty;
+                    WebViewUtilities.Log($"Clipboard content length: {clipboardText?.Length ?? 0}");
 
                     if (!string.IsNullOrEmpty(clipboardText))
                     {
-                        // Now we can properly await our async logic method.
-                        // The UI will remain responsive, and exceptions will be caught by our try/catch block.
+                        WebViewUtilities.Log("Clipboard has text, calling logic...");
+                        // Now we can safely await our async logic method.
+                        // It will not deadlock, and its lifetime is managed by the JTF.
                         await ToVSButton_ClickLogicAsync(clipboardText);
+                        WebViewUtilities.Log("Logic call completed.");
                     }
                     else
                     {
@@ -1118,14 +1184,11 @@ namespace Integrated_AI
                 }
                 catch (Exception ex)
                 {
-                    // This catch block will now correctly handle exceptions from both
-                    // clipboard access and the entire ToVSButton_ClickLogicAsync operation.
-                    WebViewUtilities.Log($"Error processing web message signal: {ex.Message}");
-
-                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(); // Ensure UI thread for message box
-                    ShowThemedMessageBox($"An error occurred while processing the code from the chat window: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    WebViewUtilities.Log($"FATAL ERROR in web message processing: {ex.ToString()}");
+                    ShowThemedMessageBox($"An error occurred while processing the code: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
-            }
+            });
         }
 
         private async Task InitializeWebViewAsync()
