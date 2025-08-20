@@ -24,6 +24,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using MessageBox = HandyControl.Controls.MessageBox;
 
@@ -42,9 +44,10 @@ namespace Integrated_AI.Utilities
             public bool IsNewFile { get; set; } = false;
         }
 
-        public static DiffContext OpenDiffView(System.Windows.Window window, Document activeDoc, string currentCode, string aiCodeFullFileContents, string aiCode, DiffContext existingContext = null, bool compareMode = false)
+        public static async Task<DiffContext> OpenDiffViewAsync(System.Windows.Window window, Document activeDoc, string currentCode, string aiCodeFullFileContents, string aiCode, DiffContext existingContext = null, bool compareMode = false, CancellationToken cancellationToken = default)
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
             if (activeDoc == null || currentCode == null || aiCodeFullFileContents == null)
             {
                 WebViewUtilities.Log("OpenDiffView: Invalid input - activeDoc, currentCode, or aiCodeFullFileContents is null.");
@@ -78,9 +81,16 @@ namespace Integrated_AI.Utilities
 
             try
             {
-                File.WriteAllText(context.TempCurrentFile, currentCode);
-                File.WriteAllText(context.TempAiFile, aiCodeFullFileContents);
+                await Task.Run(() =>
+                {
+                    // This code block now executes on a background thread, not freezing the UI.
+                    File.WriteAllText(context.TempCurrentFile, currentCode);
+                    File.WriteAllText(context.TempAiFile, aiCodeFullFileContents);
+                }, cancellationToken);
+
                 WebViewUtilities.Log($"OpenDiffView: Created temp files - Current: {context.TempCurrentFile} (length: {currentCode.Length}), AI: {context.TempAiFile} (length: {aiCodeFullFileContents.Length}), ActiveDoc: {activeDoc.FullName}");
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
 
                 var diffService = Package.GetGlobalService(typeof(SVsDifferenceService)) as IVsDifferenceService;
                 if (diffService == null)
@@ -140,9 +150,10 @@ namespace Integrated_AI.Utilities
         }
 
         // Opens diff views for multiple files in a restore compared to current project files
-        public static List<DiffContext> OpenMultiFileDiffView(DTE2 dte, System.Windows.Window window, Dictionary<string, string> restoreFiles)
+        public static async Task<List<DiffContext>> OpenMultiFileDiffViewAsync(DTE2 dte, System.Windows.Window window, Dictionary<string, string> restoreFiles, CancellationToken cancellationToken)
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
             if (dte == null || restoreFiles == null || restoreFiles.Count == 0)
             {
                 WebViewUtilities.Log("OpenMultiFileDiffView: Invalid input - DTE or restore files are null or empty.");
@@ -164,90 +175,122 @@ namespace Integrated_AI.Utilities
                 return null;
             }
 
-            foreach (var restoreFile in restoreFiles)
+            try
             {
-                string filePath = restoreFile.Key;
-                string restoreContent = restoreFile.Value;
+                dte.StatusBar.Text = $"Comparing {restoreFiles.Count} files...";
+                dte.StatusBar.Animate(true, vsStatusAnimation.vsStatusAnimationGeneral);
 
-                // Use solution-relative path
-                string normalizedPath = filePath;
-
-                // Check if file exists in the solution
-                ProjectItem projectItem = null;
-                try
+                int processedCount = 0;
+                foreach (var restoreFile in restoreFiles)
                 {
-                    projectItem = dte.Solution.FindProjectItem(normalizedPath);
-                    if (projectItem == null)
+                    cancellationToken.ThrowIfCancellationRequested();
+                    processedCount++;
+
+                    string fileName = System.IO.Path.GetFileName(restoreFile.Key);
+                    dte.StatusBar.Text = $"Comparing file {processedCount}/{restoreFiles.Count}: {fileName}...";
+
+                    string filePath = restoreFile.Key;
+                    string restoreContent = restoreFile.Value;
+
+                    // Use solution-relative path
+                    string normalizedPath = filePath;
+
+                    // Check if file exists in the solution
+                    ProjectItem projectItem = null;
+                    try
                     {
-                        // Try absolute path as fallback
-                        normalizedPath = System.IO.Path.Combine(solutionDir, filePath);
-                        normalizedPath = System.IO.Path.GetFullPath(normalizedPath);
                         projectItem = dte.Solution.FindProjectItem(normalizedPath);
+                        if (projectItem == null)
+                        {
+                            // Try absolute path as fallback
+                            normalizedPath = System.IO.Path.Combine(solutionDir, filePath);
+                            normalizedPath = System.IO.Path.GetFullPath(normalizedPath);
+                            projectItem = dte.Solution.FindProjectItem(normalizedPath);
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: Error finding project item for {normalizedPath}: {ex.Message}");
-                    continue;
-                }
-
-                if (projectItem == null)
-                {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: File {normalizedPath} not found in solution.");
-                    continue;
-                }
-
-                // Open the document to get its current content
-                Document doc = null;
-                try
-                {
-                    projectItem.Open(EnvDTE.Constants.vsViewKindCode);
-                    doc = projectItem.Document;
-                    if (doc == null)
+                    catch (Exception ex)
                     {
-                        WebViewUtilities.Log($"OpenMultiFileDiffView: Could not open document for {normalizedPath}.");
+                        WebViewUtilities.Log($"OpenMultiFileDiffView: Error finding project item for {normalizedPath}: {ex.Message}");
                         continue;
                     }
-                }
-                catch (Exception ex)
-                {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: Exception opening document for {normalizedPath}: {ex.Message}");
-                    continue;
-                }
 
-                // Get current content
-                string currentContent = null;
-                try
-                {
-                    var textDocument = (TextDocument)doc.Object("TextDocument");
-                    currentContent = textDocument.StartPoint.CreateEditPoint().GetText(textDocument.EndPoint);
-                }
-                catch (Exception ex)
-                {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: Error reading content for {normalizedPath}: {ex.Message}");
-                    continue;
-                }
+                    if (projectItem == null)
+                    {
+                        WebViewUtilities.Log($"OpenMultiFileDiffView: File {normalizedPath} not found in solution.");
+                        continue;
+                    }
 
-                // Compare only if content has changed
-                if (currentContent == restoreContent)
-                {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: No changes detected for {normalizedPath}. Skipping diff.");
-                    continue;
-                }
+                    // Open the document to get its current content
+                    Document doc = null;
+                    try
+                    {
+                        projectItem.Open(EnvDTE.Constants.vsViewKindCode);
+                        doc = projectItem.Document;
+                        if (doc == null)
+                        {
+                            WebViewUtilities.Log($"OpenMultiFileDiffView: Could not open document for {normalizedPath}.");
+                            continue;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        WebViewUtilities.Log($"OpenMultiFileDiffView: Exception opening document for {normalizedPath}: {ex.Message}");
+                        continue;
+                    }
 
-                // Open diff view for this file
-                //MessageBox.Show($"Opening diff view for {normalizedPath}.\n\nCurrent content length: {currentContent.Length}\nRestore content length: {restoreContent.Length}", "Diff View", MessageBoxButton.OK, MessageBoxImage.Information);
-                var context = OpenDiffView(window, doc, restoreContent, currentContent, restoreContent, null, true);
-                if (context != null)
-                {
-                    diffContexts.Add(context);
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: Diff view opened for {normalizedPath}.");
-                }
-                else
-                {
-                    WebViewUtilities.Log($"OpenMultiFileDiffView: Failed to open diff view for {normalizedPath}.");
+                    // Get current content
+                    string currentContent = null;
+                    try
+                    {
+                        var textDocument = (TextDocument)doc.Object("TextDocument");
+                        currentContent = textDocument.StartPoint.CreateEditPoint().GetText(textDocument.EndPoint);
+                    }
+                    catch (Exception ex)
+                    {
+                        WebViewUtilities.Log($"OpenMultiFileDiffView: Error reading content for {normalizedPath}: {ex.Message}");
+                        continue;
+                    }
+
+                    // Compare only if content has changed
+                    if (currentContent == restoreContent)
+                    {
+                        WebViewUtilities.Log($"OpenMultiFileDiffView: No changes detected for {normalizedPath}. Skipping diff.");
+                        continue;
+                    }
+
+                    // Open diff view for this file
+                    var context = await OpenDiffViewAsync(window, doc, restoreContent, currentContent, restoreContent, null, true, cancellationToken);
+                    if (context != null)
+                    {
+                        diffContexts.Add(context);
+                        WebViewUtilities.Log($"OpenMultiFileDiffView: Diff view opened for {normalizedPath}.");
+                    }
+                    else
+                    {
+                        WebViewUtilities.Log($"OpenMultiFileDiffView: Failed to open diff view for {normalizedPath}.");
+                    }
                 }
             }
+            catch (OperationCanceledException)
+            {
+                WebViewUtilities.Log("Multi-file diff operation was cancelled.");
+                // Clean up any diff windows that were already opened before cancellation.
+                foreach (var context in diffContexts)
+                {
+                    CloseDiffAndReset(context);
+                }
+                return null; // Return null to indicate cancellation.
+            }
+            finally
+            {
+                // --- Step 3: ALWAYS clean up the Status Bar ---
+                // This runs whether the operation succeeds, fails, or is cancelled.
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(); // Ensure we are on UI thread
+                dte.StatusBar.Animate(false, vsStatusAnimation.vsStatusAnimationGeneral);
+                dte.StatusBar.Clear();
+            }
+
+
 
             if (diffContexts.Count == 0)
             {

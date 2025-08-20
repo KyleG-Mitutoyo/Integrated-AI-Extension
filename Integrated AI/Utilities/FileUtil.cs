@@ -302,65 +302,86 @@ namespace Integrated_AI.Utilities
         {
             try
             {
-                // --- This part runs on a background thread (thanks to Task.Run in the caller) ---
-                // 1. Perform the slow, blocking file I/O directly.
-                //    No need for an extra JTF.RunAsync because we are already off the UI thread.
-                string directory = Path.GetDirectoryName(filePath);
-                if (!Directory.Exists(directory))
+                // --- Part 1: Background Thread Operations (You already did this correctly) ---
+                // Perform slow file I/O on a background thread to avoid blocking the UI.
+                await Task.Run(() =>
                 {
-                    Directory.CreateDirectory(directory);
-                }
+                    string directory = Path.GetDirectoryName(filePath);
+                    if (!Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
+                    File.WriteAllText(filePath, aiCode);
+                    WebViewUtilities.Log("File has been written to disk on a background thread.");
+                });
 
-                File.WriteAllText(filePath, aiCode);
-                WebViewUtilities.Log("File has been written to disk on a background thread.");
 
-                // --- Now, switch to the main thread for DTE operations ---
-                // 2. This is still the essential step to safely interact with Visual Studio's objects.
+                // --- Part 2: Main Thread Operations (Optimized and with User Feedback) ---
                 await joinableTaskFactory.SwitchToMainThreadAsync();
 
-                // --- This part now runs safely on the main thread ---
-                // 3. Add the file to the solution and open it.
-                Project project = FindProjectForPath(dte, directory);
-                if (project != null)
+                // Use a try/finally block to ensure the status bar is always cleaned up.
+                try
                 {
-                    project.ProjectItems.AddFromFile(filePath);
-                    WebViewUtilities.Log($"New file '{filePath}' added to project '{project.Name}'.");
-                }
-                else
-                {
-                    WebViewUtilities.Log($"Could not find a project for '{filePath}'. It will be opened as a miscellaneous file.");
-                }
+                    // Provide immediate feedback to the user that something is happening.
+                    dte.StatusBar.Text = $"Adding new file: {Path.GetFileName(filePath)}...";
+                    dte.StatusBar.Animate(true, vsStatusAnimation.vsStatusAnimationGeneral);
+                    
+                    // This is now safe to run on the main thread.
+                    Project project = FindProjectForActiveDocument(dte);
 
-                dte.ItemOperations.OpenFile(filePath);
+                    if (project != null)
+                    {
+                        WebViewUtilities.Log($"Found active project '{project.Name}'. Adding file.");
+                        // This is a known slow point. The status bar message helps.
+                        project.ProjectItems.AddFromFile(filePath);
+                        WebViewUtilities.Log($"New file '{filePath}' added to project '{project.Name}'.");
+                    }
+                    else
+                    {
+                        // Fallback for when no project is found (e.g., miscellaneous files).
+                        WebViewUtilities.Log($"Could not find an active project. The file will be opened as a miscellaneous file.");
+                    }
+
+                    // This is another known slow point.
+                    dte.ItemOperations.OpenFile(filePath);
+                }
+                finally
+                {
+                    // CRITICAL: Always clean up the status bar, even if an error occurs.
+                    dte.StatusBar.Animate(false, vsStatusAnimation.vsStatusAnimationGeneral);
+                    dte.StatusBar.Clear();
+                }
             }
             catch (Exception ex)
             {
-                // This catch block is important. If anything fails, we need to log it.
-                // Since we don't know which thread it might fail on, we log it directly.
-                // The calling method is responsible for showing UI messages.
                 WebViewUtilities.Log($"Error in CreateNewFileInSolutionAsync: {ex.Message}\n{ex.StackTrace}");
-                // Rethrowing allows the caller's catch block to handle it if necessary.
+                // It's good practice to show the user the error on the UI thread.
+                await joinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Rethrow if the caller needs to handle it.
                 throw;
             }
         }
 
-        // Find the appropriate project for the given directory
-        public static Project FindProjectForPath(DTE2 dte, string directory)
-        {
-            if (directory == null)
-            {
-                return null; // No directory provided
-            }
 
-            foreach (Project project in dte.Solution.Projects)
+        // Find the appropriate project for the given directory
+        public static Project FindProjectForActiveDocument(DTE2 dte)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            try
             {
-                string projectDir = Path.GetDirectoryName(project.FullName);
-                if (directory.StartsWith(projectDir, StringComparison.OrdinalIgnoreCase))
+                if (dte.ActiveDocument != null && dte.ActiveDocument.ProjectItem != null)
                 {
-                    return project;
+                    return dte.ActiveDocument.ProjectItem.ContainingProject;
                 }
             }
-            return null; // No matching project found
+            catch (Exception)
+            {
+                // ActiveDocument might not have a ProjectItem (e.g., a solution-level file).
+                // Fall through to return null.
+            }
+            return null;
         }
+
     }
 }

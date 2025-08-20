@@ -121,7 +121,7 @@ namespace Integrated_AI
             }
         }
 
-        public static async Task ExecuteCommandAsync(string option, DTE2 dte, System.Windows.Window window, WebView2 chatWebView, string userDataFolder)
+        public static async Task ExecuteCommandAsync(string option, DTE2 dte, System.Windows.Window window, WebView2 chatWebView, string userDataFolder, AIChatOption selectedOption)
         {
             try
             {
@@ -145,9 +145,8 @@ namespace Integrated_AI
                 string filePath = dte.ActiveDocument?.FullName;
                 string relativePath = filePath != null ? FileUtil.GetRelativePath(solutionPath, filePath) : "";
 
-                string functionName = null;
                 string textToInject = null;
-                string sourceDescription = "";
+                string sourceHeader = ""; // Changed from sourceDescription to just store the header
                 string type = "";
 
                 if (option == "Snippet -> AI")
@@ -161,7 +160,7 @@ namespace Integrated_AI
                     }
                     textToInject = textSelection.Text;
                     type = "snippet";
-                    sourceDescription = $"\n---{relativePath} (partial code block)---\n{textToInject}\n---End code---\n\n";
+                    sourceHeader = $"---{relativePath} (partial code block)---";
                 }
                 else if (option == "File -> AI")
                 {
@@ -181,8 +180,7 @@ namespace Integrated_AI
                     }
                     textToInject = text;
                     type = "file";
-                    var textDoc = dte.ActiveDocument.Object("TextDocument") as TextDocument;
-                    sourceDescription = $"\n---{relativePath} (whole file contents)---\n{textToInject}\n---End code---\n\n";
+                    sourceHeader = $"---{relativePath} (whole file contents)---";
                 }
                 else if (option == "Function -> AI")
                 {
@@ -199,17 +197,32 @@ namespace Integrated_AI
                     {
                         textToInject = functionSelectionWindow.SelectedFunction.FullCode;
                         type = "function";
-                        functionName = functionSelectionWindow.SelectedFunction.DisplayName;
-                        sourceDescription = $"\n---{relativePath} (function: {functionName})---\n{textToInject}\n---End code---\n\n";
+                        string functionName = functionSelectionWindow.SelectedFunction.DisplayName;
+                        sourceHeader = $"---{relativePath} (function: {functionName})---";
                     }
                     else
                     {
-                        return;
+                        return; // User cancelled the selection
                     }
                 }
 
                 if (textToInject != null)
                 {
+                    string sourceDescription;
+                    // NEW: Check if the selected AI site uses markdown
+                    bool useMarkdown = selectedOption != null && selectedOption.UsesMarkdown;
+
+                    if (useMarkdown)
+                    {
+                        // If so, wrap the textToInject in markdown code blocks
+                        sourceDescription = $"\n{sourceHeader}\n\n```code\n{textToInject}\n```\n\n---End code---\n\n";
+                    }
+                    else
+                    {
+                        // Otherwise, use the original format
+                        sourceDescription = $"\n{sourceHeader}\n{textToInject}\n---End code---\n\n";
+                    }
+
                     await InjectTextIntoWebViewAsync(chatWebView, window, sourceDescription, option);
                 }
             }

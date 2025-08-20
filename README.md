@@ -59,7 +59,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 
 ## 💡 How to Use: A Quick Start Guide
 
-1.  **Open the Chat Window**: Go to `Tools` > `Open AI Chat Window` > to open the chat tool window which can be docked or moved. Select your desired chat site from the dropdown (default is Google AI Studio).
+1.  **Open the Chat Window**: In the Visual Studio top bar, go to `Tools` > `Open AI Chat Window` to open the chat tool window which can be docked or moved. Select your desired chat site from the dropdown within the chat window (default is Google AI Studio).
 2.  **Chat with the AI**: Your code will appear in the prompt along with your message. Write your request (e.g., "Refactor this to be more efficient" or "Add exception handling").
 3.  **Send Code**: Open a code file. Then click one of the **"VS -> AI"** button options. You can send multiple code blocks or even multiple files, since each one has its own context.
 4.  **Review the Diff**: Once the AI provides a code block, highlight the text in the chat window (or use the AI's "copy" button) and click an **"AI -> VS"** command. A diff view will appear, showing the proposed changes.
@@ -150,6 +150,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.1.2** Add markdown code block insertion for sites that support it, optimize new file creation, add status messages for longer operations like file comparing
 - **1.1.1** Fix error "cancellation token disposed" when clicking `Replace Different Code` button.
 - **1.1.0** Add gemini.google.com to the included chat sites, add "Error to AI" command when right-clicking an error or warning in the VS error list, change new file creation to be on background thread, prevent diff view showing when "new file" is cancelled.
 - **1.0.2** Fix theme not setting correctly sometimes on the main chat page, fix URL saving, add `Reset URLs` button
