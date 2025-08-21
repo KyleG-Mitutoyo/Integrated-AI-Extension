@@ -44,7 +44,7 @@ namespace Integrated_AI.Utilities
             public bool IsNewFile { get; set; } = false;
         }
 
-        public static async Task<DiffContext> OpenDiffViewAsync(System.Windows.Window window, Document activeDoc, string currentCode, string aiCodeFullFileContents, string aiCode, DiffContext existingContext = null, bool compareMode = false, CancellationToken cancellationToken = default)
+        public static async Task<DiffContext> OpenDiffViewAsync(System.Windows.Window window, Document activeDoc, string currentCode, string aiCodeFullFileContents, string aiCode, DiffContext existingContext = null, bool compareMode = false, bool showImmediately = true, CancellationToken cancellationToken = default)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
 
@@ -135,9 +135,15 @@ namespace Integrated_AI.Utilities
                     return FileUtil.CleanUpTempFiles(context);
                 }
 
-                WebViewUtilities.Log($"OpenDiffView: Diff frame created, showing window for {activeDoc.Name}.");
-                ErrorHandler.ThrowOnFailure(context.DiffFrame.Show());
-                WebViewUtilities.Log($"OpenDiffView: Diff window shown successfully for {activeDoc.Name}.");
+                if (showImmediately)
+                {
+                    ErrorHandler.ThrowOnFailure(context.DiffFrame.Show());
+                    WebViewUtilities.Log($"OpenDiffView: Diff window shown successfully for {activeDoc.Name}.");
+                }
+                else
+                {
+                    //WebViewUtilities.Log($"OpenDiffView: Diff frame created but not shown for {activeDoc.Name}.");
+                }
                 return context;
             }
             catch (Exception ex)
@@ -254,16 +260,16 @@ namespace Integrated_AI.Utilities
                     // Compare only if content has changed
                     if (currentContent == restoreContent)
                     {
-                        WebViewUtilities.Log($"OpenMultiFileDiffView: No changes detected for {normalizedPath}. Skipping diff.");
+                        //WebViewUtilities.Log($"OpenMultiFileDiffView: No changes detected for {normalizedPath}. Skipping diff.");
                         continue;
                     }
 
-                    // Open diff view for this file
-                    var context = await OpenDiffViewAsync(window, doc, restoreContent, currentContent, restoreContent, null, true, cancellationToken);
+                    // Prepare diff view for this file, but do not show it yet.
+                    var context = await OpenDiffViewAsync(window, doc, restoreContent, currentContent, restoreContent, null, true, showImmediately: false, cancellationToken: cancellationToken);
                     if (context != null)
                     {
                         diffContexts.Add(context);
-                        WebViewUtilities.Log($"OpenMultiFileDiffView: Diff view opened for {normalizedPath}.");
+                        //WebViewUtilities.Log($"OpenMultiFileDiffView: Diff view prepared for {normalizedPath}.");
                     }
                     else
                     {
@@ -297,6 +303,29 @@ namespace Integrated_AI.Utilities
                 WebViewUtilities.Log("OpenMultiFileDiffView: No differences found or unable to open diff views for the selected restore.");
                 ThemedMessageBox.Show(window, "No differences found or unable to open diff views for the selected restore.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                 return null;
+            }
+
+            // Now that all diffs are prepared, show them all.
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+            WebViewUtilities.Log($"OpenMultiFileDiffView: All diffs prepared. Showing {diffContexts.Count} windows now.");
+            foreach (var context in diffContexts)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    WebViewUtilities.Log("Cancellation was requested before all diff windows could be shown.");
+                    break;
+                }
+                if (context.DiffFrame != null)
+                {
+                    try
+                    {
+                        ErrorHandler.ThrowOnFailure(context.DiffFrame.Show());
+                    }
+                    catch (Exception ex)
+                    {
+                        WebViewUtilities.Log($"OpenMultiFileDiffView: Error showing diff frame for {context.ActiveDocumentPath}: {ex.Message}");
+                    }
+                }
             }
 
             return diffContexts;

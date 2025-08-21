@@ -35,6 +35,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 - **Claude**
 - **ChatGPT**
 - **Gemini**
+- **Deepseek**
 
 ![Demonstration of the core workflow](https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension/blob/main/assets/main%20demo.gif?raw=true)
 
@@ -45,7 +46,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
   - **Snippet**: Send only the code you've highlighted.
   - **Function**: Choose from the list of functions in the active document.
   - **File**: Send the complete content of the active document.
-- **❗ Error to AI** From the error list, right click an error or warning and select "Send to AI chat". It will send the error description and the line that has the error.
+- **⚠️ Error to AI** From the error list, right click an error or warning and select "Send to AI chat". It will send the error description and the line that has the error.
 - **✨ Intelligent AI-to-VS Diffing**: Move code from the AI back to your editor with the "AI -> VS" button commands. You have full control of what gets replaced, with options similar to the VS -> AI commands. The extension can also intelligently analyze the AI's response to find the corresponding function or snippet in your file (turn on Auto Diff and Auto Function Match in the options). It then presents a **rich diff view**, allowing you to review changes line-by-line and accept, decline, or manually choose a different replacement. 
 - **🔒 Automatic Backups**: Never lose work. When you accept a diff, the extension automatically creates a zip backup of your entire solution, giving you a restore point. There is also a manual backup button.
 
@@ -150,6 +151,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.1.3** Add Deepseek, small fixes for web navigation, compare views, theme switching, restore message box conflict, new file creation, and indent issues
 - **1.1.2** Add markdown code block insertion for sites that support it, optimize new file creation, add status messages for longer operations like file comparing
 - **1.1.1** Fix error "cancellation token disposed" when clicking `Replace Different Code` button.
 - **1.1.0** Add gemini.google.com to the included chat sites, add "Error to AI" command when right-clicking an error or warning in the VS error list, change new file creation to be on background thread, prevent diff view showing when "new file" is cancelled.

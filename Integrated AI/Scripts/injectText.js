@@ -29,10 +29,19 @@ function injectTextIntoElement(selector, textToInject, isChatGptSite, isClaudeSi
         elem.focus();
 
         if (elem.tagName.toLowerCase() === 'textarea' || elem.tagName.toLowerCase() === 'input') {
+            // For frameworks like React, directly setting elem.value doesn't trigger change handlers.
+            // We need to use the native value setter and then dispatch an input event.
             const currentValue = elem.value || '';
-            elem.value = currentValue + (currentValue ? '\n' : '') + textToInject;
+            const newValue = currentValue + (currentValue ? '\n' : '') + textToInject;
+
+            const prototype = Object.getPrototypeOf(elem);
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
+            nativeInputValueSetter.call(elem, newValue);
+
+            // Dispatching the event is still crucial for the framework to pick up the change
             elem.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-            return `SUCCESS: Text appended to ${selector} (value set)`;
+
+            return `SUCCESS: Text appended to ${selector} (native value set)`;
         } 
         else if (elem.isContentEditable) {
             

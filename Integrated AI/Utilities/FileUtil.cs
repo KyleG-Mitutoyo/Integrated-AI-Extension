@@ -19,6 +19,7 @@ using EnvDTE80;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Threading;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -273,37 +274,39 @@ namespace Integrated_AI.Utilities
         // Prompt user for a new file path using a dialog
         public static string PromptForNewFilePath(DTE2 dte, string language = "cs")
         {
-            // Use Windows Forms SaveFileDialog for simplicity
-            using (var dialog = new System.Windows.Forms.SaveFileDialog())
-            {
-                if (language == "vb")
-                {
-                    dialog.Filter = "VB Files (*.vb)|*.vb|All Files (*.*)|*.*";
-                    dialog.DefaultExt = "vb";
-                }
-                else
-                {
-                    dialog.Filter = "C# Files (*.cs)|*.cs|All Files (*.*)|*.*";
-                    dialog.DefaultExt = "cs";
-                }
-                dialog.Title = "Select Location for New File";
-                dialog.InitialDirectory = Path.GetDirectoryName(dte.Solution.FullName); // Start in solution directory
+            // Use the native WPF SaveFileDialog for better integration within a WPF-based VS extension.
+            var dialog = new SaveFileDialog();
 
-                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-                {
-                    return dialog.FileName;
-                }
+            if (language == "vb")
+            {
+                dialog.Filter = "VB Files (*.vb)|*.vb|All Files (*.*)|*.*";
+                dialog.DefaultExt = "vb";
             }
-            return null; // Return null if cancelled
+            else
+            {
+                dialog.Filter = "C# Files (*.cs)|*.cs|All Files (*.*)|*.*";
+                dialog.DefaultExt = "cs";
+            }
+            dialog.Title = "Select Location for New File";
+            dialog.InitialDirectory = Path.GetDirectoryName(dte.Solution.FullName); // Start in solution directory
+
+            // The WPF ShowDialog returns bool?, so we check for 'true'.
+            if (dialog.ShowDialog() == true)
+            {
+                return dialog.FileName;
+            }
+
+            return null; // Return null if cancelled or closed
         }
+
 
         // Create a new file in the solution and add AI-generated code
         public static async Task CreateNewFileInSolutionAsync(JoinableTaskFactory joinableTaskFactory, DTE2 dte, string filePath, string aiCode)
         {
+            bool fileCreatedSuccessfully = false;
             try
             {
-                // --- Part 1: Background Thread Operations (You already did this correctly) ---
-                // Perform slow file I/O on a background thread to avoid blocking the UI.
+                // --- Part 1: Background Thread Operations ---
                 await Task.Run(() =>
                 {
                     string directory = Path.GetDirectoryName(filePath);
@@ -315,39 +318,51 @@ namespace Integrated_AI.Utilities
                     WebViewUtilities.Log("File has been written to disk on a background thread.");
                 });
 
+                fileCreatedSuccessfully = true;
 
-                // --- Part 2: Main Thread Operations (Optimized and with User Feedback) ---
+                // --- Part 2: Main Thread Operations ---
                 await joinableTaskFactory.SwitchToMainThreadAsync();
 
-                // Use a try/finally block to ensure the status bar is always cleaned up.
                 try
                 {
-                    // Provide immediate feedback to the user that something is happening.
                     dte.StatusBar.Text = $"Adding new file: {Path.GetFileName(filePath)}...";
                     dte.StatusBar.Animate(true, vsStatusAnimation.vsStatusAnimationGeneral);
-                    
-                    // This is now safe to run on the main thread.
+
                     Project project = FindProjectForActiveDocument(dte);
+                    string fileName = Path.GetFileName(filePath);
 
                     if (project != null)
                     {
-                        WebViewUtilities.Log($"Found active project '{project.Name}'. Adding file.");
-                        // This is a known slow point. The status bar message helps.
-                        project.ProjectItems.AddFromFile(filePath);
-                        WebViewUtilities.Log($"New file '{filePath}' added to project '{project.Name}'.");
+                        WebViewUtilities.Log($"Found active project '{project.Name}'. Attempting to add file.");
+                        try
+                        {
+                            // This is the critical step that interacts with the .csproj file.
+                            project.ProjectItems.AddFromFile(filePath);
+                            WebViewUtilities.Log($"New file '{filePath}' added to project '{project.Name}'.");
+                        }
+                        catch (Exception ex)
+                        {
+                            // **NEW: Handle the specific failure of adding the file to the project.**
+                            WebViewUtilities.Log($"ERROR: File was created but failed to be added to project '{project.Name}'. Exception: {ex.Message}");
+                            ThemedMessageBox.Show(
+                                dte as System.Windows.Window,
+                                $"The file '{fileName}' was created successfully at:\n\n{filePath}\n\nHowever, an error occurred while adding it to the project '{project.Name}'.\n\nYou may need to add it manually by right-clicking the project and selecting 'Add > Existing Item...'.\n\nError: {ex.Message}",
+                                "Failed to Add File to Project",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Warning);
+                        }
                     }
                     else
                     {
-                        // Fallback for when no project is found (e.g., miscellaneous files).
+                        // **NEW: Provide clearer feedback when no project is found.**
                         WebViewUtilities.Log($"Could not find an active project. The file will be opened as a miscellaneous file.");
+                        dte.StatusBar.Text = $"File created, but no project found. Opening as a miscellaneous file.";
                     }
 
-                    // This is another known slow point.
                     dte.ItemOperations.OpenFile(filePath);
                 }
                 finally
                 {
-                    // CRITICAL: Always clean up the status bar, even if an error occurs.
                     dte.StatusBar.Animate(false, vsStatusAnimation.vsStatusAnimationGeneral);
                     dte.StatusBar.Clear();
                 }
@@ -355,11 +370,31 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error in CreateNewFileInSolutionAsync: {ex.Message}\n{ex.StackTrace}");
-                // It's good practice to show the user the error on the UI thread.
                 await joinableTaskFactory.SwitchToMainThreadAsync();
 
-                // Rethrow if the caller needs to handle it.
-                throw;
+                // **NEW: Check if the file was created before the error occurred.**
+                if (fileCreatedSuccessfully)
+                {
+                    ThemedMessageBox.Show(
+                        dte as System.Windows.Window,
+                        $"The file '{Path.GetFileName(filePath)}' was created successfully at:\n\n{filePath}\n\nHowever, an error occurred while trying to open it or add it to the project.\n\nPlease check the log for details.\n\nError: {ex.Message}",
+                        "File Created, But Error Occurred",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+                else
+                {
+                    ThemedMessageBox.Show(
+                        dte as System.Windows.Window,
+                        $"An error occurred while trying to create the file '{Path.GetFileName(filePath)}'.\n\nPlease check the log for details.\n\nError: {ex.Message}",
+                        "File Creation Failed",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+
+                // Rethrowing is often not needed if you've already handled the error with a message box.
+                // Consider if the caller truly needs to handle it further.
+                // throw; 
             }
         }
 

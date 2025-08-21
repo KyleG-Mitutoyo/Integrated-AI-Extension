@@ -856,5 +856,57 @@ namespace Integrated_AI.Utilities
                 return codeSnippet; // Return original code if error occurs
             }
         }
+
+        /// <summary>
+        /// Fixes extra indentation in code blocks when the first line is correct but all other lines have one extra level of indentation.
+        /// </summary>
+        /// <param name="code"></param>
+        /// <returns></returns>
+        public static string FixExtraIndentation(string code)
+        {
+            if (string.IsNullOrWhiteSpace(code))
+                return code;
+
+            var lines = code.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).ToList();
+
+            if (lines.Count <= 1)
+                return code;
+
+            // Get the indentation of the first line (the function signature)
+            string firstLineIndentation = lines[0].Substring(0, lines[0].Length - lines[0].TrimStart().Length);
+
+            // If the second line exists and is not just whitespace, get its indentation
+            string secondLine = lines.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l) && l != lines[0]);
+            if (secondLine == null) return code; // No other non-empty lines
+
+            string secondLineIndentation = secondLine.Substring(0, secondLine.Length - secondLine.TrimStart().Length);
+
+            // Determine the "extra" indentation that needs to be removed from subsequent lines
+            // This happens when the second line's indent is greater than the first's
+            if (secondLineIndentation.Length > firstLineIndentation.Length && secondLineIndentation.StartsWith(firstLineIndentation))
+            {
+                string extraIndentation = secondLineIndentation.Substring(firstLineIndentation.Length);
+
+                // Rebuild the code string, removing the extra indentation from all lines after the first
+                var correctedLines = new System.Text.StringBuilder();
+                correctedLines.AppendLine(lines[0]); // Add the first line as-is
+
+                for (int i = 1; i < lines.Count; i++)
+                {
+                    if (lines[i].StartsWith(extraIndentation))
+                    {
+                        correctedLines.AppendLine(lines[i].Substring(extraIndentation.Length));
+                    }
+                    else
+                    {
+                        correctedLines.AppendLine(lines[i]);
+                    }
+                }
+                return correctedLines.ToString().TrimEnd();
+            }
+
+            // If the pattern isn't found, return the original code
+            return code;
+        }
     }    
 }

@@ -70,7 +70,8 @@ namespace Integrated_AI
             new AIChatOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com", DefaultUrl = "https://aistudio.google.com", UsesMarkdown = true},
             new AIChatOption { DisplayName = "Gemini", Url = "https://gemini.google.com/app", DefaultUrl = "https://gemini.google.com/app"},
             new AIChatOption { DisplayName = "ChatGPT", Url = "https://chatgpt.com", DefaultUrl = "https://chatgpt.com" },
-            new AIChatOption { DisplayName = "Claude", Url = "https://claude.ai" , DefaultUrl = "https://claude.ai", UsesMarkdown = true}
+            new AIChatOption { DisplayName = "Claude", Url = "https://claude.ai" , DefaultUrl = "https://claude.ai", UsesMarkdown = true},
+            new AIChatOption { DisplayName = "Deepseek", Url = "https://chat.deepseek.com", DefaultUrl = "https://chat.deepseek.com" }
         };
 
         private readonly string _webViewDataFolder;
@@ -87,6 +88,8 @@ namespace Integrated_AI
         private DocumentEvents _documentEvents;
         private bool _isWebViewInitialized = false;
         private bool _isThemeInitialized = false;
+
+        private CancellationTokenSource _navigationCts;
 
 
         public ChatWindow()
@@ -120,7 +123,6 @@ namespace Integrated_AI
             Unloaded += ChatWindow_Unloaded;
 
             PopupConfig.Closed += PopupConfig_Closed;
-            this.Loaded += ChatWindow_ThemeLoader;
         }
 
         #region Helper Methods
@@ -304,7 +306,7 @@ namespace Integrated_AI
                 string modifiedCode = result.ModifiedCode;
 
                 // This is a UI operation and must be on the main thread, which we are.
-                _diffContext = await DiffUtility.OpenDiffViewAsync(Window.GetWindow(this), activeDocument, currentCode, modifiedCode, aiCode, _diffContext, false, cancellationToken);
+                _diffContext = await DiffUtility.OpenDiffViewAsync(Window.GetWindow(this), activeDocument, currentCode, modifiedCode, aiCode, _diffContext, false, true, cancellationToken);
 
                 if (_diffContext != null)
                 {
@@ -821,7 +823,7 @@ namespace Integrated_AI
                             string modifiedCode = result.ModifiedCode;
 
                             // Open a new diff view with the changes.
-                            _diffContext = await DiffUtility.OpenDiffViewAsync(Window.GetWindow(this), targetDoc, codeToModify, modifiedCode, aiCode, newDiffContext, false, cancellationToken);
+                            _diffContext = await DiffUtility.OpenDiffViewAsync(Window.GetWindow(this), targetDoc, codeToModify, modifiedCode, aiCode, newDiffContext, false, true, cancellationToken);
 
                             if (_diffContext == null)
                             {
@@ -893,33 +895,87 @@ namespace Integrated_AI
 
             var restoreWindow = new RestoreSelectionWindow(_dte, ChatWebView, solutionBackupsFolder, selectedTextForSearch);
             bool? result = restoreWindow.ShowDialog();
-            // Show close diffs button if there are any diff contexts available
-            if (restoreWindow.DiffContexts != null)
-            {
-                _diffContextsCompare = restoreWindow.DiffContexts;
-                CloseDiffsButton.Visibility = Visibility.Visible;
-                UseRestoreButton.Visibility = Visibility.Visible;
-            }
 
+            // The logic to start the diff process now happens AFTER the window is closed.
             if (restoreWindow.SelectedBackup != null)
             {
+                // Case 1: User clicked the "Restore" button in the dialog.
                 if (result == true)
                 {
-                    string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
-                    if (BackupUtilities.RestoreSolution(_dte, Window.GetWindow(this), restoreWindow.SelectedBackup.FolderPath, solutionDir))
+                    // Run the restore operation in a JTF-managed task to prevent UI lockups.
+                    _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
                     {
-                        Log("RestoreButton_Click: Solution restored successfully.");
-                        ShowThemedMessageBox("Solution restored successfully.", "Success", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
-                    }
-                }
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                // Handle the case where the user compares with a selected backup
+                        var statusBar = _dte.StatusBar;
+                        statusBar.Text = "Restoring solution from backup...";
+                        bool success = false;
+                        string errorMessage = string.Empty;
+
+                        try
+                        {
+                            string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
+                            // This is a blocking operation on the UI thread.
+                            success = BackupUtilities.RestoreSolution(_dte, Window.GetWindow(this), restoreWindow.SelectedBackup.FolderPath, solutionDir);
+                        }
+                        catch (Exception ex)
+                        {
+                            errorMessage = $"An error occurred during restore: {ex.Message}";
+                            Log(errorMessage);
+                        }
+                        finally
+                        {
+                                // We don't clear the status bar here, as we will set it to the final status.
+                        }
+
+                        // Yield control to the message pump. This allows VS to process any dialogs
+                        // it may have queued in response to the file changes (e.g., "inconsistent line endings").
+                        await Task.Yield();
+
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        if (success)
+                        {
+                            Log("RestoreButton_Click: Solution restored successfully.");
+                            // Use the status bar for a non-intrusive success message.
+                            statusBar.Text = "Solution restored successfully.";
+                        }
+                        else
+                        {
+                            // If there was an error, it's okay to show a message box.
+                            ShowThemedMessageBox(string.IsNullOrEmpty(errorMessage) ? "Failed to restore solution." : errorMessage, "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                            statusBar.Clear();
+                        }
+                    });
+                }
+                // Case 2: User clicked the "Compare" button in the dialog.
                 else if (!restoreWindow.NavigateToUrl)
                 {
                     _selectedBackup = restoreWindow.SelectedBackup;
+
+                    // Check if there are files to compare and start the async diff operation.
+                    if (restoreWindow.FilesToCompare != null && restoreWindow.FilesToCompare.Count > 0)
+                    {
+                        _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+                        {
+                            var diffContexts = await DiffUtility.OpenMultiFileDiffViewAsync(
+                                _dte,
+                                Window.GetWindow(this),
+                                restoreWindow.FilesToCompare,
+                                System.Threading.CancellationToken.None);
+
+                            // Once the async operation is complete, switch back to the main thread to update the UI.
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                            if (diffContexts != null && diffContexts.Count > 0)
+                            {
+                                _diffContextsCompare = diffContexts;
+                                CloseDiffsButton.Visibility = Visibility.Visible;
+                                UseRestoreButton.Visibility = Visibility.Visible;
+                            }
+                        });
+                    }
                 }
 
-                // Handle the Go To Chat button
+                // Case 3: User clicked the "Go To Chat" button.
                 else
                 {
                     var optionToSelect = (UrlSelector.ItemsSource as List<AIChatOption>)
@@ -1077,6 +1133,20 @@ namespace Integrated_AI
             _documentEvents.DocumentClosing -= OnDocumentClosing;
             _documentEvents.DocumentClosing += OnDocumentClosing;
 
+            // --- REVISED THEME LOGIC ---
+            // One-time initialization of resource dictionaries.
+            if (!_isThemeInitialized)
+            {
+                this.Resources.MergedDictionaries.Add(new HandyControl.Themes.ThemeResources());
+                this.Resources.MergedDictionaries.Add(new HandyControl.Themes.Theme());
+                _isThemeInitialized = true;
+            }
+
+            // Apply the current theme and subscribe to changes every time the control is loaded.
+            UpdateTheme(Utilities.ThemeUtility.CurrentTheme);
+            Utilities.ThemeUtility.ThemeChanged += UpdateTheme;
+            // ---------------------------
+
             // Start the new, centralized initialization flow.
             await InitializeWebViewAsync();
         }
@@ -1090,6 +1160,12 @@ namespace Integrated_AI
                 _documentEvents.DocumentClosing -= OnDocumentClosing;
             }
 
+            // --- REVISED THEME LOGIC ---
+            // Unsubscribe when the control is hidden/closed to prevent memory leaks and dangling event handlers.
+            Utilities.ThemeUtility.ThemeChanged -= UpdateTheme;
+            // ---------------------------
+
+
             // The saving logic is now handled by CoreWebView2_NavigationCompleted,
             // but saving here as a final fallback is okay.
             string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
@@ -1099,26 +1175,6 @@ namespace Integrated_AI
                 Settings.Default.Save();
                 WebViewUtilities.Log($"ChatWindow_Unloaded: Final URL updated: {Settings.Default.selectedChatUrl}");
             }
-        }
-
-        private void ChatWindow_ThemeLoader(object sender, RoutedEventArgs e)
-        {
-            if (_isThemeInitialized) return;
-
-            // 1. Add base dictionaries LOCALLY.
-            this.Resources.MergedDictionaries.Add(new HandyControl.Themes.ThemeResources());
-            this.Resources.MergedDictionaries.Add(new HandyControl.Themes.Theme());
-
-            // 2. Apply the current theme correctly on first load.
-            UpdateTheme(Utilities.ThemeUtility.CurrentTheme);
-
-            // 3. Subscribe to future theme changes.
-            Utilities.ThemeUtility.ThemeChanged += UpdateTheme;
-
-            // 4. Unsubscribe on unload.
-            this.Unloaded += (s, ev) => Utilities.ThemeUtility.ThemeChanged -= UpdateTheme;
-
-            _isThemeInitialized = true;
         }
 
         private void OnDocumentClosing(Document document)
@@ -1194,6 +1250,7 @@ namespace Integrated_AI
 
                         await Task.Delay(100); // Give clipboard time to update.
 
+                        // This happens if the user clicks a copy button while a diff view is already open.
                         if (_diffContext != null)
                         {
                             WebViewUtilities.Log("Diff context is not null, aborting.");
@@ -1257,9 +1314,16 @@ namespace Integrated_AI
                 }
 
                 // Step 4: Hook the event handlers DIRECTLY. This is now safe and reliable.
+                ChatWebView.CoreWebView2.WebMessageReceived -= CoreWebView2_WebMessageReceived;
                 ChatWebView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
-                ChatWebView.CoreWebView2.NavigationCompleted += CoreWebView2_NavigationCompleted; // For error reporting
-                Log("WebMessageReceived and NavigationCompleted handlers attached.");
+
+                ChatWebView.CoreWebView2.NavigationStarting -= CoreWebView2_NavigationStarting;
+                ChatWebView.CoreWebView2.NavigationStarting += CoreWebView2_NavigationStarting;
+
+                ChatWebView.CoreWebView2.NavigationCompleted -= CoreWebView2_NavigationCompleted;
+                ChatWebView.CoreWebView2.NavigationCompleted += CoreWebView2_NavigationCompleted;
+
+                Log("WebMessageReceived, NavigationStarting, and NavigationCompleted handlers attached.");
 
                 // Step 5: Perform the initial navigation.
                 if (UrlSelector.SelectedItem is AIChatOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
@@ -1277,10 +1341,55 @@ namespace Integrated_AI
             }
         }
 
+        private async void CoreWebView2_NavigationStarting(object sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationStartingEventArgs e)
+        {
+            // A new navigation is starting, so cancel any previous timeout task
+            _navigationCts?.Cancel();
+            _navigationCts = new CancellationTokenSource();
+
+            try
+            {
+                // Start a 20-second timer. If it completes, we timed out.
+                // The CancellationToken will be triggered by NavigationCompleted, cancelling this delay.
+                await Task.Delay(TimeSpan.FromSeconds(20), _navigationCts.Token);
+
+                // --- If the code reaches this line, it means Task.Delay was NOT cancelled ---
+                // This is the timeout case. We are likely still on a background thread here.
+
+                // Now, switch to the main thread to safely interact with UI and DTE.
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // Check if the CoreWebView2 still exists (the window might have closed)
+                if (ChatWebView?.CoreWebView2 != null)
+                {
+                    // Stop the hung navigation
+                    ChatWebView.CoreWebView2.Stop();
+
+                    string errorMessage = $"Navigation timed out. The page might be stuck on a CAPTCHA, login, or is unresponsive.";
+                    Log(errorMessage);
+                    ShowThemedMessageBox(errorMessage, "Navigation Timeout", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // This is the EXPECTED outcome when navigation completes successfully
+                // before the timeout. NavigationCompleted cancels the token, which
+                // throws this exception. We can safely ignore it.
+                Log("Navigation timeout was successfully cancelled.");
+            }
+            catch (Exception ex)
+            {
+                // Catch any other unexpected errors from the timeout logic
+                Log($"An unexpected error occurred in the navigation timeout logic: {ex.Message}");
+            }
+        }
+
 
         // This is the navigation error handler, kept separate for clarity.
         private void CoreWebView2_NavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
         {
+            _navigationCts?.Cancel();
+
             if (e.IsSuccess)
             {
                 string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
@@ -1318,9 +1427,6 @@ namespace Integrated_AI
             }
         }
 
-
         #endregion
-
-        
     }
 }

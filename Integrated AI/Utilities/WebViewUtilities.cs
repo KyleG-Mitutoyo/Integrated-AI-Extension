@@ -45,6 +45,7 @@ namespace Integrated_AI
         private static readonly Dictionary<string, List<string>> _selectorMap = new Dictionary<string, List<string>>
         {
             { "https://grok.com", new List<string> { "textarea[aria-label=\"Ask Grok anything\"]" } },
+            { "https://chat.deepseek.com", new List<string> { "textarea#chat-input" } },
             { "https://chatgpt.com", new List<string> { "div#prompt-textarea" } },
             { 
                 "https://gemini.google.com/app", new List<string>

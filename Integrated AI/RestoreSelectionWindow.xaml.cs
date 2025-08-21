@@ -50,6 +50,7 @@ namespace Integrated_AI
         }
 
         public BackupItem SelectedBackup { get; private set; }
+        public Dictionary<string, string> FilesToCompare { get; private set; }
         public bool NavigateToUrl { get; private set; }
         public List<DiffContext> DiffContexts { get; private set; }
         private readonly string _backupRootPath;
@@ -231,91 +232,49 @@ namespace Integrated_AI
 
         private void CompareButton_Click(object sender, RoutedEventArgs e)
         {
-            // Use JTF.RunAsync to safely manage the async operation's lifecycle.
-            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () => 
+            if (BackupListBox.SelectedItem == null)
             {
-                using (var cts = new CancellationTokenSource())
+                ThemedMessageBox.Show(this, "Please select a restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            if (BackupListBox.SelectedItem is BackupItem selected)
+            {
+                // Provide immediate UI feedback
+                CompareButton.IsEnabled = false;
+
+                try
                 {
-                    var cancellationToken = cts.Token;
+                    string selectedRestore = selected.BackupTime.ToString("yyyy-MM-dd_HH-mm-ss");
 
-                    try
+                    // This part is fast enough to run on the UI thread before closing.
+                    var restoreFiles = BackupUtilities.GetRestoreFiles(_dte, Window.GetWindow(this), _backupRootPath, selectedRestore);
+                    if (restoreFiles == null || restoreFiles.Count == 0)
                     {
-                        // We must be on the main thread to access UI controls and DTE.
-                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
-
-                        if (BackupListBox.SelectedItem == null)
-                        {
-                            ThemedMessageBox.Show(this, "Please select a restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                            return;
-                        }
-
-                        if (BackupListBox.SelectedItem is BackupItem selected)
-                        {
-                            // --- Provide immediate UI feedback before starting the slow work ---
-                            CompareButton.IsEnabled = false;
-                            // You could also show a "Loading..." text block here.
-
-                            string selectedRestore = selected.BackupTime.ToString("yyyy-MM-dd_HH-mm-ss");
-
-                            // This part is fast, so it's fine to run here.
-                            var restoreFiles = BackupUtilities.GetRestoreFiles(_dte, Window.GetWindow(this), _backupRootPath, selectedRestore);
-                            if (restoreFiles == null || restoreFiles.Count == 0)
-                            {
-                                WebViewUtilities.Log($"RestoreSelectionWindow.CompareButton_Click: No files found for restore point {selectedRestore}");
-                                ThemedMessageBox.Show(this, "No files found for the selected restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                                return; // The 'finally' block will still run to re-enable the button.
-                            }
-
-                            // --- Call the new ASYNC method and AWAIT the result ---
-                            // The UI will remain responsive during this potentially long operation.
-                            DiffContexts = await DiffUtility.OpenMultiFileDiffViewAsync(
-                                _dte,
-                                Window.GetWindow(this),
-                                restoreFiles,
-                                cancellationToken);
-
-                            if (DiffContexts == null || DiffContexts.Count == 0)
-                            {
-                                // Message is already shown in the called method.
-                                // The 'finally' block will re-enable the button and the user can try again.
-                                return;
-                            }
-
-                            // If successful, close the window. This must be on the UI thread.
-                            SelectedBackup = selected;
-                            DialogResult = false; // Set result before closing
-                            Close();
-                        }
-                        else
-                        {
-                            WebViewUtilities.Log("RestoreSelectionWindow.CompareButton_Click: Invalid restore point selected.");
-                            ThemedMessageBox.Show(this, "Invalid restore point selected.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        }
+                        WebViewUtilities.Log($"RestoreSelectionWindow.CompareButton_Click: No files found for restore point {selectedRestore}");
+                        ThemedMessageBox.Show(this, "No files found for the selected restore point.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        CompareButton.IsEnabled = true; // Re-enable button on failure
+                        return;
                     }
-                    catch (OperationCanceledException)
-                    {
-                        // This will be triggered if the parent context is closed.
-                        WebViewUtilities.Log("Compare operation was cancelled.");
-                    }
-                    catch (Exception ex)
-                    {
-                        WebViewUtilities.Log($"RestoreSelectionWindow.CompareButton_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
-                        // Ensure we are on the UI thread to show the message box.
-                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        ThemedMessageBox.Show(this, $"Error opening diff views: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
-                    finally
-                    {
-                        // --- CRITICAL: Always restore the UI state ---
-                        // This block runs whether the operation succeeded, failed, or was cancelled.
-                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        if (CompareButton != null) // Check if the control still exists
-                        {
-                            CompareButton.IsEnabled = true;
-                        }
-                    }
+
+                    // --- Success: Store results for the caller and close the window ---
+                    SelectedBackup = selected;
+                    FilesToCompare = restoreFiles; // Store the files in the new public property
+                    DialogResult = false; // Set result before closing
+                    Close();
                 }
-            });
+                catch (Exception ex)
+                {
+                    WebViewUtilities.Log($"RestoreSelectionWindow.CompareButton_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
+                    ThemedMessageBox.Show(this, $"Error preparing for diff: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    CompareButton.IsEnabled = true; // Re-enable button on exception
+                }
+            }
+            else
+            {
+                WebViewUtilities.Log("RestoreSelectionWindow.CompareButton_Click: Invalid restore point selected.");
+                ThemedMessageBox.Show(this, "Invalid restore point selected.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void OpenBackups_Click(object sender, RoutedEventArgs e)

@@ -52,6 +52,12 @@ namespace Integrated_AI
             {
                 var codeFunction = (CodeFunction)element;
                 string functionCode = codeFunction.StartPoint.CreateEditPoint().GetText(codeFunction.EndPoint);
+
+                // --- START OF FIX ---
+                // Correct the indentation before storing it.
+                string correctedFunctionCode = StringUtil.FixExtraIndentation(functionCode);
+                // --- END OF FIX ---
+
                 string displayName = codeFunction.Name;
                 string listBoxDisplayName = $"{codeFunction.Name} ({codeFunction.Parameters.Cast<CodeParameter>().Count()} params)";
                 string fullName = $"{codeFunction.FullName}";
@@ -61,7 +67,7 @@ namespace Integrated_AI
                     ListBoxDisplayName = listBoxDisplayName,
                     FullName = fullName,
                     Function = codeFunction,
-                    FullCode = functionCode,
+                    FullCode = correctedFunctionCode, // Use the corrected code here
                     StartPoint = codeFunction.StartPoint, 
                     EndPoint = codeFunction.EndPoint      
                 });
