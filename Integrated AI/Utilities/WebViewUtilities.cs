@@ -159,7 +159,7 @@ namespace Integrated_AI
                         ThemedMessageBox.Show(window, "No text selected in Visual Studio.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         return;
                     }
-                    textToInject = textSelection.Text;
+                    textToInject = StringUtil.RemoveBaseIndentation(textSelection.Text);
                     type = "snippet";
                     sourceHeader = $"---{relativePath} (partial code block)---";
                 }
@@ -196,7 +196,9 @@ namespace Integrated_AI
                     var functionSelectionWindow = new FunctionSelectionWindow(functions, FileUtil._recentFunctionsFilePath, relativePath, false);
                     if (functionSelectionWindow.ShowDialog() == true && functionSelectionWindow.SelectedFunction != null)
                     {
-                        textToInject = functionSelectionWindow.SelectedFunction.FullCode;
+                        // Fix indents only for function code being sent to AI
+                        string correctedFunctionCode = StringUtil.FixExtraIndentation(functionSelectionWindow.SelectedFunction.FullCode);
+                        textToInject = correctedFunctionCode;
                         type = "function";
                         string functionName = functionSelectionWindow.SelectedFunction.DisplayName;
                         sourceHeader = $"---{relativePath} (function: {functionName})---";
@@ -494,8 +496,7 @@ namespace Integrated_AI
                 }
                 if (result == "null") // JS 'null' or 'undefined' often means no text selected or function error
                 {
-                    Log("Failed to retrieve selected text: Script returned 'null'. This might mean no text is selected in the WebView, or the 'retrieveSelectedText' function had an issue.");
-                    //MessageBox.Show("No text selected in the chat window, or unable to retrieve selection. Please highlight text and try again.", "Retrieval Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    //Log("Failed to retrieve selected text: Script returned 'null'. This might mean no text is selected in the WebView, or the 'retrieveSelectedText' function had an issue.");
                     return null;
                 }
                 if (result.StartsWith("FAILURE:"))

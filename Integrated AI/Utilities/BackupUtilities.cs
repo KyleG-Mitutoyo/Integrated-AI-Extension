@@ -14,19 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+using EnvDTE;
+using EnvDTE80;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.Web.WebView2.Wpf;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Windows;
-using EnvDTE;
-using EnvDTE80;
-using MessageBox = HandyControl.Controls.MessageBox;
-using Newtonsoft.Json;
-using Microsoft.Web.WebView2.Wpf;
-using System.Threading.Tasks;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using MessageBox = HandyControl.Controls.MessageBox;
 
 namespace Integrated_AI.Utilities
 {
@@ -139,7 +141,7 @@ namespace Integrated_AI.Utilities
         }
 
         // Restores a solution from a backup folder
-        public static bool RestoreSolution(DTE dte, System.Windows.Window window, string backupPath, string solutionDir)
+        private static bool RestoreSolutionInternal(DTE dte, System.Windows.Window window, string backupPath, string solutionDir)
         {
             try
             {
@@ -169,6 +171,65 @@ namespace Integrated_AI.Utilities
                 ThemedMessageBox.Show(window, $"Restore failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return false;
             }
+        }
+
+        public static async Task RestoreSolutionAsync(DTE2 dte, System.Windows.Window window, string backupFolderPath)
+        {
+            // Pre-condition checks
+            if (dte.Solution == null || string.IsNullOrEmpty(dte.Solution.FullName))
+            {
+                WebViewUtilities.Log("RestoreSolutionAsync: No solution is currently open.");
+                ThemedMessageBox.Show(window, "No solution is currently open to restore.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            if (string.IsNullOrEmpty(backupFolderPath) || !Directory.Exists(backupFolderPath))
+            {
+                WebViewUtilities.Log($"RestoreSolutionAsync: Invalid backup folder path provided: {backupFolderPath}");
+                ThemedMessageBox.Show(window, "The specified backup path is invalid or does not exist.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            // Run the restore operation in a JTF-managed task to prevent UI lockups.
+            await ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                var statusBar = dte.StatusBar;
+                statusBar.Text = "Restoring solution from backup...";
+                bool success = false;
+                string errorMessage = string.Empty;
+
+                try
+                {
+                    string solutionDir = Path.GetDirectoryName(dte.Solution.FullName);
+                    // This is a blocking operation, which is why we run it inside JTF.RunAsync
+                    success = BackupUtilities.RestoreSolutionInternal(dte, window, backupFolderPath, solutionDir);
+                }
+                catch (Exception ex)
+                {
+                    errorMessage = $"An error occurred during restore: {ex.Message}";
+                    WebViewUtilities.Log(errorMessage);
+                }
+
+                // Yield control to the message pump. This is the crucial step to allow VS 
+                // to process any dialogs (e.g., "inconsistent line endings") it may have 
+                // queued in response to the file changes.
+                await Task.Yield();
+
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                if (success)
+                {
+                    WebViewUtilities.Log("RestoreSolutionAsync: Solution restored successfully.");
+                    // Use the status bar for a non-intrusive success message.
+                    statusBar.Text = "Solution restored successfully.";
+                }
+                else
+                {
+                    // If there was an error, show a message box.
+                    ThemedMessageBox.Show(window, string.IsNullOrEmpty(errorMessage) ? "Failed to restore solution." : errorMessage, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    statusBar.Clear();
+                }
+            });
         }
 
         // Copies all contents of a directory recursively, skipping unchanged files

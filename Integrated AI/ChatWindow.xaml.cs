@@ -896,56 +896,13 @@ namespace Integrated_AI
             var restoreWindow = new RestoreSelectionWindow(_dte, ChatWebView, solutionBackupsFolder, selectedTextForSearch);
             bool? result = restoreWindow.ShowDialog();
 
-            // The logic to start the diff process now happens AFTER the window is closed.
             if (restoreWindow.SelectedBackup != null)
             {
                 // Case 1: User clicked the "Restore" button in the dialog.
                 if (result == true)
                 {
-                    // Run the restore operation in a JTF-managed task to prevent UI lockups.
-                    _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
-                    {
-                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-                        var statusBar = _dte.StatusBar;
-                        statusBar.Text = "Restoring solution from backup...";
-                        bool success = false;
-                        string errorMessage = string.Empty;
-
-                        try
-                        {
-                            string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
-                            // This is a blocking operation on the UI thread.
-                            success = BackupUtilities.RestoreSolution(_dte, Window.GetWindow(this), restoreWindow.SelectedBackup.FolderPath, solutionDir);
-                        }
-                        catch (Exception ex)
-                        {
-                            errorMessage = $"An error occurred during restore: {ex.Message}";
-                            Log(errorMessage);
-                        }
-                        finally
-                        {
-                                // We don't clear the status bar here, as we will set it to the final status.
-                        }
-
-                        // Yield control to the message pump. This allows VS to process any dialogs
-                        // it may have queued in response to the file changes (e.g., "inconsistent line endings").
-                        await Task.Yield();
-
-                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        if (success)
-                        {
-                            Log("RestoreButton_Click: Solution restored successfully.");
-                            // Use the status bar for a non-intrusive success message.
-                            statusBar.Text = "Solution restored successfully.";
-                        }
-                        else
-                        {
-                            // If there was an error, it's okay to show a message box.
-                            ShowThemedMessageBox(string.IsNullOrEmpty(errorMessage) ? "Failed to restore solution." : errorMessage, "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
-                            statusBar.Clear();
-                        }
-                    });
+                    // REPLACED BLOCK: Call the new unified restore method.
+                    _ = BackupUtilities.RestoreSolutionAsync(_dte, Window.GetWindow(this), restoreWindow.SelectedBackup.FolderPath);
                 }
                 // Case 2: User clicked the "Compare" button in the dialog.
                 else if (!restoreWindow.NavigateToUrl)
@@ -974,7 +931,6 @@ namespace Integrated_AI
                         });
                     }
                 }
-
                 // Case 3: User clicked the "Go To Chat" button.
                 else
                 {
@@ -986,8 +942,6 @@ namespace Integrated_AI
                         optionToSelect.Url = restoreWindow.SelectedBackup.Url;
                         WebViewUtilities.Log($"RestoreButton_Click: Preparing to navigate to '{optionToSelect.DisplayName}' at URL '{optionToSelect.Url}'.");
 
-                        // If the selected option is the one currently displayed, we need to navigate directly. Otherwise, let
-                        // the SelectionChanged event handle it.
                         if (UrlSelector.SelectedItem == optionToSelect)
                         {
                             ChatWebView.Source = new Uri(optionToSelect.Url);
@@ -1000,7 +954,6 @@ namespace Integrated_AI
                 }
             }
         }
-
 
         private void SaveBackupButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1028,24 +981,30 @@ namespace Integrated_AI
             CloseDiffButtonLogic();
         }
 
-        private void UseRestoreButton_Click(object sender, RoutedEventArgs e)
+        private async void UseRestoreButton_Click(object sender, RoutedEventArgs e)
         {
+            // Add a guard clause to ensure a backup was actually selected.
+            if (_selectedBackup == null)
+            {
+                WebViewUtilities.Log("UseRestoreButton_Click called but _selectedBackup was null.");
+                ShowThemedMessageBox("No backup was selected to apply.", "Restore Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             try
             {
-                string solutionDir = Path.GetDirectoryName(_dte.Solution.FullName);
-                if (BackupUtilities.RestoreSolution(_dte, Window.GetWindow(this), _selectedBackup.FolderPath, solutionDir))
-                {
-                    Log("Solution restored successfully from backup.");
-                    ShowThemedMessageBox("Solution restored successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
+                // Call the new unified restore method.
+                await BackupUtilities.RestoreSolutionAsync(_dte, Window.GetWindow(this), _selectedBackup.FolderPath);
             }
             catch (Exception ex)
             {
-                WebViewUtilities.Log($"Error restoring solution from backup: {ex.ToString()}");
-                ShowThemedMessageBox($"Failed to restore solution: {ex.Message}", "Restore Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                // The async method has its own internal error handling, but we can log if the task itself fails.
+                WebViewUtilities.Log($"Error calling RestoreSolutionAsync: {ex.ToString()}");
+                ShowThemedMessageBox($"An unexpected error occurred: {ex.Message}", "Restore Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
+                // This logic remains, as it's specific to closing the compare view.
                 CloseDiffButtonLogic();
             }
         }
@@ -1053,16 +1012,16 @@ namespace Integrated_AI
         private void ButtonConfig_Click(object sender, RoutedEventArgs e) => PopupConfig.IsOpen = true;
 
         private void ButtonSkins_OnClick(object sender, RoutedEventArgs e)
+        {
+            if (e.OriginalSource is Button button)
             {
-                if (e.OriginalSource is Button button)
+                if (button.Tag is ApplicationTheme themeTag)
                 {
-                    if (button.Tag is ApplicationTheme themeTag)
-                    {
-                        // Call the central manager to broadcast the change to all listeners.
-                        Utilities.ThemeUtility.ChangeTheme(themeTag);
-                    }
+                    // Call the central manager to broadcast the change to all listeners.
+                    Utilities.ThemeUtility.ChangeTheme(themeTag);
                 }
             }
+        }
 
         private void OpenLogButton_Click(object sender, RoutedEventArgs e)
         {
