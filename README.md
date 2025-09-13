@@ -151,6 +151,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.1.5** Small compatibility and Grok fixes
 - **1.1.4** Small fixes: Fix Function to VS issues, fix use restore button, fix indent issues with Snippet to AI
 - **1.1.3** Add Deepseek, small fixes for web navigation, compare views, theme switching, restore message box conflict, new file creation, and indent issues
 - **1.1.2** Add markdown code block insertion for sites that support it, optimize new file creation, add status messages for longer operations like file comparing

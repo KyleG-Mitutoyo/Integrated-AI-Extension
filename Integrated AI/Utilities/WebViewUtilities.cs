@@ -44,7 +44,16 @@ namespace Integrated_AI
         // Modified _selectorMap to support a list of selectors for each URL
         private static readonly Dictionary<string, List<string>> _selectorMap = new Dictionary<string, List<string>>
         {
-            { "https://grok.com", new List<string> { "textarea[aria-label=\"Ask Grok anything\"]" } },
+            {
+                "https://grok.com", new List<string> 
+                { 
+                    "textarea[aria-label=\"Ask Grok anything\"]",
+                    "div[contenteditable=\"true\"]",
+                    "div.ProseMirror",
+                    "div.tiptap.ProseMirror",
+                    "div[contenteditable=\"true\"].ProseMirror"
+                } 
+            },
             { "https://chat.deepseek.com", new List<string> { "textarea#chat-input" } },
             { "https://chatgpt.com", new List<string> { "div#prompt-textarea" } },
             { 
