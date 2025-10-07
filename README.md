@@ -46,9 +46,10 @@ You can use this extension with your favorite AI chat, for free or with a subscr
   - **Snippet**: Send only the code you've highlighted.
   - **Function**: Choose from the list of functions in the active document.
   - **File**: Send the complete content of the active document.
-- **⚠️ Error to AI**: From the error list, right click an error or warning and select "Send to AI chat". It will send the error description and the line that has the error.
+- **⚠️ Error to AI**: From the error list, right click after selecting errors/warnings and click "Send to AI chat". It will send the error description(s) and the line with code that has the error.
 - **✨ Intelligent AI-to-VS Diffing**: Move code from the AI back to your editor with the "AI -> VS" button commands. You have full control of what gets replaced, with options similar to the VS -> AI commands. The extension can also intelligently analyze the AI's response to find the corresponding function or snippet in your file (turn on Auto Diff and Auto Function Match in the options). It then presents a **rich diff view**, allowing you to review changes line-by-line and accept, decline, or manually choose a different replacement. 
 - **🔒 Automatic Backups**: Never lose work. When you accept a diff, the extension automatically creates a zip backup of your entire solution, giving you a restore point. There is also a manual backup button.
+- **Note**: All files such as backups, saved chat URLs, and restore info is saved locally on your PC.
 
 ## 🛠️ Installation
 
@@ -83,7 +84,7 @@ _![Snippet in the prompt area](https://raw.githubusercontent.com/KyleG-Mitutoyo/
 
 _![Function in the prompt area](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/function.png)_
 
-You can send errors or warnings from the VS error list by right-clicking on one and selecting "Send to AI chat". It will paste the error description, line number, and contents of the line into the prompt. It will also navigate to that error in your code, even if a file is closed.
+You can send errors or warnings from the VS error list by right-clicking on one or multiple errors and selecting "Send to AI chat". It will paste the error description, line number, and contents of the line into the prompt if it's just one error, and also navigate to that error in your code, even if a file is closed. Multiple errors/warnings selected will send just the descriptions, all in one click. To select multiple errors/warnings use ctrl+click or shift+click before right clicking on one of them.
 
 _![Send Error to AI](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/error.png)_
 
@@ -109,7 +110,7 @@ _![Replace Different Code window](https://raw.githubusercontent.com/KyleG-Mituto
 
 After accepting a diff, a backup is created of the previous solution state (this can be disabled in the options). The AI code that was used for that diff and the chat page is also saved to allow for easy searching later.
 
-For restores a separate window opens with different options. There is a list of restores showing the AI code used right after that restore point. If you highlight some AI code in the chat window, the restore window will open to that restore point if it exists. You can also use "Go To Chat" to navigate there. Compare will show multiple diff views with each changed file, and you can use that restore or close the diff views from there.
+For restores a separate window opens with different options. There is a list of restores showing the AI code that was accepted right after that restore point. If you highlight some AI code in the chat window, the restore window will open to that restore point if it exists. You can also use "Go To Chat" to navigate there. Compare will show multiple diff views with each changed file, and you can use that restore or close the diff views from there.
 
 _![Restore Window](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/restore%20window.png)_
 
@@ -151,6 +152,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.1.6** Add multiple error selection for Error to AI, add ability to delete selected backups, cleanup StringUtil, fix extra newline when using To VS commands
 - **1.1.5** Small compatibility and Grok fixes
 - **1.1.4** Small fixes: Fix Function to VS issues, fix use restore button, fix indent issues with Snippet to AI
 - **1.1.3** Add Deepseek, small fixes for web navigation, compare views, theme switching, restore message box conflict, new file creation, and indent issues

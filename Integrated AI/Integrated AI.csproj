@@ -79,6 +79,8 @@
     <Compile Include="ThemedMessageBox.cs" />
     <Compile Include="ThemedWindow.cs" />
     <Compile Include="Utilities\BackupUtilities.cs" />
+    <Compile Include="Utilities\CodeAnalysisUtil.cs" />
+    <Compile Include="Utilities\DocumentTextUtil.cs" />
     <Compile Include="Utilities\LoggingService.cs" />
     <Compile Include="Utilities\StringUtil.cs" />
     <Compile Include="Utilities\ThemeUtility.cs" />

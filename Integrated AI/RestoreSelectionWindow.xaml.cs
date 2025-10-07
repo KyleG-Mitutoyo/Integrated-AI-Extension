@@ -199,26 +199,35 @@ namespace Integrated_AI
             }
         }
 
-        private void DeleteButton_Click(object sender, RoutedEventArgs e)
+        private void DeleteSelectedButton_Click(object sender, RoutedEventArgs e)
         {
-            var result = ThemedMessageBox.Show(this, "Are you sure you want to delete all backups for the current solution?",
-                "Confirm Delete All", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            var selectedItems = BackupListBox.SelectedItems.Cast<BackupItem>().ToList();
+            if (selectedItems.Count == 0)
+            {
+                ThemedMessageBox.Show(this, "No backups selected to delete.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var result = ThemedMessageBox.Show(this, $"Are you sure you want to delete the {selectedItems.Count} selected backup(s)? This action cannot be undone.",
+                "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
             if (result == MessageBoxResult.Yes)
             {
                 try
                 {
-                    if (Directory.Exists(_backupRootPath))
+                    foreach (var item in selectedItems)
                     {
-                        foreach (var dir in Directory.GetDirectories(_backupRootPath))
+                        if (Directory.Exists(item.FolderPath))
                         {
-                            Directory.Delete(dir, true);
+                            Directory.Delete(item.FolderPath, true);
                         }
                     }
                     PopulateBackupList(); // Refresh list after deletion
+                    AICodeTextBox.Text = string.Empty; // Clear the text box as the selected item is gone
                 }
                 catch (Exception ex)
                 {
-                    WebViewUtilities.Log($"RestoreSelectionWindow.DeleteButton_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
+                    WebViewUtilities.Log($"RestoreSelectionWindow.DeleteSelectedButton_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
                     ThemedMessageBox.Show(this, $"Error deleting backups: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }

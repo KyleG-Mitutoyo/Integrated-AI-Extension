@@ -288,7 +288,7 @@ namespace Integrated_AI
             _diffContext = new DiffUtility.DiffContext { };
 
             // Change 2: Call the synchronous CreateDocumentContent and capture the full result object.
-            var result = StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), currentCode, aiCode, activeDocument, selectedItem, _diffContext);
+            var result = DocumentTextUtil.CreateDocumentContent(_dte, Window.GetWindow(this), currentCode, aiCode, activeDocument, selectedItem, _diffContext);
 
             // Change 3: Check the result and branch the logic.
             if (result.IsNewFileCreationRequired)
@@ -380,7 +380,7 @@ namespace Integrated_AI
                             {
                                 if (AutoFunctionMatch.IsChecked == true)
                                 {
-                                    var (isFunction, autoFunctionName, isFullFile) = StringUtil.AnalyzeCodeBlock(_dte, _dte.ActiveDocument, aiCode);
+                                    var (isFunction, autoFunctionName, isFullFile) = CodeAnalysisUtil.AnalyzeCodeBlock(_dte, _dte.ActiveDocument, aiCode);
                                     if (isFunction) analyzedFunctionName = autoFunctionName;
                                 }
                                 else
@@ -782,7 +782,7 @@ namespace Integrated_AI
 
                         // This call is now synchronous. It quickly determines what to do but does NOT
                         // perform the slow file creation itself.
-                        var result = StringUtil.CreateDocumentContent(_dte, Window.GetWindow(this), codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
+                        var result = DocumentTextUtil.CreateDocumentContent(_dte, Window.GetWindow(this), codeToModify, aiCode, targetDoc, selectedItem, newDiffContext);
 
                         // --- Step 4: Act based on the result ---
 

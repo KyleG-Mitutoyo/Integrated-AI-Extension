@@ -21,9 +21,11 @@ using Microsoft.Web.WebView2.Wpf;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Windows;
 using Task = System.Threading.Tasks.Task;
 using Window = System.Windows.Window;
@@ -83,90 +85,132 @@ namespace Integrated_AI
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             try
             {
-                IVsTaskItem selectedTaskItem = null;
+                if (!(await _package.GetServiceAsync(typeof(SVsErrorList)) is IVsTaskList2 taskList)) return;
 
-                if (await _package.GetServiceAsync(typeof(SVsErrorList)) is IVsTaskList2 taskList)
+                taskList.EnumSelectedItems(out IVsEnumTaskItems itemsEnum);
+                if (itemsEnum == null) return;
+                
+                // --- NEW: Collect all items first to get a count ---
+                var selectedItems = new List<IVsTaskItem>();
+                var taskItemsBuffer = new IVsTaskItem[1];
+                while (itemsEnum.Next(1, taskItemsBuffer, null) == VSConstants.S_OK && taskItemsBuffer[0] != null)
                 {
-                    taskList.EnumSelectedItems(out IVsEnumTaskItems itemsEnum);
-                    if (itemsEnum != null)
-                    {
-                        var taskItems = new IVsTaskItem[1];
-                        if (itemsEnum.Next(1, taskItems, null) == VSConstants.S_OK && taskItems[0] != null)
-                        {
-                            selectedTaskItem = taskItems[0];
-                        }
-                    }
+                    selectedItems.Add(taskItemsBuffer[0]);
                 }
 
-                if (selectedTaskItem == null)
+                if (selectedItems.Count == 0)
                 {
-                    MessageBox.Show("Could not get the selected error from the Error List.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    ThemedMessageBox.Show(null, "No items selected in the Error List.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
-                string itemType = "Error"; // Default to Error.
-                string errorCode = string.Empty;
-                string itemDescription = string.Empty;
-
-                // --- THE FIX: Use the IVsErrorItem interface for structured data ---
-                // This is the correct and reliable way to get details from the Error List.
-                if (selectedTaskItem is IVsErrorItem errorItem)
+                // --- NEW: Branch logic based on selection count ---
+                if (selectedItems.Count == 1)
                 {
-                    // Get Severity (Error, Warning, Message)
-                    if (errorItem.GetCategory(out uint severityRaw) == VSConstants.S_OK)
-                    {
-                        var severity = (__VSERRORCATEGORY)severityRaw;
-                        switch (severity)
-                        {
-                            case __VSERRORCATEGORY.EC_ERROR:
-                                itemType = "Error";
-                                break;
-                            case __VSERRORCATEGORY.EC_WARNING:
-                                itemType = "Warning";
-                                break;
-                            case __VSERRORCATEGORY.EC_MESSAGE:
-                                itemType = "Message";
-                                break;
-                        }
-                    }
+                    await HandleSingleErrorAsync(selectedItems[0]);
                 }
-
-                if (string.IsNullOrEmpty(itemDescription))
+                else
                 {
-                    selectedTaskItem.get_Text(out itemDescription);
+                    await HandleMultipleErrorsAsync(selectedItems);
                 }
-
-                selectedTaskItem.NavigateTo();
-
-                await Task.Delay(50); // Small delay to ensure navigation completes
-
-                Document activeDoc = dte.ActiveDocument;
-                if (activeDoc == null)
-                {
-                     MessageBox.Show("Could not navigate to the source code for the selected item.", "Navigation Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                     return;
-                }
-
-                await SendErrorAsync(activeDoc, itemType, errorCode, itemDescription);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error in ExecuteSendErrorToAI: {ex.Message}");
-                MessageBox.Show($"An unexpected error occurred: {ex.Message}", "Command Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                WebViewUtilities.Log($"Error in ExecuteSendErrorToAI: {ex.Message}");
+                ThemedMessageBox.Show(null, $"An unexpected error occurred: {ex.Message}", "Command Failed", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        
-        private async Task SendErrorAsync(Document activeDoc, string itemType, string errorCode, string itemDescription)
+
+        // --- Handles the original case for a single selected error ---
+        private async Task HandleSingleErrorAsync(IVsTaskItem selectedTaskItem)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            string itemType = "Error";
+            string itemDescription = string.Empty;
+
+            if (selectedTaskItem is IVsErrorItem errorItem)
+            {
+                if (errorItem.GetCategory(out uint severityRaw) == VSConstants.S_OK)
+                {
+                    var severity = (__VSERRORCATEGORY)severityRaw;
+                    // --- FIX: C# 7.3 compatible switch statement ---
+                    switch (severity)
+                    {
+                        case __VSERRORCATEGORY.EC_ERROR:
+                            itemType = "Error";
+                            break;
+                        case __VSERRORCATEGORY.EC_WARNING:
+                            itemType = "Warning";
+                            break;
+                        case __VSERRORCATEGORY.EC_MESSAGE:
+                            itemType = "Message";
+                            break;
+                    }
+                }
+            }
+
+            selectedTaskItem.get_Text(out itemDescription);
+            selectedTaskItem.NavigateTo();
+
+            await Task.Delay(50); // Small delay to ensure navigation completes
+
+            Document activeDoc = dte.ActiveDocument;
+            if (activeDoc == null)
+            {
+                WebViewUtilities.Log("Error to AI: Could not navigate to the source code for the selected item.");
+                ThemedMessageBox.Show(null, "Could not navigate to the source code for the selected item.", "Navigation Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
 
             var textSelection = (TextSelection)activeDoc.Selection;
             string errorFilePath = activeDoc.FullName;
             int errorLine = textSelection.CurrentLine;
             textSelection.SelectLine();
-            string lineOfCode = textSelection.Text;
+            string lineOfCode = textSelection.Text.Trim();
             textSelection.Cancel();
 
+            string solutionPath = Path.GetDirectoryName(dte.Solution.FullName);
+            string errorRelativePath = FileUtil.GetRelativePath(solutionPath, errorFilePath);
+
+            string textToInject = $"{itemType}: {itemDescription}\nCode:\n{lineOfCode}";
+            string sourceDescription = $"\n---{errorRelativePath} ({itemType.ToLower()} on line {errorLine})---\n{textToInject}\n---End code---\n\n";
+
+            await SendTextToAIAsync(sourceDescription, "Error -> AI");
+        }
+
+        // --- NEW: Handles multiple selections by sending descriptions only ---
+        private async Task HandleMultipleErrorsAsync(List<IVsTaskItem> items)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            var promptBuilder = new StringBuilder();
+            promptBuilder.AppendLine("Here are multiple issues from my project. Can you analyze them?\n");
+
+            foreach (var item in items)
+            {
+                string itemType = "Item";
+                if (item is IVsErrorItem errorItem && errorItem.GetCategory(out uint severityRaw) == VSConstants.S_OK)
+                {
+                    var severity = (__VSERRORCATEGORY)severityRaw;
+                    switch (severity)
+                    {
+                        case __VSERRORCATEGORY.EC_ERROR: itemType = "Error"; break;
+                        case __VSERRORCATEGORY.EC_WARNING: itemType = "Warning"; break;
+                        case __VSERRORCATEGORY.EC_MESSAGE: itemType = "Message"; break;
+                    }
+                }
+
+                item.get_Text(out string description);
+                promptBuilder.AppendLine($"- **{itemType}:** {description}");
+            }
+
+            await SendTextToAIAsync(promptBuilder.ToString(), "Multiple Errors -> AI");
+        }
+        
+        private async Task SendTextToAIAsync(string text, string commandTitle)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             ExecuteOpenChatWindow(null, null);
 
             var chatToolWindow = this._package.FindToolWindow(typeof(ChatToolWindow), 0, false) as ChatToolWindow;
@@ -177,22 +221,7 @@ namespace Integrated_AI
             Window parentWindow = Window.GetWindow(chatWindow);
             if (webView == null || parentWindow == null) return;
 
-            string solutionPath = Path.GetDirectoryName(dte.Solution.FullName);
-            string errorRelativePath = FileUtil.GetRelativePath(solutionPath, errorFilePath);
-
-            string textToInject;
-            if (!string.IsNullOrWhiteSpace(errorCode))
-            {
-                textToInject = $"{itemType} ({errorCode}): {itemDescription}\nCode:\n{lineOfCode.Trim()}";
-            }
-            else
-            {
-                textToInject = $"{itemType}: {itemDescription}\nCode:\n{lineOfCode.Trim()}";
-            }
-            
-            string sourceDescription = $"\n---{errorRelativePath} ({itemType.ToLower()} on line {errorLine})---\n{textToInject}\n---End code---\n\n";
-
-            await WebViewUtilities.InjectTextIntoWebViewAsync(webView, parentWindow, sourceDescription, "Error -> AI");
+            await WebViewUtilities.InjectTextIntoWebViewAsync(webView, parentWindow, text, commandTitle);
         }
     }
 
