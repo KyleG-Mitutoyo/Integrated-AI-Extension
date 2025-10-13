@@ -171,6 +171,44 @@ namespace Integrated_AI.Utilities
             return (double)commonCount / Math.Max(source.Length, target.Length);
         }
 
+        public static bool IsWordCharacter(char c)
+        {
+            return char.IsLetterOrDigit(c) || c == '_';
+        }
+
+        public static bool TryGetWordAtCursor(Document activeDoc, out string word)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            word = null;
+
+            if (!(activeDoc?.Object("TextDocument") is TextDocument textDoc)) return false;
+
+            var cursorPoint = textDoc.Selection.ActivePoint;
+            var editPoint = cursorPoint.CreateEditPoint();
+            string lineText = editPoint.GetLines(cursorPoint.Line, cursorPoint.Line + 1);
+
+            int cursorIndex = cursorPoint.LineCharOffset - 1;
+            if (cursorIndex < 0 || cursorIndex >= lineText.Length || !IsWordCharacter(lineText[cursorIndex]))
+            {
+                return false;
+            }
+
+            int start = cursorIndex;
+            while (start > 0 && IsWordCharacter(lineText[start - 1]))
+            {
+                start--;
+            }
+
+            int end = cursorIndex;
+            while (end < lineText.Length - 1 && IsWordCharacter(lineText[end + 1]))
+            {
+                end++;
+            }
+
+            word = lineText.Substring(start, end - start + 1);
+            return !string.IsNullOrWhiteSpace(word);
+        }
+
         // Helper method to remove comments above function definition and header/footer
         public static string RemoveHeaderFooterComments(string code)
         {

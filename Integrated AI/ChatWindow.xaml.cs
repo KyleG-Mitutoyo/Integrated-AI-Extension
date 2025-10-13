@@ -77,7 +77,7 @@ namespace Integrated_AI
         private readonly string _webViewDataFolder;
         private readonly string _appDataFolder;
         private readonly string _backupsFolder;
-        private string _selectedOptionToAI = "Function -> AI";
+        // --- REMOVED --- private string _selectedOptionToAI = "Function -> AI";
         private string _selectedOptionToVS = "Function -> VS";
         private bool _executeCommandOnClick = true;
         private readonly DTE2 _dte;
@@ -434,7 +434,7 @@ namespace Integrated_AI
         {
             if (showDiffButons)
             {
-                VSToAISplitButton.Visibility = Visibility.Collapsed;
+                // VSToAISplitButton.Visibility = Visibility.Collapsed; // --- REMOVED ---
                 AIToVSSplitButton.Visibility = Visibility.Collapsed;
                 RestoreButton.Visibility = Visibility.Collapsed;
                 SaveBackupButton.Visibility = Visibility.Collapsed;
@@ -445,7 +445,7 @@ namespace Integrated_AI
 
             else
             {
-                VSToAISplitButton.Visibility = Visibility.Visible;
+                // VSToAISplitButton.Visibility = Visibility.Visible; // --- REMOVED ---
                 AIToVSSplitButton.Visibility = Visibility.Visible;
                 RestoreButton.Visibility = Visibility.Visible;
                 SaveBackupButton.Visibility = Visibility.Visible;
@@ -514,14 +514,7 @@ namespace Integrated_AI
             }
         }
 
-        private async void SplitButtonToAI_Click(object sender, RoutedEventArgs e)
-        {
-            if (_executeCommandOnClick)
-            {
-                await WebViewUtilities.ExecuteCommandAsync(_selectedOptionToAI, _dte, Window.GetWindow(this), ChatWebView, _webViewDataFolder, (AIChatOption)UrlSelector.SelectedItem);
-            }
-            _executeCommandOnClick = true;
-        }
+        // --- ENTIRE SplitButtonToAI_Click METHOD REMOVED ---
 
         private async void SplitButtonToVS_Click(object sender, RoutedEventArgs e)
         {
@@ -558,15 +551,7 @@ namespace Integrated_AI
             }
         }
 
-        private async void MenuItemToAI_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is MenuItem menuItem && menuItem.Tag is string option)
-            {
-                _selectedOptionToAI = option;
-                VSToAISplitButton.Content = option;
-                await WebViewUtilities.ExecuteCommandAsync(option, _dte, Window.GetWindow(this), ChatWebView, _webViewDataFolder, (AIChatOption)UrlSelector.SelectedItem);
-            }
-        }
+        // --- ENTIRE MenuItemToAI_Click METHOD REMOVED ---
 
         private void MenuItemToVS_Click(object sender, RoutedEventArgs e)
         {
@@ -876,6 +861,18 @@ namespace Integrated_AI
         private void DebugButton_Click(object sender, RoutedEventArgs e)
         {
             
+        }
+
+        private void ToAIButton_Click(object sender, RoutedEventArgs e)
+        {
+            PopupGuide.IsOpen = true;
+            //ShowThemedMessageBox("The '-> AI' commands are now in right-click menus, try them out!", "Commands Updated");
+        }
+
+        private void GuideGotItButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Close the popup
+            PopupGuide.IsOpen = false;
         }
 
         private async void RestoreButton_Click(object sender, RoutedEventArgs e)

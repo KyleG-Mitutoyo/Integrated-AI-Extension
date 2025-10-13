@@ -24,20 +24,38 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
             <ComboBox x:Name="UrlSelector" MaxWidth="200" MinWidth="100" Margin="10,5,5,5" SelectionChanged="UrlSelector_SelectionChanged"
                       DisplayMemberPath="DisplayName" SelectedValuePath="Url" />
-            <hc:SplitButton x:Name="VSToAISplitButton" 
-                            Margin="5" 
-                            Content="Function -> AI" 
-                            Click="SplitButtonToAI_Click" 
-                            PreviewMouseDown="SplitButton_PreviewMouseDown"
-                            HorizontalAlignment="Stretch">
-                <hc:SplitButton.DropDownContent>
-                    <StackPanel>
-                        <MenuItem Header="File -> AI" Click="MenuItemToAI_Click" Tag="File -> AI"/>
-                        <MenuItem Header="Snippet -> AI" Click="MenuItemToAI_Click" Tag="Snippet -> AI"/>
-                        <MenuItem Header="Function -> AI" Click="MenuItemToAI_Click" Tag="Function -> AI"/>
+            <Button x:Name="ToAIInfoButton" Content="Function -> AI" Click="ToAIButton_Click" Margin="5,5,5,5"/>
+            <Popup x:Name="PopupGuide" 
+                   PlacementTarget="{Binding ElementName=ToAIInfoButton}"
+                   VerticalOffset="5"
+                   Placement="Bottom"
+                   AllowsTransparency="True" 
+                   StaysOpen="False" 
+                   Width="800">
+                <Border Background="{DynamicResource RegionBrush}" CornerRadius="4" Margin="16" Effect="{StaticResource EffectShadow2}">
+                    <StackPanel Margin="15">
+                        <TextBlock Text="'-> AI' Commands Have Moved!" 
+                                   FontSize="16" FontWeight="Bold"
+                                   HorizontalAlignment="Center" Margin="0,0,0,10"
+                                   Foreground="{DynamicResource PrimaryTextBrush}"/>
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,10" 
+                                   Text="To send code to the AI, simply right-click in your code editor." HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource PrimaryTextBrush}"/>
+
+                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="3" Padding="5">
+                            <Image Source="pack://application:,,,/Integrated AI;component/Resources/function-from-menu.png" Margin="2"/>
+                        </Border>
+
+                        <Button Content="Got It!" 
+                                HorizontalAlignment="Center" 
+                                Margin="0,15,0,0"
+                                Width="100"
+                                Click="GuideGotItButton_Click"
+                                Style="{StaticResource ButtonPrimary}"/>
                     </StackPanel>
-                </hc:SplitButton.DropDownContent>
-            </hc:SplitButton>
+                </Border>
+            </Popup>
             <hc:SplitButton x:Name="AIToVSSplitButton" 
                             Margin="5" 
                             Content="Function -> VS" 
@@ -130,7 +148,7 @@
             
         </StackPanel>
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">
-            <Button x:Name="UseRestoreButton" Content="Use this restore" Style="{StaticResource ButtonPrimary}" Click="UseRestoreButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="10,0,0,5" Visibility="Collapsed"/>
+            <Button x:Name="UseRestoreButton" Content="Restore this backup" Style="{StaticResource ButtonPrimary}" Click="UseRestoreButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="10,0,0,5" Visibility="Collapsed"/>
             <Button x:Name="CloseDiffsButton" Content="Close all diff views" Style="{StaticResource ButtonDanger}" Click="CloseDiffsButton_Click" hc:BorderElement.CornerRadius="0,4,4,0" Margin="0,0,0,5" Visibility="Collapsed"/>
         </StackPanel>
         <wpf:WebView2 x:Name="ChatWebView" Grid.Row="2" />

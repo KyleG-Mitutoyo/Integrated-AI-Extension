@@ -179,13 +179,32 @@ namespace Integrated_AI
 
         private void BackupListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (BackupListBox.SelectedItem is BackupItem selected)
+            if (BackupListBox.SelectedItems.Count == 1 && BackupListBox.SelectedItem is BackupItem selected)
             {
+                // A single item is selected: Enable actions and show the AI code.
+                RestoreButton.IsEnabled = true;
+                CompareButton.IsEnabled = true;
+                GoToChatButton.IsEnabled = !string.IsNullOrEmpty(selected.Url);
+
                 AICodeTextBox.Text = selected.AICode;
             }
             else
             {
-                AICodeTextBox.Text = string.Empty;
+                // Zero or multiple items are selected: Disable actions to avoid confusion.
+                RestoreButton.IsEnabled = false;
+                CompareButton.IsEnabled = false;
+                GoToChatButton.IsEnabled = false;
+
+                if (BackupListBox.SelectedItems.Count > 1)
+                {
+                    // For multiple selections, display a specific message.
+                    AICodeTextBox.Text = "Multiple backups selected";
+                }
+                else // 0 items selected
+                {
+                    // For no selection, clear the text box.
+                    AICodeTextBox.Text = string.Empty;
+                }
             }
         }
 
@@ -295,7 +314,7 @@ namespace Integrated_AI
             }
         }
 
-        private void GoToRestore_Click(object sender, RoutedEventArgs e)
+        private void GoToChat_Click(object sender, RoutedEventArgs e)
         {
             if (BackupListBox.SelectedItem is BackupItem selected)
             {
@@ -316,8 +335,8 @@ namespace Integrated_AI
                 }
                 catch (Exception ex)
                 {
-                    //ThemedMessageBox.Show(this, $"Exception in GoToRestore.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    WebViewUtilities.Log($"RestoreSelectionWindow.GoToRestore_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
+                    //ThemedMessageBox.Show(this, $"Exception in GoToChat.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    WebViewUtilities.Log($"RestoreSelectionWindow.GoToChat_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
                 }
             }
         }
