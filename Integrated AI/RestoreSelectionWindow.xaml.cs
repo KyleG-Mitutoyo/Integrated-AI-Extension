@@ -227,7 +227,14 @@ namespace Integrated_AI
                 return;
             }
 
-            var result = ThemedMessageBox.Show(this, $"Are you sure you want to delete the {selectedItems.Count} selected backup(s)? This action cannot be undone.",
+            // If more than 200 items are selected, inform the user and take the first 200.
+            if (selectedItems.Count > 200)
+            {
+                ThemedMessageBox.Show(this, "You have selected more than the maximum of 200 backups. Only the first 200 will be processed for deletion.", "Limit Exceeded", MessageBoxButton.OK, MessageBoxImage.Information);
+                selectedItems = selectedItems.Take(200).ToList();
+            }
+
+            var result = ThemedMessageBox.Show(this, $"Are you sure you want to delete {selectedItems.Count} selected backup(s)? This action cannot be undone.",
                 "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (result == MessageBoxResult.Yes)

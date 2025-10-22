@@ -268,7 +268,7 @@ namespace Integrated_AI.Commands
         {
             ThemedMessageBox.Show(
                 owner: null,
-                message: "No function found at the current cursor position. Please right-click on a function name that is defined within the current document.",
+                message: "No valid function found at the current cursor position. Please right-click on a function name that is defined within the current document.",
                 caption: "Function Not Found",
                 button: MessageBoxButton.OK,
                 icon: MessageBoxImage.Information);
@@ -284,6 +284,26 @@ namespace Integrated_AI.Commands
 
             string relativePath = GetRelativePath(document.FullName);
             string header = $"---{relativePath} (whole file contents)---";
+
+            // Re-implement the check to prevent duplicate file content injection.
+            GeneralCommands.Instance.ExecuteOpenChatWindow(null, null);
+            var chatToolWindow = this.AsyncPackage.FindToolWindow(typeof(ChatToolWindow), 0, false) as ChatToolWindow;
+            var chatWindow = chatToolWindow?.Content as ChatWindow;
+            Window parentWindow = chatWindow != null ? Window.GetWindow(chatWindow) : null;
+
+            if (chatWindow != null && chatWindow.ChatWebView != null && parentWindow != null)
+            {
+                string currentContent = await WebViewUtilities.RetrieveTextFromWebViewAsync(chatWindow.ChatWebView, parentWindow);
+
+                if (!string.IsNullOrEmpty(currentContent) && currentContent.Contains(header))
+                {
+                    WebViewUtilities.Log("This file's contents have already been injected into the chat.");
+                    ThemedMessageBox.Show(parentWindow, "This file's contents have already been injected.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return; // Exit without sending duplicate content
+                }
+            }
+
+            // If check was not performed or passed, continue to send the code.
             await FormatSendPromptToAIAsync(code, header, "File -> AI");
         }
 

@@ -378,10 +378,10 @@ namespace Integrated_AI
                             }
                             else
                             {
-                                if (AutoFunctionMatch.IsChecked == true)
+                                var (isFunction, autoFunctionName, isFullFile) = CodeAnalysisUtil.AnalyzeCodeBlock(_dte, _dte.ActiveDocument, aiCode);
+                                if (isFunction)
                                 {
-                                    var (isFunction, autoFunctionName, isFullFile) = CodeAnalysisUtil.AnalyzeCodeBlock(_dte, _dte.ActiveDocument, aiCode);
-                                    if (isFunction) analyzedFunctionName = autoFunctionName;
+                                    analyzedFunctionName = autoFunctionName;
                                 }
                                 else
                                 {
@@ -434,7 +434,7 @@ namespace Integrated_AI
         {
             if (showDiffButons)
             {
-                // VSToAISplitButton.Visibility = Visibility.Collapsed; // --- REMOVED ---
+                ToAIInfoButton.Visibility = Visibility.Collapsed;
                 AIToVSSplitButton.Visibility = Visibility.Collapsed;
                 RestoreButton.Visibility = Visibility.Collapsed;
                 SaveBackupButton.Visibility = Visibility.Collapsed;
@@ -445,7 +445,7 @@ namespace Integrated_AI
 
             else
             {
-                // VSToAISplitButton.Visibility = Visibility.Visible; // --- REMOVED ---
+                ToAIInfoButton.Visibility = Visibility.Visible;
                 AIToVSSplitButton.Visibility = Visibility.Visible;
                 RestoreButton.Visibility = Visibility.Visible;
                 SaveBackupButton.Visibility = Visibility.Visible;

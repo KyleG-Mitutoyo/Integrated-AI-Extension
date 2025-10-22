@@ -6,9 +6,6 @@
       <Value Profile="(Default)">Dark</Value>
     </Setting>
     <Setting Name="autoDiff" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">False</Value>
-    </Setting>
-    <Setting Name="autoFunctionMatch" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="autoRestore" Type="System.Boolean" Scope="User">

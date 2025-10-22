@@ -14,13 +14,22 @@
         <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_ERRORLIST"/>
       </Group>
 
-      <!-- CHANGE 1: Define a new group for the code editor context menu -->
+      <!-- This group is for the standard code editor (C#, VB, etc.) -->
       <Group guid="guidAIChatCommandPackageCmdSet" id="CodeWindowGroup" priority="0x0100">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN"/>
+      </Group>
+      
+      <!-- STEP 2: Define a new group specifically for the XAML editor context menu -->
+      <Group guid="guidAIChatCommandPackageCmdSet" id="XamlWindowGroup" priority="0x0100">
+        <!-- Its parent will be the XAML context menu we define in the Symbols section -->
+        <Parent guid="guidXamlEditorContextMenu" id="IDMXamlEditorContextMenu"/>
       </Group>
     </Groups>
 
     <Buttons>
+      <!-- All your button definitions remain EXACTLY the same. -->
+      <!-- They are still parented to their original groups. -->
+      
       <Button guid="guidAIChatCommandPackageCmdSet" id="AIChatCommandId" priority="0x0100" type="Button">
         <Parent guid="guidAIChatCommandPackageCmdSet" id="MyMenuGroup" />
         <Icon guid="guidImages" id="bmpPic1" />
@@ -37,7 +46,6 @@
         </Strings>
       </Button>
 
-      <!-- CHANGE 3: Update the Parent for all new buttons to be our new CodeWindowGroup -->
       <Button guid="guidAIChatCommandPackageCmdSet" id="SendSnippetToAI" priority="0x0100" type="Button">
         <Parent guid="guidAIChatCommandPackageCmdSet" id="CodeWindowGroup" />
         <Icon guid="guidImages" id="bmpPic1" />
@@ -69,19 +77,40 @@
     </Bitmaps>
   </Commands>
 
+  <!-- STEP 3: Use CommandPlacements to place the existing buttons into the new XAML group -->
+  <CommandPlacements>
+    <!-- Place "Send Snippet to AI" in the XAML editor context menu. -->
+    <CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="SendSnippetToAI" priority="0x0100">
+      <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlWindowGroup" />
+    </CommandPlacement>
+
+    <!-- Place "Send File to AI" in the XAML editor context menu. -->
+    <CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="SendFileToAI" priority="0x0102">
+      <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlWindowGroup" />
+    </CommandPlacement>
+  </CommandPlacements>
+
   <Symbols>
+    <!-- STEP 1: Manually define the GUID/ID for the XAML Editor Context Menu -->
+    <!-- This was discovered using VSIP Logging, as noted in the XamlStyler file -->
+    <GuidSymbol name="guidXamlEditorContextMenu" value="{4C87B692-1202-46AA-B64C-EF01FAEC53DA}">
+      <IDSymbol name="IDMXamlEditorContextMenu" value="0x0103" />
+    </GuidSymbol>
+
+	<GuidSymbol name="guidVSEditors" value="{E0011161-B194-11D0-8802-00A0C9110049}" />
+	<GuidSymbol name="guidErrorListEditor" value="{1496A755-94DE-11D0-8C3F-00C04FC2AAE2}" />
+  
     <GuidSymbol name="guidAIChatCommandPackage" value="{9c8c1990-fd9f-47f4-aa39-3da3fd4b5c39}" />
 
     <GuidSymbol name="guidAIChatCommandPackageCmdSet" value="{3e9439f0-9188-4415-b861-b894c074a254}">
       <IDSymbol name="MyMenuGroup" value="0x1020" />
+      <IDSymbol name="ErrorListGroup" value="0x1021" />
+      <IDSymbol name="CodeWindowGroup" value="0x1022"/>
+      <!-- Add the ID for our new XAML group -->
+      <IDSymbol name="XamlWindowGroup" value="0x1023"/>
+      
       <IDSymbol name="AIChatCommandId" value="0x0100" />
       <IDSymbol name="cmdidSendErrorToAI" value="0x0105" />
-      
-      <IDSymbol name="ErrorListGroup" value="0x1021" />
-
-      <!-- CHANGE 2: Add the ID for the new group -->
-      <IDSymbol name="CodeWindowGroup" value="0x1022"/>
-	  
 	  <IDSymbol name="SendSnippetToAI" value="0x0110" />
 	  <IDSymbol name="SendFunctionToAI" value="0x0111" />
 	  <IDSymbol name="SendFileToAI" value="0x0112" />

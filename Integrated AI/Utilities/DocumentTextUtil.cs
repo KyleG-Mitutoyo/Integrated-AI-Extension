@@ -181,8 +181,8 @@ namespace Integrated_AI.Utilities
                     }
                 }
 
-                // Fallback: Insert at cursor position or append if selection was empty or other errors
-                return new DocumentContentResult { ModifiedCode = InsertAtCursorOrAppend(window, currentCode, aiCode, activeDoc) };
+                // Fallback: Replace all code in the document with the new AI code
+                return new DocumentContentResult { ModifiedCode = aiCode };
             }
             catch (Exception ex)
             {

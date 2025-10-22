@@ -107,12 +107,6 @@
                             <ToggleButton x:Name="AutoDiffToggle" Margin="0,0,10,0" ToolTip="Experimental: Toggle auto AI code detection for code replacement" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoDiff, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
-                        <!-- Auto Function Match -->
-                        <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
-                            <TextBlock Text="Auto Function Match" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
-                            <ToggleButton x:Name="AutoFunctionMatch" Margin="0,0,10,0" ToolTip="Experimental: Toggle auto function matching for Function -> VS command" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoFunctionMatch, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
-                        </DockPanel>
-
                         <!-- Create Restore on Accept -->
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
                             <TextBlock Text="Create Restore on Accept" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
