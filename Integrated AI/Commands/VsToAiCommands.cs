@@ -40,6 +40,7 @@ namespace Integrated_AI.Commands
         public const int SendSnippetToAICmdId = 0x0110;
         public const int SendFunctionToAICmdId = 0x0111;
         public const int SendFileToAICmdId = 0x0112;
+        public const int SendMultipleFilesToAICmdId = 0x0113;
 
         public static readonly Guid CommandSet = new Guid("3e9439f0-9188-4415-b861-b894c074a254");
 
@@ -50,6 +51,7 @@ namespace Integrated_AI.Commands
             AddOleCommand(CommandSet, SendSnippetToAICmdId, this.ExecuteSendSnippetToAI, this.BeforeQueryStatusSendSnippet);
             AddOleCommand(CommandSet, SendFunctionToAICmdId, this.ExecuteSendFunctionToAI); // Note: BeforeQueryStatus could be added here too if needed
             AddCommand(CommandSet, SendFileToAICmdId, this.ExecuteSendFileToAI);
+            AddCommand(CommandSet, SendMultipleFilesToAICmdId, this.ExecuteSendMultipleFilesToAI);
         }
 
         public static VsToAiCommands Instance { get; private set; }
@@ -78,7 +80,7 @@ namespace Integrated_AI.Commands
             var textSelection = (TextSelection)Dte.ActiveDocument.Selection;
             if (string.IsNullOrEmpty(textSelection?.Text)) return;
 
-            string code = StringUtil.FixExtraIndentation(textSelection.Text);
+            string code = StringUtil.RemoveBaseIndentation(textSelection.Text);
             string relativePath = GetRelativePath(Dte.ActiveDocument.FullName);
             string header = $"---{relativePath} (partial code block)---";
             await FormatSendPromptToAIAsync(code, header, "Snippet -> AI");
@@ -115,7 +117,7 @@ namespace Integrated_AI.Commands
 
                 if (functionItem != null)
                 {
-                    string code = StringUtil.RemoveBaseIndentation(functionItem.FullCode);
+                    string code = StringUtil.FixExtraIndentation(functionItem.FullCode);
                     string relativePath = GetRelativePath(Dte.ActiveDocument.FullName);
                     string header = $"---{relativePath} (function: {functionItem.DisplayName})---";
                     await FormatSendPromptToAIAsync(code, header, "Function -> AI");
@@ -135,6 +137,53 @@ namespace Integrated_AI.Commands
         private void ExecuteSendFileToAI(object sender, EventArgs e)
         {
             _ = SendFileContentToAIAsync(Dte.ActiveDocument);
+        }
+
+        private async void ExecuteSendMultipleFilesToAI(object sender, EventArgs e)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            var selectedFiles = CodeSelectionUtilities.ShowMultiFileSelectionWindow(Dte);
+            if (selectedFiles == null || !selectedFiles.Any()) return;
+
+            GeneralCommands.Instance.ExecuteOpenChatWindow(null, null);
+            var chatToolWindow = this.AsyncPackage.FindToolWindow(typeof(ChatToolWindow), 0, false) as ChatToolWindow;
+            var chatWindow = chatToolWindow?.Content as ChatWindow;
+            if (chatWindow == null) return;
+
+            var selectedOption = chatWindow.UrlSelector.SelectedItem as ChatWindow.AIChatOption;
+            bool useMarkdown = selectedOption?.UsesMarkdown ?? false;
+
+            var promptBuilder = new StringBuilder();
+            //promptBuilder.AppendLine("Here are the contents of multiple files:\n");
+
+            foreach (var fileItem in selectedFiles)
+            {
+                try
+                {
+                    string code = File.ReadAllText(fileItem.FilePath);
+                    string relativePath = GetRelativePath(fileItem.FilePath);
+                    string header = $"---{relativePath} (whole file contents)---";
+
+                    if (useMarkdown)
+                    {
+                        promptBuilder.Append($"\n{header}\n\n```code\n{code}\n```\n\n---End code---\n\n");
+                    }
+                    else
+                    {
+                        promptBuilder.Append($"\n{header}\n{code}\n---End code---\n\n");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WebViewUtilities.Log($"Error reading file {fileItem.FilePath}: {ex.Message}");
+                }
+            }
+
+            if (promptBuilder.Length > "Here are the contents of multiple files:\n".Length)
+            {
+                await SendTextToAIAsync(promptBuilder.ToString(), "Multiple Files -> AI");
+            }
         }
 
         private async void ExecuteSendErrorToAI(object sender, EventArgs e)

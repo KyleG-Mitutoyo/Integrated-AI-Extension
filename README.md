@@ -46,6 +46,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
   - **Snippet**: Send only the code you've highlighted.
   - **Function**: Right-click a function name to send the whole function.
   - **File**: Send the complete content of the active document.
+  - **Multiple Files**: Select and send several files at once from your solution.
 - **⚠️ Error to AI**: From the error list, right click after selecting errors/warnings and click "Send to AI chat". It will send the error description(s) and the line with code that has the error.
 - **✨ Intelligent AI-to-VS Diffing**: Move code from the AI back to your editor with the "AI -> VS" button commands. You have full control of what gets replaced, with options similar to the Send to AI commands. The extension can also intelligently analyze the AI's response to find the corresponding function or snippet in your file (turn on Auto Diff in the options). It then presents a **rich diff view**, allowing you to review changes line-by-line and accept, decline, or manually choose a different replacement. 
 - **🔒 Automatic Backups**: Never lose work. When you accept a diff, the extension automatically creates a zip backup of your entire solution, giving you a restore point. There is also a manual backup button.
@@ -75,7 +76,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 <summary><b>"VS to AI" Transfers</b></summary>
 
 Code is sent from VS to the AI chat with the `Send to AI` commands from the document right-click menu. The available commands show depending on what is right-clicked:
-- File to AI: anywhere in the document
+- File/Multiple Files to AI: anywhere in the document
 - Snippet to AI: on highlighted text
 - Function to AI: on a function name, where the function definition is within that same document
 
@@ -161,6 +162,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.2.2** Add "Multiple Files to AI" command, improve file list in file selection window, re-fix indent issues with code sent to AI
 - **1.2.1** Fixes: Readd file to AI existing file check, fix commands not showing for xaml files, improve backup deleting, remove "auto function match" toggle
 - **1.2.0** Add "Send To AI" context menu commands and remove the "-> AI" splitbutton.
 - **1.1.6** Add multiple error selection for Error to AI, add ability to delete selected backups, cleanup StringUtil, fix extra newline when using To VS commands

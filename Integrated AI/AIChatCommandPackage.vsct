@@ -37,7 +37,7 @@
           <ButtonText>Open AI Chat Window</ButtonText>
         </Strings>
       </Button>
-
+		
       <Button guid="guidAIChatCommandPackageCmdSet" id="cmdidSendErrorToAI" priority="0x0100" type="Button">
         <Parent guid="guidAIChatCommandPackageCmdSet" id="ErrorListGroup" />
         <Icon guid="guidImages" id="bmpPic1" />
@@ -70,6 +70,16 @@
           <ButtonText>Send File to AI</ButtonText>
         </Strings>
       </Button>
+	
+	  <!-- ADDED SECTION START -->
+      <Button guid="guidAIChatCommandPackageCmdSet" id="SendMultipleFilesToAI" priority="0x0103" type="Button">
+        <Parent guid="guidAIChatCommandPackageCmdSet" id="CodeWindowGroup" />
+        <Icon guid="guidImages" id="bmpPic1" />
+        <Strings>
+          <ButtonText>Send Multiple Files to AI</ButtonText>
+        </Strings>
+      </Button>
+      <!-- ADDED SECTION END -->
     </Buttons>
 
     <Bitmaps>
@@ -86,6 +96,10 @@
 
     <!-- Place "Send File to AI" in the XAML editor context menu. -->
     <CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="SendFileToAI" priority="0x0102">
+      <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlWindowGroup" />
+    </CommandPlacement>
+  
+	<CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="SendMultipleFilesToAI" priority="0x0103">
       <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlWindowGroup" />
     </CommandPlacement>
   </CommandPlacements>
@@ -114,6 +128,8 @@
 	  <IDSymbol name="SendSnippetToAI" value="0x0110" />
 	  <IDSymbol name="SendFunctionToAI" value="0x0111" />
 	  <IDSymbol name="SendFileToAI" value="0x0112" />
+      <!-- ADDED SYMBOL -->
+      <IDSymbol name="SendMultipleFilesToAI" value="0x0113" />
     </GuidSymbol>
 
     <GuidSymbol name="guidChatToolWindow" value="{7513ff4e-9271-4984-bbcd-46ff9e185399}" />
