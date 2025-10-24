@@ -29,6 +29,31 @@ namespace Integrated_AI
 {
     public static class CodeSelectionUtilities
     {
+        private static readonly HashSet<string> _commonCodeExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // .NET Languages
+            ".cs", ".vb", ".fs", ".fsi", ".fsx", ".fsscript",
+            // C/C++
+            ".c", ".cpp", ".cxx", ".h", ".hpp",
+            // Web front-end
+            ".html", ".htm", ".css", ".scss", ".less", ".js", ".ts", ".jsx", ".tsx",
+            // Markup, Data, and Config
+            ".json", ".xml", ".xaml", ".yml", ".yaml", ".ini", ".properties", ".config",
+            // Scripting
+            ".py", ".ps1", ".bat", ".cmd",
+            // SQL
+            ".sql",
+            // ASP.NET
+            ".razor", ".cshtml",
+            // Markdown
+            ".md"
+        };
+
+        public static HashSet<string> GetCommonCodeFileExtensions()
+        {
+            return _commonCodeExtensions;
+        }
+
         public static List<FunctionSelectionWindow.FunctionItem> GetFunctionsFromDocument(Document activeDoc)
         {
             var functions = new List<FunctionSelectionWindow.FunctionItem>();
@@ -212,17 +237,18 @@ namespace Integrated_AI
         private static List<ChooseCodeWindow.ReplacementItem> GetProjectFiles(DTE2 dte, string solutionPath)
         {
             var items = new List<ChooseCodeWindow.ReplacementItem>();
+            var processedFilePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase); // Track processed files to prevent duplicates
             if (dte.Solution?.Projects != null)
             {
                 foreach (Project project in dte.Solution.Projects)
                 {
-                    CollectProjectItems(project.ProjectItems, solutionPath, items, 0);
+                    CollectProjectItems(project.ProjectItems, solutionPath, items, 0, processedFilePaths);
                 }
             }
             return items;
         }
 
-        private static void CollectProjectItems(ProjectItems projectItems, string solutionPath, List<ChooseCodeWindow.ReplacementItem> items, int indentLevel)
+        private static void CollectProjectItems(ProjectItems projectItems, string solutionPath, List<ChooseCodeWindow.ReplacementItem> items, int indentLevel, HashSet<string> processedFilePaths)
         {
             if (projectItems == null) return;
         
@@ -243,17 +269,22 @@ namespace Integrated_AI
 
                     if (isFolder)
                     {
+                        string folderPath = "";
+                        try { folderPath = item.Properties.Item("FullPath").Value.ToString(); }
+                        catch { /* some project items might not have this property */ }
                         items.Add(new ChooseCodeWindow.ReplacementItem
                         {
                             DisplayName = item.Name,
                             ListBoxDisplayName = $"{indent}📁 {item.Name}",
-                            Type = "folder" 
+                            Type = "folder",
+                            FilePath = folderPath 
                         });
                     }
                     else if (isFile)
                     {
                         string filePath = item.FileNames[1];
-                        if (File.Exists(filePath))
+                        // Use the HashSet to prevent adding duplicate file paths
+                        if (File.Exists(filePath) && processedFilePaths.Add(filePath))
                         {
                             items.Add(new ChooseCodeWindow.ReplacementItem
                             {
@@ -270,7 +301,7 @@ namespace Integrated_AI
                     // AND dependent files (like .xaml.cs under .xaml).
                     if (item.ProjectItems != null && item.ProjectItems.Count > 0)
                     {
-                        CollectProjectItems(item.ProjectItems, solutionPath, items, indentLevel + 1);
+                        CollectProjectItems(item.ProjectItems, solutionPath, items, indentLevel + 1, processedFilePaths);
                     }
                 }
                 catch

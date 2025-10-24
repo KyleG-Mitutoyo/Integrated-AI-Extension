@@ -22,6 +22,7 @@ using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.Shell;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -52,25 +53,31 @@ namespace Integrated_AI
 
         public ReplacementItem SelectedItem { get; private set; }
         public List<ReplacementItem> SelectedItems { get; private set; }
+        private List<ReplacementItem> _allFiles;
+        private readonly DTE2 _dte;
 
         public ChooseCodeWindow(DTE2 dte, Document activeDoc, string tempCurrentFile = null, string tempAiFile = null)
         {
             InitializeComponent();
+            _dte = dte;
             NonClientAreaBackground = Brushes.Transparent;
             SelectedItems = new List<ReplacementItem>();
-            
+
             ThreadHelper.JoinableTaskFactory.Run(async () =>
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 var (functions, files) = CodeSelectionUtilities.PopulateReplacementLists(dte, activeDoc, tempCurrentFile, tempAiFile);
                 FunctionListBox.ItemsSource = functions;
-                FileListBox.ItemsSource = files;
+                _allFiles = files;
+                FileListBox.ItemsSource = _allFiles; // Populate the list
+                ApplyFileFilter();                  // Now apply the filter
             });
         }
         
         public ChooseCodeWindow(DTE2 dte, SelectionMode mode)
         {
             InitializeComponent();
+            _dte = dte;
             NonClientAreaBackground = Brushes.Transparent;
             SelectedItems = new List<ReplacementItem>();
 
@@ -82,8 +89,8 @@ namespace Integrated_AI
                 FunctionColumn.Width = new GridLength(0);
                 FunctionHeaderColumn.Width = new GridLength(0);
 
-                Grid.SetColumn(FileHeader, 0);
-                Grid.SetColumnSpan(FileHeader, 2);
+                Grid.SetColumn(FileHeaderGrid, 0);
+                Grid.SetColumnSpan(FileHeaderGrid, 2);
                 FileHeader.Text = "Select one or more files (Ctrl+Click or Shift+Click):";
                 
                 Grid.SetColumn(FileListBox, 0);
@@ -98,7 +105,9 @@ namespace Integrated_AI
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 // We only need the files list, but the method returns both.
                 var (_, files) = CodeSelectionUtilities.PopulateReplacementLists(dte, dte.ActiveDocument, null, null);
-                FileListBox.ItemsSource = files;
+                _allFiles = files;
+                FileListBox.ItemsSource = _allFiles; // Populate the list
+                ApplyFileFilter();                   // Now apply the filter
             });
         }
 
@@ -157,6 +166,104 @@ namespace Integrated_AI
         {
             DialogResult = false;
             Close();
+        }
+
+        private void FilterRadioButton_Checked(object sender, RoutedEventArgs e)
+        {
+            ApplyFileFilter();
+        }
+
+        private void ApplyFileFilter()
+        {
+            if (_allFiles == null) return;
+
+            if (CodeFilesRadioButton?.IsChecked == true)
+            {
+                var commonExtensions = CodeSelectionUtilities.GetCommonCodeFileExtensions();
+
+                // 1. Get a set of all file paths that pass the filter
+                var visibleFilePaths = new HashSet<string>(
+                    _allFiles.Where(item =>
+                        (item.Type == "file" || item.Type == "opened_file") &&
+                        !string.IsNullOrEmpty(item.FilePath) &&
+                        commonExtensions.Contains(Path.GetExtension(item.FilePath).ToLowerInvariant()))
+                    .Select(item => item.FilePath),
+                    StringComparer.OrdinalIgnoreCase);
+
+                var filteredList = new List<ReplacementItem>();
+                foreach (var item in _allFiles)
+                {
+                    if (item.Type == "file" || item.Type == "opened_file")
+                    {
+                        // 2. Add files that are in our visible set
+                        if (visibleFilePaths.Contains(item.FilePath))
+                        {
+                            filteredList.Add(item);
+                        }
+                    }
+                    else if (item.Type == "folder")
+                    {
+                        // 3. Add folders that contain at least one visible file
+                        if (!string.IsNullOrEmpty(item.FilePath) &&
+                            visibleFilePaths.Any(path => path.StartsWith(item.FilePath, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            filteredList.Add(item);
+                        }
+                    }
+                    else
+                    {
+                        // 4. Always add non-file/non-folder items (headers, "New File", etc.)
+                        filteredList.Add(item);
+                    }
+                }
+                FileListBox.ItemsSource = filteredList;
+            }
+            else if (OpenedFilesRadioButton?.IsChecked == true)
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                var openDocumentPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (_dte?.Documents != null)
+                {
+                    foreach (Document doc in _dte.Documents)
+                    {
+                        if (!string.IsNullOrEmpty(doc.FullName) && File.Exists(doc.FullName))
+                        {
+                            openDocumentPaths.Add(doc.FullName);
+                        }
+                    }
+                }
+
+                var filteredList = new List<ReplacementItem>();
+                foreach (var item in _allFiles)
+                {
+                    if (item.Type == "file" || item.Type == "opened_file")
+                    {
+                        if (openDocumentPaths.Contains(item.FilePath))
+                        {
+                            filteredList.Add(item);
+                        }
+                    }
+                    else if (item.Type == "folder")
+                    {
+                        if (!string.IsNullOrEmpty(item.FilePath) &&
+                            openDocumentPaths.Any(path => path.StartsWith(item.FilePath, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            filteredList.Add(item);
+                        }
+                    }
+                    else if (item.Type == "new_file")
+                    {
+                        filteredList.Add(item);
+                    }
+                    // Intentionally skip headers for this specific filter view.
+                }
+
+                FileListBox.ItemsSource = filteredList;
+            }
+            else // AllFilesRadioButton is checked or it's the fallback
+            {
+                FileListBox.ItemsSource = _allFiles;
+            }
         }
     }
 }

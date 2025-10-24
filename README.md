@@ -162,6 +162,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.2.3** Fix duplicate files showing in file list, add file filtering options, improve auto-diff code analysis
 - **1.2.2** Add "Multiple Files to AI" command, improve file list in file selection window, re-fix indent issues with code sent to AI
 - **1.2.1** Fixes: Readd file to AI existing file check, fix commands not showing for xaml files, improve backup deleting, remove "auto function match" toggle
 - **1.2.0** Add "Send To AI" context menu commands and remove the "-> AI" splitbutton.
