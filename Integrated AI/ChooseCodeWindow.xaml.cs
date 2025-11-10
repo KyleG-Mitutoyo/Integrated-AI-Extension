@@ -47,7 +47,7 @@ namespace Integrated_AI
             public string FullName { get; set; }
             public CodeFunction Function { get; set; } // Null for files or special options
             public string FilePath { get; set; } // Null for functions or new function
-            public string Type { get; set; } // "function", "file", "new_function", "new_file", "opened_file", "snippet", "folder"
+            public string Type { get; set; } // "function", "file", "new_file", "opened_file", "snippet", "folder"
             public string FullCode { get; set; } // Function code or empty for files
         }
 

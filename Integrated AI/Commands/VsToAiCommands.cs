@@ -92,7 +92,7 @@ namespace Integrated_AI.Commands
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             // STEP 1: Perform the fast, synchronous part first.
-            if (!StringUtil.TryGetWordAtCursor(Dte.ActiveDocument, out string functionName))
+            if (!StringUtil.IsWordAtCursor(Dte.ActiveDocument, out string functionName))
             {
                 ShowFunctionNotFoundMessage();
                 return;

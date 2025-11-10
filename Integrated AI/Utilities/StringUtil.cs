@@ -176,7 +176,7 @@ namespace Integrated_AI.Utilities
             return char.IsLetterOrDigit(c) || c == '_';
         }
 
-        public static bool TryGetWordAtCursor(Document activeDoc, out string word)
+        public static bool IsWordAtCursor(Document activeDoc, out string word)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             word = null;

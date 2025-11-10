@@ -25,6 +25,7 @@
             <ComboBox x:Name="UrlSelector" MaxWidth="200" MinWidth="100" Margin="10,5,5,5" SelectionChanged="UrlSelector_SelectionChanged"
                       DisplayMemberPath="DisplayName" SelectedValuePath="Url" />
             <Button x:Name="ToAIInfoButton" Content="Function -> AI" Click="ToAIButton_Click" Margin="5,5,5,5"/>
+            <Button x:Name="ToVSInfoButton" Content="Function -> VS" Click="ToAIButton_Click" Margin="5,5,5,5"/>
             <Popup x:Name="PopupGuide" 
                    PlacementTarget="{Binding ElementName=ToAIInfoButton}"
                    VerticalOffset="5"
@@ -34,13 +35,13 @@
                    Width="800">
                 <Border Background="{DynamicResource RegionBrush}" CornerRadius="4" Margin="16" Effect="{StaticResource EffectShadow2}">
                     <StackPanel Margin="15">
-                        <TextBlock Text="'-> AI' Commands Have Moved!" 
+                        <TextBlock Text="'-> AI' and '-> VS' Commands Have Moved!" 
                                    FontSize="16" FontWeight="Bold"
                                    HorizontalAlignment="Center" Margin="0,0,0,10"
                                    Foreground="{DynamicResource PrimaryTextBrush}"/>
 
                         <TextBlock TextWrapping="Wrap" Margin="0,0,0,10" 
-                                   Text="To send code to the AI, simply right-click in your code editor." HorizontalAlignment="Center"
+                                   Text="To send code to the AI chat or VS, simply right-click in your code editor." HorizontalAlignment="Center"
                                    Foreground="{DynamicResource PrimaryTextBrush}"/>
 
                         <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="3" Padding="5">
@@ -56,29 +57,14 @@
                     </StackPanel>
                 </Border>
             </Popup>
-            <hc:SplitButton x:Name="AIToVSSplitButton" 
-                            Margin="5" 
-                            Content="Function -> VS" 
-                            Click="SplitButtonToVS_Click" 
-                            PreviewMouseDown="SplitButton_PreviewMouseDown"
-                            HorizontalAlignment="Stretch">
-                <hc:SplitButton.DropDownContent>
-                    <StackPanel>
-                        <MenuItem Header="File -> VS" Click="MenuItemToVS_Click" Tag="File -> VS"/>
-                        <MenuItem Header="Snippet -> VS" Click="MenuItemToVS_Click" Tag="Snippet -> VS"/>
-                        <MenuItem Header="Function -> VS" Click="MenuItemToVS_Click" Tag="Function -> VS"/>
-                        <MenuItem Header="New File" Click="MenuItemToVS_Click" Tag="New File"/>
-                    </StackPanel>
-                </hc:SplitButton.DropDownContent>
-            </hc:SplitButton>
-            
+
             <Button x:Name="AcceptButton" Content="Accept" Style="{StaticResource ButtonSuccess}" Click="AcceptButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="5,0,0,0" Visibility="Collapsed"/>
             <Button x:Name="ChooseButton" Content="Replace different code" Click="ChooseButton_Click" Style="{StaticResource ButtonWarning}" hc:BorderElement.CornerRadius="0" Margin="0" Visibility="Collapsed"
                     ToolTip="Choose a different code block to replace it with the AI code"
                     ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
             <Button x:Name="DeclineButton" Content="Decline" Style="{StaticResource ButtonDanger}" Click="DeclineButton_Click" hc:BorderElement.CornerRadius="0,4,4,0" Margin="0,0,5,0" Visibility="Collapsed"/>
             <Button x:Name="RestoreButton" Content="Restore" Click="RestoreButton_Click" Margin="5,5,0,5" hc:BorderElement.CornerRadius="4,0,0,4"
-                    ToolTip="Select code in the chat to go to the backup that was made right before the code was applied"
+                    ToolTip="Select or copy code in the chat to go to the backup that was made right before the code was applied"
                     ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
             <Button x:Name="SaveBackupButton" hc:IconElement.Geometry="{StaticResource SaveGeometry}" Click="SaveBackupButton_Click" Margin="-1,0,0,0" hc:BorderElement.CornerRadius="0,4,4,0"
                     ToolTip="Save solution backup"
@@ -101,10 +87,10 @@
 
                         <hc:Divider Width="250" Margin="0,10" Content="Options"/>
 
-                        <!-- Auto Diff Compare -->
+                        <!-- Auto Code Replace -->
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
-                            <TextBlock Text="Auto Diff Compare" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
-                            <ToggleButton x:Name="AutoDiffToggle" Margin="0,0,10,0" ToolTip="Experimental: Toggle auto AI code detection for code replacement" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoDiff, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                            <TextBlock Text="Auto Code Replace" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
+                            <ToggleButton x:Name="AutoDiffToggle" Margin="0,0,10,0" ToolTip="Toggle auto AI code replacement for 1-click copy button functionality" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoDiff, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
                         <!-- Create Restore on Accept -->

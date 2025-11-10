@@ -54,7 +54,7 @@ namespace Integrated_AI.Utilities
                 }
                 else
                 {
-                    isFunction = chosenItem?.Type == "function" || chosenItem?.Type == "new_function";
+                    isFunction = chosenItem?.Type == "function";
                     isFullFile = chosenItem?.Type == "file" || chosenItem?.Type == "new_file" || chosenItem?.Type == "opened_file";
                     functionName = chosenItem?.DisplayName ?? string.Empty;
                 }
@@ -91,72 +91,32 @@ namespace Integrated_AI.Utilities
                     }
                     else
                     {
-                        ChooseCodeWindow.ReplacementItem newFunctionItem = new ChooseCodeWindow.ReplacementItem { };
-                        chosenItem = newFunctionItem; // Create a new item for the function
-                        chosenItem.Type = "new_function"; // If function not found, treat as new function
-                        WebViewUtilities.Log($"Function '{functionName}' not found in the document. It will be added as a new function.");
-                        //MessageBox.Show($"Function '{functionName}' not found in the document. It will be added as a new function.", "Function Not Found", MessageBoxButton.OK, MessageBoxImage.Information);
+                        WebViewUtilities.Log($"Function '{functionName}' not found in the document. It will be added as a snippet.");
                     }
                 }
 
-                // Handle new function or new file cases
-                if (chosenItem != null && (chosenItem.Type == "new_function" || chosenItem.Type == "new_file"))
+                // Handle new file cases
+                if (chosenItem != null && chosenItem.Type == "new_file")
                 {
-                    if (chosenItem.Type == "new_function")
+                    // Prompt for the file path on the UI thread. This is quick.
+                    string newFilePath = FileUtil.PromptForNewFilePath(dte, isVB ? "vb" : "cs");
+                    if (string.IsNullOrEmpty(newFilePath))
                     {
-                        // Get all functions in the document
-                        var functions = CodeSelectionUtilities.GetFunctionsFromDocument(activeDoc);
-                        if (functions.Any())
-                        {
-                            // Find the last function
-                            var lastFunction = functions.OrderByDescending(f => f.StartPoint.Line).First();
-                            int startIndex = currentCode.IndexOf(lastFunction.FullCode, StringComparison.Ordinal) + lastFunction.FullCode.Length;
-                            int startLine = lastFunction.StartPoint.Line;
-
-                            // Ensure two newlines after the last function if needed
-                            if (startIndex < currentCode.Length)
-                            {
-                                currentCode = currentCode.Insert(startIndex, Environment.NewLine);
-                                currentCode = currentCode.Insert(startIndex, Environment.NewLine);
-                                startIndex += (Environment.NewLine.Length + Environment.NewLine.Length);
-                            }
-
-                            // Remove comments above the new function code
-                            aiCode = StringUtil.RemoveHeaderFooterComments(aiCode);
-
-                            // Use ReplaceCodeBlock to insert the new function with correct indentation
-                            context.NewCodeStartIndex = startIndex;
-                            return new DocumentContentResult { ModifiedCode = ReplaceCodeBlock(window, currentCode, startIndex, startLine, 0, aiCode, false) };
-                        }
-                        else
-                        {
-                            // No functions in the document, append at the end with default indentation
-                            WebViewUtilities.Log("No functions found in the document. Appending new function at the end.");
-                            return new DocumentContentResult { ModifiedCode = InsertAtCursorOrAppend(window, currentCode, aiCode, activeDoc) };
-                        }
+                        WebViewUtilities.Log("New file creation cancelled by user.");
+                        context.IsNewFile = true; // To prevent diff view from opening
+                        return new DocumentContentResult { ModifiedCode = currentCode };
                     }
-                    else if (chosenItem.Type == "new_file")
+
+                    // **THE KEY CHANGE**: Instead of creating the file here,
+                    // we package up the necessary information and return it.
+                    context.IsNewFile = true; // Still useful for the caller
+                    return new DocumentContentResult
                     {
-                        // Prompt for the file path on the UI thread. This is quick.
-                        string newFilePath = FileUtil.PromptForNewFilePath(dte, isVB ? "vb" : "cs");
-                        if (string.IsNullOrEmpty(newFilePath))
-                        {
-                            WebViewUtilities.Log("New file creation cancelled by user.");
-                            context.IsNewFile = true; // To prevent diff view from opening
-                            return new DocumentContentResult { ModifiedCode = currentCode };
-                        }
-
-                        // **THE KEY CHANGE**: Instead of creating the file here,
-                        // we package up the necessary information and return it.
-                        context.IsNewFile = true; // Still useful for the caller
-                        return new DocumentContentResult
-                        {
-                            IsNewFileCreationRequired = true,
-                            NewFilePath = newFilePath,
-                            NewFileContent = aiCode,
-                            ModifiedCode = currentCode // The original document's code remains unchanged
-                        };
-                    }
+                        IsNewFileCreationRequired = true,
+                        NewFilePath = newFilePath,
+                        NewFileContent = aiCode,
+                        ModifiedCode = currentCode // The original document's code remains unchanged
+                    };
                 }
 
                 // For "Selection" or unmatched functions, check for highlighted text
@@ -179,6 +139,14 @@ namespace Integrated_AI.Utilities
 
                         return new DocumentContentResult { ModifiedCode = ReplaceCodeBlock(window, currentCode, startIndex, startLine, length, aiCode, true) };
                     }
+                }
+
+                // Snippets with no selected text or unmatched functions should be inserted at the cursor or appended here to avoid the fallback
+                if (isFunction || (chosenItem != null && chosenItem.Type == "snippet"))
+                {
+                    // For snippet insertions, insert at cursor or append
+                    WebViewUtilities.Log("Inserting AI code at cursor position or appending to document.");
+                    return new DocumentContentResult { ModifiedCode = InsertAtCursorOrAppend(window, currentCode, aiCode, activeDoc) };
                 }
 
                 // Fallback: Replace all code in the document with the new AI code

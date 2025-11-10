@@ -42,13 +42,13 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 ## 🚀 Core Features
 
 - **Integrated AI Chat Window**: Open an AI chat web interface in a dockable Visual Studio tool window.
-- **🎯 Smart VS-to-AI Transfer**: Use the right-click `Send to AI` commands to instantly send code to the prompt text area (you can also set up keyboard shortcuts). Choose from three powerful modes:
+- **🎯 Smart VS-to-AI Transfer**: Use the right-click `Send to AI` menu commands to instantly send code to the prompt text area (you can also set up keyboard shortcuts). Choose from these commands:
   - **Snippet**: Send only the code you've highlighted.
   - **Function**: Right-click a function name to send the whole function.
   - **File**: Send the complete content of the active document.
   - **Multiple Files**: Select and send several files at once from your solution.
-- **⚠️ Error to AI**: From the error list, right click after selecting errors/warnings and click "Send to AI chat". It will send the error description(s) and the line with code that has the error.
-- **✨ Intelligent AI-to-VS Diffing**: Move code from the AI back to your editor with the "AI -> VS" button commands. You have full control of what gets replaced, with options similar to the Send to AI commands. The extension can also intelligently analyze the AI's response to find the corresponding function or snippet in your file (turn on Auto Diff in the options). It then presents a **rich diff view**, allowing you to review changes line-by-line and accept, decline, or manually choose a different replacement. 
+- **⚠️ Error to AI**: From the error list, right click after selecting errors/warnings and click `Send to AI chat`. It will send the error description(s) and the line with code that has the error.
+- **✨ Intelligent AI-to-VS Diffing**: Move code from the AI back to your editor with the `Replace with AI code` menu commands. You have full control of what gets replaced, with options similar to the Send to AI commands. The extension can also intelligently analyze the AI's response to find the corresponding function or snippet in your file (turn on Auto Code Replace in the options). It then presents a **rich diff view**, allowing you to review changes line-by-line and accept, decline, or manually choose a different replacement. 
 - **🔒 Automatic Backups**: Never lose work. When you accept a diff, the extension automatically creates a zip backup of your entire solution, giving you a restore point. There is also a manual backup button.
 - **Note**: All files such as backups, saved chat URLs, and restore info is saved locally on your PC.
 
@@ -64,8 +64,8 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 
 1.  **Open the Chat Window**: In the Visual Studio top bar, go to `Tools` > `Open AI Chat Window` to open the chat tool window which can be docked or moved. Select your desired chat site from the dropdown within the chat window (default is Google AI Studio).
 2.  **Chat with the AI**: Your code will appear in the prompt along with your message. Write your request (e.g., "Refactor this to be more efficient" or "Add exception handling").
-3.  **Send Code**: Open a code file. Then right-click and select a `Send to AI` command. You can send multiple code blocks or even multiple files, since each send command is sent in its own context block.
-4.  **Review the Diff**: Once the AI provides a response, highlight the text in the chat window and click an **"AI -> VS"** command. A diff view will appear, showing the proposed changes. You can also use the artifact "copy" buttons on the response code blocks for more automated diffing (see "Configuration" for more info).
+3.  **Send Code**: Open a code file. Then right-click and select a `Send to AI` command. You can send multiple code blocks or even multiple files, since each send command is added in its own code block to the AI prompt.
+4.  **Review the Diff**: Once the AI provides a response, highlight or copy the text in the chat window. Then right-click and select a `Replace with AI code` command. A diff view will appear, showing the proposed changes. You can also just use the artifact "copy" buttons on the response code blocks for more automated diffing (see "Configuration" for more info).
 5.  **Accept or Decline**: If you like the changes, click "Accept" in the diff view. A backup of your solution will be created automatically by default, and the document will be saved with the new changes.
 
 ---
@@ -106,11 +106,13 @@ _![Error in the prompt area](https://raw.githubusercontent.com/KyleG-Mitutoyo/In
 <details>
 <summary><b>Intelligent "AI to VS" Diffing</b></summary>
 
-The "-> VS" commands are used to send highlighted or copied code from the AI chat to your editor. First it will check for highlighted text within the chat window, and if nothing is highlighted it will use whatever is in the clipboard. The code is merged into your existing file automatically, showing a diff view before applying changes. If a different code block to replace is needed, you can use the "Replace Different Code" button. There is also a new file option that will create one with the AI code and add it to the project.
+The "Replace with AI Code" commands are used to send highlighted or copied code from the AI chat to your editor. First it will check for highlighted text within the chat window, and if nothing is highlighted it will use whatever is in the clipboard. The code is merged into your existing file automatically, showing a diff view before applying changes. If a different code block to replace is needed, you can use the "Replace Different Code" button. There is also a new file option that will create a new file in the chosen location with the AI code as its contents and add it to the project.
 
-If "Auto Diff" in the options is turned on, you don't even need to use button commands! This only woks with the artifact copy buttons. It works best with C# and VB code. For other file types, such as XAML, it will fallback to a full file replace or, if there is text selected in the code editor, a snippet replace.
+If "Auto Code Replace" in the options is turned on, you don't even need to use menu commands! This only works with the artifact copy buttons. It works best with C# and VB code. For other file types, such as XAML, it will fallback to a full file replace or, if there is text selected in the code editor, a snippet replace.
 
-For the "Function -> VS" command, auto matching attempts to find the function to replace by name, or adds it below the last existing function as a new function. If matching can't find anything, a window comes up which lets you choose which function to replace.
+> Tip: Clicking the copy buttons will also prioritize highlighted text and use that rather than the full code block. This is mostly useful for Auto Code Replace if you don't want to use the full code block.
+
+For the "Replace Function with AI Code" command, auto matching attempts to find the function to replace by name. An unmatched name or new function will be inserted at the cursor position.
 
 _![Replace Different Code window](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/choose%20code.png)_
 
@@ -121,7 +123,7 @@ _![Replace Different Code window](https://raw.githubusercontent.com/KyleG-Mituto
 
 After accepting a diff, a backup is created of the previous solution state (this can be disabled in the options). The AI code that was used for that diff and the chat page is also saved to allow for easy searching later. There is also a manual save button so your solution can be backed up at any time.
 
-For restores a separate window opens with different options. There is a list of restores showing the AI code that was accepted right after that restore point. If you highlight some AI code in the chat window, the restore window will open to that restore point if it exists. You can also use "Go To Chat" to navigate there. Compare will show multiple diff views with each changed file, and you can restore that backup or close the diff views from there.
+For restores a separate window opens with different options. There is a list of restores showing the AI code that was accepted right after that restore point. If you highlight or copy some AI code in the chat window, the restore window will open to that restore point if it exists. You can also use "Go To Chat" to navigate there. Compare will show multiple diff views with each changed file, and you can restore that backup or close the diff views from there.
 
 Note: After a restore it's best to `clean` > `rebuild` for the solution.
 
@@ -136,7 +138,7 @@ _![Restore Window Compare](https://github.com/KyleG-Mitutoyo/Integrated-AI-Exten
 You can configure the extension's behavior by clicking the gear icon at the top right of the chat window.
 
 - **Theme**: Set all windows to light or dark mode.
-- **Auto Diff Compare**: Toggle automatic code analysis for artifact `Copy Code` button clicks during code replacement/diff view creation.
+- **Auto Code Replace**: Toggle automatic code analysis for artifact `Copy Code` button clicks during code replacement/diff view creation.
 - **Create Restore on Accept**: Toggle creation of restore point every time a diff is accepted.
 - **Reset URLs**: URLs to chat pages are saved to make switching chats easy. The last-used URL is also saved when closing VS. This button can be used in case a chat page is incorrect.
 - **Show Log Window**: Used for error reporting and debugging.
@@ -147,8 +149,8 @@ You can configure the extension's behavior by clicking the gear icon at the top 
     -   Try refreshing the window with Ctrl-R (or right-click the window and select "Refresh") or choosing a different chat page. You can also use the "Reset URLs" button in the options.
 -   **AI chat page logged me out?**
     -   This is an automatic security feature of some chat pages which happens in a normal browser as well, the only fix is to just log back in.
--   **The "Auto Diff" didn't find the right code for replacement?**
-    -   This feature is experimental for now. The diff logic works best when the AI provides a complete function, file, or a clearly defined snippet. If the AI's response is heavily modified or partial, the logic may struggle. Try asking the AI to provide the complete function, file, or snippet in its response.
+-   **The "Auto Code Replace" didn't find the right code for replacement?**
+    -   The diff logic works best when the AI provides a complete function, file, or a clearly defined snippet. If the AI's response is heavily modified or partial, the logic may struggle. Try asking the AI to provide the complete function, file, or snippet in its response.
 
 For any other issues, please [report them](https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension/issues/new) on the GitHub page.
 
@@ -162,6 +164,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.3.0** Add new "Replace with AI code" menu commands, remove "-> VS" splitbutton and new function option (since this can be done with a snippet insert).
 - **1.2.3** Fix duplicate files showing in file list, add file filtering options, improve auto-diff code analysis
 - **1.2.2** Add "Multiple Files to AI" command, improve file list in file selection window, re-fix indent issues with code sent to AI
 - **1.2.1** Fixes: Readd file to AI existing file check, fix commands not showing for xaml files, improve backup deleting, remove "auto function match" toggle

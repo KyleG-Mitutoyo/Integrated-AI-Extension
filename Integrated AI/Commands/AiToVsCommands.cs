@@ -14,37 +14,40 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+using EnvDTE;
 using EnvDTE80;
+using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.Shell;
 using System;
 using System.ComponentModel.Design;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace Integrated_AI.Commands
 {
     /// <summary>
-    /// Handles commands for sending code from the AI chat back to the Visual Studio editor.
-    /// This is a placeholder for future implementation.
+    /// Handles commands for applying code from the AI chat back to the Visual Studio editor.
     /// </summary>
     internal sealed class AiToVsCommands : BaseCommand
     {
-        // Define new command IDs for the "AI to VS" operations.
-        // Using a new number range (e.g., 0x012x) is good practice.
-        public const int ApplyAsSnippetFromAICmdId = 0x0120;
-        public const int ApplyAsFunctionFromAICmdId = 0x0121;
-        public const int ApplyAsNewFileFromAICmdId  = 0x0122; // Based on your README's "new file option"
+        // Use a new range of command IDs
+        public const int ReplaceSnippetWithAICmdId = 0x0130;
+        public const int ReplaceFunctionWithAICmdId = 0x0131;
+        public const int ReplaceFileWithAICmdId = 0x0132;
+        public const int CreateNewFileWithAICmdId = 0x0133;
+
+        // Use the same CommandSet GUID as VsToAiCommands
+        public static readonly Guid CommandSet = new Guid("3e9439f0-9188-4415-b861-b894c074a254");
 
         private AiToVsCommands(AsyncPackage package, DTE2 dte, OleMenuCommandService commandService)
             : base(package, dte, commandService)
         {
-            // When you are ready to implement these, you will:
-            // 1. Add these commands to your .vsct file.
-            // 2. Uncomment the registration lines below.
-            // 3. Implement the Execute... methods.
-
-            // AddCommand(PackageIds.CommandSet, ApplyAsSnippetFromAICmdId, this.ExecuteApplyAsSnippetFromAI);
-            // AddCommand(PackageIds.CommandSet, ApplyAsFunctionFromAICmdId, this.ExecuteApplyAsFunctionFromAI);
-            // AddCommand(PackageIds.CommandSet, ApplyAsNewFileFromAICmdId, this.ExecuteApplyAsNewFileFromAI);
+            // Register all the new commands
+            AddOleCommand(CommandSet, ReplaceSnippetWithAICmdId, this.ExecuteReplaceSnippet, this.BeforeQueryStatusReplaceSnippet);
+            AddOleCommand(CommandSet, ReplaceFunctionWithAICmdId, this.ExecuteReplaceFunction, this.BeforeQueryStatusActiveDocument);
+            AddOleCommand(CommandSet, ReplaceFileWithAICmdId, this.ExecuteReplaceFile, this.BeforeQueryStatusActiveDocument);
+            AddOleCommand(CommandSet, CreateNewFileWithAICmdId, this.ExecuteCreateNewFile, this.BeforeQueryStatusAlwaysVisible);
         }
 
         public static AiToVsCommands Instance { get; private set; }
@@ -54,33 +57,112 @@ namespace Integrated_AI.Commands
             Instance = new AiToVsCommands(package, dte, commandService);
         }
 
-        #region Placeholder Command Handlers
+        #region Visibility Handlers (BeforeQueryStatus)
 
-        // private void ExecuteApplyAsSnippetFromAI(object sender, EventArgs e)
-        // {
-        //     ThreadHelper.ThrowIfNotOnUIThread();
-        //     // TODO: Get highlighted text from WebView
-        //     // TODO: Get selected text in the active document
-        //     // TODO: Show Diff view
-        //     // TODO: Replace text on accept
-        // }
+        private void BeforeQueryStatusAlwaysVisible(object sender, EventArgs e)
+        {
+            var cmd = sender as OleMenuCommand;
+            if (cmd != null)
+            {
+                cmd.Visible = true;
+            }
+        }
 
-        // private void ExecuteApplyAsFunctionFromAI(object sender, EventArgs e)
-        // {
-        //     ThreadHelper.ThrowIfNotOnUIThread();
-        //     // TODO: Get highlighted text from WebView
-        //     // TODO: Parse function name from AI code
-        //     // TODO: Find matching function in active document or insert new
-        //     // TODO: Show Diff view
-        // }
+        private void BeforeQueryStatusActiveDocument(object sender, EventArgs e)
+        {
+            var cmd = sender as OleMenuCommand;
+            if (cmd != null)
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                cmd.Visible = Dte.ActiveDocument != null;
+            }
+        }
 
-        // private void ExecuteApplyAsNewFileFromAI(object sender, EventArgs e)
-        // {
-        //     ThreadHelper.ThrowIfNotOnUIThread();
-        //     // TODO: Get highlighted text from WebView
-        //     // TODO: Prompt for filename and location
-        //     // TODO: Create new file and add it to the project
-        // }
+        private void BeforeQueryStatusReplaceSnippet(object sender, EventArgs e)
+        {
+            var cmd = sender as OleMenuCommand;
+            if (cmd != null)
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                var textSelection = (TextSelection)Dte.ActiveDocument?.Selection;
+                // This command should only be visible if there's text selected in the editor.
+                cmd.Visible = textSelection != null && !string.IsNullOrEmpty(textSelection.Text);
+            }
+        }
+
+        #endregion
+
+        #region Command Handlers
+
+        private async void ExecuteReplaceSnippet(object sender, EventArgs e) => await ExecuteAiToVsCommandAsync("snippet");
+        private async void ExecuteReplaceFunction(object sender, EventArgs e) => await ExecuteAiToVsCommandAsync("function");
+        private async void ExecuteReplaceFile(object sender, EventArgs e) => await ExecuteAiToVsCommandAsync("file");
+        private async void ExecuteCreateNewFile(object sender, EventArgs e) => await ExecuteAiToVsCommandAsync("new_file");
+
+        #endregion
+
+        #region Core Logic
+
+        /// <summary>
+        /// Centralized logic for all AI-to-VS commands.
+        /// </summary>
+        private async Task ExecuteAiToVsCommandAsync(string applyType)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            // Step 1: Get the ChatWindow instance.
+            var chatToolWindow = this.AsyncPackage.FindToolWindow(typeof(ChatToolWindow), 0, true) as ChatToolWindow;
+            var chatWindow = chatToolWindow?.Content as ChatWindow;
+            if (chatWindow == null)
+            {
+                // This uses the static ThemedMessageBox since we don't have a window instance
+                ThemedMessageBox.Show(null, "The AI Chat window must be open to use this command.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            using (var cts = new CancellationTokenSource())
+            {
+                try
+                {
+                    // Step 2: Get AI code from the window's public API.
+                    string aiCode = await chatWindow.GetAiCodeAsync();
+                    if (string.IsNullOrEmpty(aiCode))
+                    {
+                        chatWindow.ShowThemedMessageBox("No code was found highlighted in the AI chat or in the clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+
+                    // Step 3: Pre-flight checks.
+                    if (Dte.ActiveDocument == null && applyType != "new_file")
+                    {
+                        chatWindow.ShowThemedMessageBox("An active document is required for this operation.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+
+                    // Step 4: Prepare parameters for the final action.
+                    string pasteTypeForLogic = applyType;
+                    string functionName = null;
+
+                    if (applyType == "function")
+                    {
+                        if (!StringUtil.IsWordAtCursor(Dte.ActiveDocument, out string targetFunctionName))
+                        {
+                            chatWindow.ShowThemedMessageBox("Please place your cursor on the name of the function you wish to replace.", "Function Not Selected", MessageBoxButton.OK, MessageBoxImage.Information);
+                            return;
+                        }
+                        functionName = targetFunctionName;
+                    }
+
+                    // Step 5: Call the window's public API to perform the diff/file creation.
+                    await chatWindow.CreateDiffOrNewFileAsync(aiCode, cts.Token, pasteTypeForLogic, functionName);
+                }
+                catch (Exception ex)
+                {
+                    WebViewUtilities.Log($"Error executing AI to VS command ('{applyType}'): {ex.Message}\n{ex.StackTrace}");
+                    chatWindow.ShowThemedMessageBox($"An unexpected error occurred: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
 
         #endregion
     }

@@ -153,13 +153,6 @@ namespace Integrated_AI
             #region Functions List Population
             functions.Add(new ChooseCodeWindow.ReplacementItem
             {
-                DisplayName = "New Function",
-                ListBoxDisplayName = "New Function",
-                FullName = "Create a new function in the active document",
-                Type = "new_function"
-            });
-            functions.Add(new ChooseCodeWindow.ReplacementItem
-            {
                 DisplayName = "Snippet",
                 ListBoxDisplayName = "Insert at cursor or replace selected text",
                 FullName = "Replace highlighted text in the code editor or insert at cursor position if no text is highlighted",

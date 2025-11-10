@@ -15,15 +15,23 @@
       </Group>
 
       <!-- This group is for the standard code editor (C#, VB, etc.) -->
-      <Group guid="guidAIChatCommandPackageCmdSet" id="CodeWindowGroup" priority="0x0100">
+      <Group guid="guidAIChatCommandPackageCmdSet" id="SendToAIGroup" priority="0x0100">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN"/>
       </Group>
+
+	  <Group guid="guidAIChatCommandPackageCmdSet" id="ReplaceWithAIGroup" priority="0x0100">
+	  	<Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN"/>
+	  </Group>
       
       <!-- STEP 2: Define a new group specifically for the XAML editor context menu -->
-      <Group guid="guidAIChatCommandPackageCmdSet" id="XamlWindowGroup" priority="0x0100">
+      <Group guid="guidAIChatCommandPackageCmdSet" id="XamlSendToAIGroup" priority="0x0100">
         <!-- Its parent will be the XAML context menu we define in the Symbols section -->
         <Parent guid="guidXamlEditorContextMenu" id="IDMXamlEditorContextMenu"/>
       </Group>
+
+	  <Group guid="guidAIChatCommandPackageCmdSet" id="XamlReplaceWithAIGroup" priority="0x0100">
+	  	<Parent guid="guidXamlEditorContextMenu" id="IDMXamlEditorContextMenu"/>
+	  </Group>
     </Groups>
 
     <Buttons>
@@ -47,7 +55,7 @@
       </Button>
 
       <Button guid="guidAIChatCommandPackageCmdSet" id="SendSnippetToAI" priority="0x0100" type="Button">
-        <Parent guid="guidAIChatCommandPackageCmdSet" id="CodeWindowGroup" />
+        <Parent guid="guidAIChatCommandPackageCmdSet" id="SendToAIGroup" />
         <Icon guid="guidImages" id="bmpPic1" />
         <CommandFlag>DynamicVisibility</CommandFlag>
         <Strings>
@@ -56,7 +64,7 @@
       </Button>
 
       <Button guid="guidAIChatCommandPackageCmdSet" id="SendFunctionToAI" priority="0x0101" type="Button">
-        <Parent guid="guidAIChatCommandPackageCmdSet" id="CodeWindowGroup" />
+        <Parent guid="guidAIChatCommandPackageCmdSet" id="SendToAIGroup" />
         <Icon guid="guidImages" id="bmpPic1" />
         <Strings>
           <ButtonText>Send Function to AI</ButtonText>
@@ -64,22 +72,53 @@
       </Button>
 
       <Button guid="guidAIChatCommandPackageCmdSet" id="SendFileToAI" priority="0x0102" type="Button">
-        <Parent guid="guidAIChatCommandPackageCmdSet" id="CodeWindowGroup" />
+        <Parent guid="guidAIChatCommandPackageCmdSet" id="SendToAIGroup" />
         <Icon guid="guidImages" id="bmpPic1" />
         <Strings>
           <ButtonText>Send File to AI</ButtonText>
         </Strings>
       </Button>
 	
-	  <!-- ADDED SECTION START -->
       <Button guid="guidAIChatCommandPackageCmdSet" id="SendMultipleFilesToAI" priority="0x0103" type="Button">
-        <Parent guid="guidAIChatCommandPackageCmdSet" id="CodeWindowGroup" />
+        <Parent guid="guidAIChatCommandPackageCmdSet" id="SendToAIGroup" />
         <Icon guid="guidImages" id="bmpPic1" />
         <Strings>
           <ButtonText>Send Multiple Files to AI</ButtonText>
         </Strings>
       </Button>
-      <!-- ADDED SECTION END -->
+
+	  <Button guid="guidAIChatCommandPackageCmdSet" id="cmdidReplaceSnippetWithAI" priority="0x0105" type="Button">
+	  	<Parent guid="guidAIChatCommandPackageCmdSet" id="ReplaceWithAIGroup"/>
+	  	<Icon guid="guidImages" id="bmpPic1" />
+	  	<CommandFlag>DynamicVisibility</CommandFlag>
+	  	<Strings>
+	  		<ButtonText>Replace Snippet with AI Code</ButtonText>
+	  	</Strings>
+	  </Button>
+	  <Button guid="guidAIChatCommandPackageCmdSet" id="cmdidReplaceFunctionWithAI" priority="0x0106" type="Button">
+	  	<Parent guid="guidAIChatCommandPackageCmdSet" id="ReplaceWithAIGroup"/>
+	  	<Icon guid="guidImages" id="bmpPic1" />
+	  	<CommandFlag>DynamicVisibility</CommandFlag>
+	  	<Strings>
+	  		<ButtonText>Replace Function with AI Code</ButtonText>
+	  	</Strings>
+	  </Button>
+	  <Button guid="guidAIChatCommandPackageCmdSet" id="cmdidReplaceFileWithAI" priority="0x0107" type="Button">
+	  	<Parent guid="guidAIChatCommandPackageCmdSet" id="ReplaceWithAIGroup"/>
+	  	<Icon guid="guidImages" id="bmpPic1" />
+	  	<CommandFlag>DynamicVisibility</CommandFlag>
+	  	<Strings>
+	  		<ButtonText>Replace File with AI Code</ButtonText>
+	  	</Strings>
+	  </Button>
+	  <Button guid="guidAIChatCommandPackageCmdSet" id="cmdidCreateNewFileWithAI" priority="0x0108" type="Button">
+	  	<Parent guid="guidAIChatCommandPackageCmdSet" id="ReplaceWithAIGroup"/>
+	  	<Icon guid="guidImages" id="bmpPic1" />
+	  	<CommandFlag>DynamicVisibility</CommandFlag>
+	  	<Strings>
+	  		<ButtonText>Create New File with AI Code</ButtonText>
+	  	</Strings>
+	  </Button>
     </Buttons>
 
     <Bitmaps>
@@ -89,19 +128,29 @@
 
   <!-- STEP 3: Use CommandPlacements to place the existing buttons into the new XAML group -->
   <CommandPlacements>
-    <!-- Place "Send Snippet to AI" in the XAML editor context menu. -->
     <CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="SendSnippetToAI" priority="0x0100">
-      <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlWindowGroup" />
+      <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlSendToAIGroup" />
     </CommandPlacement>
 
-    <!-- Place "Send File to AI" in the XAML editor context menu. -->
     <CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="SendFileToAI" priority="0x0102">
-      <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlWindowGroup" />
+      <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlSendToAIGroup" />
     </CommandPlacement>
   
 	<CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="SendMultipleFilesToAI" priority="0x0103">
-      <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlWindowGroup" />
+      <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlSendToAIGroup" />
     </CommandPlacement>
+
+	<CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="cmdidReplaceSnippetWithAI" priority="0x0104">
+	 <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlReplaceWithAIGroup" />
+	</CommandPlacement>
+
+	<CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="cmdidReplaceFileWithAI" priority="0x0105">
+	 <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlReplaceWithAIGroup" />
+	</CommandPlacement>
+
+	<CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="cmdidCreateNewFileWithAI" priority="0x0106">
+	 <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlReplaceWithAIGroup" />
+	</CommandPlacement>
   </CommandPlacements>
 
   <Symbols>
@@ -119,17 +168,22 @@
     <GuidSymbol name="guidAIChatCommandPackageCmdSet" value="{3e9439f0-9188-4415-b861-b894c074a254}">
       <IDSymbol name="MyMenuGroup" value="0x1020" />
       <IDSymbol name="ErrorListGroup" value="0x1021" />
-      <IDSymbol name="CodeWindowGroup" value="0x1022"/>
-      <!-- Add the ID for our new XAML group -->
-      <IDSymbol name="XamlWindowGroup" value="0x1023"/>
+      <IDSymbol name="SendToAIGroup" value="0x1022"/>
+	  <IDSymbol name="ReplaceWithAIGroup" value="0x1023"/>
+      <IDSymbol name="XamlSendToAIGroup" value="0x1024"/>
+	  <IDSymbol name="XamlReplaceWithAIGroup" value="0x1025"/>
       
       <IDSymbol name="AIChatCommandId" value="0x0100" />
       <IDSymbol name="cmdidSendErrorToAI" value="0x0105" />
 	  <IDSymbol name="SendSnippetToAI" value="0x0110" />
 	  <IDSymbol name="SendFunctionToAI" value="0x0111" />
 	  <IDSymbol name="SendFileToAI" value="0x0112" />
-      <!-- ADDED SYMBOL -->
       <IDSymbol name="SendMultipleFilesToAI" value="0x0113" />
+
+      <IDSymbol name="cmdidReplaceSnippetWithAI" value="0x0130" />
+      <IDSymbol name="cmdidReplaceFunctionWithAI" value="0x0131" />
+      <IDSymbol name="cmdidReplaceFileWithAI" value="0x0132" />
+      <IDSymbol name="cmdidCreateNewFileWithAI" value="0x0133" />
     </GuidSymbol>
 
     <GuidSymbol name="guidChatToolWindow" value="{7513ff4e-9271-4984-bbcd-46ff9e185399}" />
