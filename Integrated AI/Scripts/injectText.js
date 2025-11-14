@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-function injectTextIntoElement(selector, textToInject, isChatGptSite, isClaudeSite, isGeminiSite) {
+function injectTextIntoElement(selector, textToInject) {
     try {
         const elem = document.querySelector(selector);
         if (!elem) {
@@ -28,59 +28,65 @@ function injectTextIntoElement(selector, textToInject, isChatGptSite, isClaudeSi
 
         elem.focus();
 
-        if (elem.tagName.toLowerCase() === 'textarea' || elem.tagName.toLowerCase() === 'input') {
-            // For frameworks like React, directly setting elem.value doesn't trigger change handlers.
-            // We need to use the native value setter and then dispatch an input event.
-            const currentValue = elem.value || '';
-            const newValue = currentValue + (currentValue ? '\n' : '') + textToInject;
+        const commands = JSON.parse(textToInject);
 
+        // Check the element type and use the appropriate injection method.
+        if (elem.tagName.toLowerCase() === 'textarea' || elem.tagName.toLowerCase() === 'input') {
+            // METHOD 1: For simple <textarea> and <input> elements (like AI Studio).
+            // Reconstruct the plain text with newlines from the command payload.
+            let plainText = '';
+            commands.forEach(command => {
+                if (command.type === 'text') {
+                    plainText += command.content;
+                } else if (command.type === 'break') {
+                    plainText += '\n';
+                }
+            });
+
+            // Set the cursor to the end before inserting.
+            elem.selectionStart = elem.selectionEnd = elem.value.length;
+
+            const currentValue = elem.value || '';
+            const separator = currentValue ? '\n' : '';
+            const newValue = currentValue + separator + plainText;
+
+            // Use the native value setter for framework compatibility (React, Angular, etc.).
             const prototype = Object.getPrototypeOf(elem);
             const nativeInputValueSetter = Object.getOwnPropertyDescriptor(prototype, 'value').set;
             nativeInputValueSetter.call(elem, newValue);
 
-            // Dispatching the event is still crucial for the framework to pick up the change
             elem.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+            return `SUCCESS: Text appended to ${selector} using native value setter method`;
 
-            return `SUCCESS: Text appended to ${selector} (native value set)`;
-        } 
-        else if (elem.isContentEditable) {
-            
-            if (isClaudeSite || isGeminiSite) {
-                // THE DEFINITIVE SOLUTION: Parse a JSON payload of commands from C#.
-                // This completely avoids any "magic string" delimiters.
-                const commands = JSON.parse(textToInject);
-
-                if (elem.innerHTML.length > 0 && !elem.innerHTML.endsWith('<br>')) {
-                    document.execCommand('insertParagraph', false, null);
-                }
-
-                commands.forEach(command => {
-                    if (command.type === 'text') {
-                        // The content is the original line of code, with literal '\n' preserved.
-                        document.execCommand('insertText', false, command.content);
-                    } else if (command.type === 'break') {
-                        // This is a structural line break.
-                        document.execCommand('insertParagraph', false, null);
-                    }
-                });
-
-            } else { // This is your working logic for ChatGPT, etc.
-                const currentContent = elem.innerHTML;
-                elem.innerHTML = currentContent + textToInject;
+        } else if (elem.isContentEditable) {
+            // METHOD 2: For complex contenteditable <div> elements (like ChatGPT, Claude).
+            // Move the cursor to the end to ensure we always append.
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) {
+                const range = document.createRange();
+                range.selectNodeContents(elem);
+                range.collapse(false); // false collapses to the end
+                sel.removeAllRanges();
+                sel.addRange(range);
             }
 
-            // The cursor logic and event dispatching are still valuable.
-            const range = document.createRange();
-            const sel = window.getSelection();
-            range.selectNodeContents(elem);
-            range.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(range);
+            const hasContent = elem.innerHTML && elem.innerHTML.length > 0 && elem.innerHTML !== '<br>';
+            if (hasContent) {
+                document.execCommand('insertParagraph', false, null);
+            }
+
+            commands.forEach(command => {
+                if (command.type === 'text') {
+                    document.execCommand('insertText', false, command.content);
+                } else if (command.type === 'break') {
+                    document.execCommand('insertParagraph', false, null);
+                }
+            });
 
             elem.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-            return `SUCCESS: Text appended to ${selector} via execCommand loop`;
+            return `SUCCESS: Text appended to ${selector} using execCommand method`;
         }
-        
+
         return `FAILURE: Element (selector: ${selector}) is neither a text input nor contenteditable.`;
     } catch (e) {
         return `FAILURE: JavaScript error: ${e.message} (Selector: ${selector})`;

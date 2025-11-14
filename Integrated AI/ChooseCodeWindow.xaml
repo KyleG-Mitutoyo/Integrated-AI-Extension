@@ -34,11 +34,11 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0,0,0">
                     <hc:ButtonGroup>
                         <RadioButton x:Name="CodeFilesRadioButton" Content="Code files" Width="80" Height="25" Padding="0" GroupName="FileFilter" 
-                                 IsChecked="True" VerticalAlignment="Center"
+                                 VerticalAlignment="Center"
                                  ToolTip="Show only common code files"
                                  Checked="FilterRadioButton_Checked"/>
                         <RadioButton x:Name="OpenedFilesRadioButton" Content="Opened files" Width="80" Height="25" Padding="0" Margin="0,0,0,0"
-                                 GroupName="FileFilter" VerticalAlignment="Center"
+                                 GroupName="FileFilter" VerticalAlignment="Center" IsChecked="True"
                                  ToolTip="Show only files currently opened in the code editor"
                                  Checked="FilterRadioButton_Checked"/>
                         <RadioButton x:Name="AllFilesRadioButton" Content="All files" Width="80" Height="25" Margin="0,0,0,0"

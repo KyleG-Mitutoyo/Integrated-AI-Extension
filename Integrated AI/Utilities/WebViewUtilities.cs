@@ -54,8 +54,16 @@ namespace Integrated_AI
                     "div[contenteditable=\"true\"].ProseMirror"
                 } 
             },
-            { "https://chat.deepseek.com", new List<string> { "textarea#chat-input" } },
-            { "https://chatgpt.com", new List<string> { "div#prompt-textarea" } },
+            { 
+                "https://chat.deepseek.com", new List<string> 
+                { 
+                    "textarea[placeholder=\"Message DeepSeek\"]", 
+                    "textarea#chat-input" 
+                } 
+            },
+            { 
+                "https://chatgpt.com", new List<string> { "div#prompt-textarea" } 
+            },
             { 
                 "https://gemini.google.com/app", new List<string>
                 {
@@ -148,9 +156,6 @@ namespace Integrated_AI
             string operationName,
             string jsFunctionName,
             bool stopOnSuccess = true,
-            bool isChatGpt = false,
-            bool isClaude = false,
-            bool isGemini = false, // CHANGE: Add new isGemini parameter
             string preparedTextForJs = null)
         {
             string scriptFileContent = FileUtil.LoadScript(scriptFileName);
@@ -167,10 +172,13 @@ namespace Integrated_AI
             foreach (string selector in selectors)
             {
                 string escapedSelectorForJs = selector.Replace("'", "\\'");
-                // CHANGE: Add the new isGemini flag to the JavaScript function call
+
+                // UNIFIED LOGIC: Simplified script construction.
+                // It now handles both inject (2 args) and retrieve (1 arg) cleanly.
                 string scriptToExecute = jsFunctionName == "injectTextIntoElement"
-                    ? $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}', '{preparedTextForJs}', {isChatGpt.ToString().ToLowerInvariant()}, {isClaude.ToString().ToLowerInvariant()}, {isGemini.ToString().ToLowerInvariant()});"
+                    ? $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}', '{preparedTextForJs}');"
                     : $"{scriptFileContent}\n{jsFunctionName}('{escapedSelectorForJs}');";
+
                 Log($"{operationName} - Attempting with selector: '{selector}'.");
 
                 try
@@ -273,58 +281,30 @@ namespace Integrated_AI
             try
             {
                 string currentUrl = webView.Source?.ToString() ?? "";
-                bool isChatGpt = currentUrl.StartsWith("https://chatgpt.com", StringComparison.OrdinalIgnoreCase);
-                bool isClaude = currentUrl.StartsWith("https://claude.ai", StringComparison.OrdinalIgnoreCase);
-                // CHANGE: Add a new flag for Gemini
-                bool isGemini = currentUrl.StartsWith("https://gemini.google.com/app", StringComparison.OrdinalIgnoreCase);
 
-                string preparedTextForJs;
-                if (isChatGpt)
+                // UNIFIED LOGIC: Always create a JSON payload of commands.
+                // This is the most robust method for all modern text inputs.
+                var lines = textToInject.Replace("\r\n", "\n").Split('\n');
+                var commands = new List<string>();
+
+                for (int i = 0; i < lines.Length; i++)
                 {
-                    var htmlLines = textToInject.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n')
-                        .Select(line => string.IsNullOrEmpty(line) ? "<span></span>" : $"<span>{WebUtility.HtmlEncode(line)}</span>");
-                    string rawHtmlPayload = $"<div style=\"white-space: pre-wrap; line-height: 1.4;\">{string.Join("<br>", htmlLines)}</div>";
-                    preparedTextForJs = rawHtmlPayload.Replace("\\", "\\\\").Replace("'", "\\'").Replace("`", "\\`").Replace("\r", "").Replace("\n", "\\n");
-                }
-                else
-                {
-                    // CHANGE: Group Gemini with Claude to use the same JSON command logic
-                    if (isClaude || isGemini)
+                    var line = lines[i];
+
+                    // Escape characters that would break a JSON string value.
+                    string escapedLine = line.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    commands.Add($"{{\"type\":\"text\",\"content\":\"{escapedLine}\"}}");
+
+                    // If it's not the last line, add a line break command.
+                    if (i < lines.Length - 1)
                     {
-                        // For Claude and Gemini, create a JSON payload of commands to avoid any delimiter issues.
-                        var lines = textToInject.Replace("\r\n", "\n").Split('\n');
-                        var commands = new List<string>();
-
-                        for (int i = 0; i < lines.Length; i++)
-                        {
-                            var line = lines[i];
-
-                            // Escape characters that would break a JSON string value.
-                            string escapedLine = line.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                            // Add the 'insertText' command to our list.
-                            commands.Add($"{{\"type\":\"text\",\"content\":\"{escapedLine}\"}}");
-
-                            // If it's not the last line, add a 'break' command to our list.
-                            if (i < lines.Length - 1)
-                            {
-                                commands.Add("{\"type\":\"break\"}");
-                            }
-                        }
-
-                        // Now, join all commands with a comma. This is a much safer way
-                        // to build a valid JSON array.
-                        string jsonPayload = $"[{string.Join(",", commands)}]";
-
-                        // Finally, escape the entire JSON string so it can be passed as a single
-                        // string literal to the JavaScript function.
-                        preparedTextForJs = jsonPayload.Replace("\\", "\\\\").Replace("'", "\\'");
-                    }
-                    else
-                    {
-                        // For all other non-ChatGPT sites, the original logic works perfectly.
-                        preparedTextForJs = textToInject.Replace("\\", "\\\\").Replace("'", "\\'").Replace("`", "\\`").Replace("\r", "").Replace("\n", "\\n");
+                        commands.Add("{\"type\":\"break\"}");
                     }
                 }
+
+                string jsonPayload = $"[{string.Join(",", commands)}]";
+                string preparedTextForJs = jsonPayload.Replace("\\", "\\\\").Replace("'", "\\'");
+
 
                 var (result, lastError) = await ExecuteScriptWithSelectors(
                     webView,
@@ -333,9 +313,6 @@ namespace Integrated_AI
                     "InjectText",
                     "injectTextIntoElement",
                     true,
-                    isChatGpt,
-                    isClaude,
-                    isGemini,
                     preparedTextForJs);
 
                 if (result == null)

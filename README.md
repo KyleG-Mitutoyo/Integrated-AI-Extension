@@ -164,6 +164,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.3.1** Fix Grok and Chatgpt text injecting without line breaks, add markdown injection and better syntax highlighting to more site prompts, fix Deepseek text not injecting
 - **1.3.0** Add new "Replace with AI code" menu commands, remove "-> VS" splitbutton and new function option (since this can be done with a snippet insert).
 - **1.2.3** Fix duplicate files showing in file list, add file filtering options, improve auto-diff code analysis
 - **1.2.2** Add "Multiple Files to AI" command, improve file list in file selection window, re-fix indent issues with code sent to AI

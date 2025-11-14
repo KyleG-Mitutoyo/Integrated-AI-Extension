@@ -60,17 +60,17 @@ namespace Integrated_AI
             public string DisplayName { get; set; }
             public string Url { get; set; }
             public string DefaultUrl { get; set; }
-            public bool UsesMarkdown { get; set; } = false; // Default to false, can be overridden by specific options
+            public bool UseMarkdown { get; set; } = false; // Default to false, can be overridden by specific options
         }
 
         // Existing fields...
         public List<AIChatOption> _urlOptions = new List<AIChatOption>
         {
-            new AIChatOption { DisplayName = "Grok", Url = "https://grok.com", DefaultUrl = "https://grok.com" },
-            new AIChatOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com", DefaultUrl = "https://aistudio.google.com", UsesMarkdown = true},
+            new AIChatOption { DisplayName = "Grok", Url = "https://grok.com", DefaultUrl = "https://grok.com", UseMarkdown = true },
+            new AIChatOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com", DefaultUrl = "https://aistudio.google.com", UseMarkdown = true},
             new AIChatOption { DisplayName = "Gemini", Url = "https://gemini.google.com/app", DefaultUrl = "https://gemini.google.com/app"},
             new AIChatOption { DisplayName = "ChatGPT", Url = "https://chatgpt.com", DefaultUrl = "https://chatgpt.com" },
-            new AIChatOption { DisplayName = "Claude", Url = "https://claude.ai" , DefaultUrl = "https://claude.ai", UsesMarkdown = true},
+            new AIChatOption { DisplayName = "Claude", Url = "https://claude.ai" , DefaultUrl = "https://claude.ai", UseMarkdown = true},
             new AIChatOption { DisplayName = "Deepseek", Url = "https://chat.deepseek.com", DefaultUrl = "https://chat.deepseek.com" }
         };
 
@@ -173,27 +173,37 @@ namespace Integrated_AI
                 selectedItem = new ChooseCodeWindow.ReplacementItem { Type = pasteType, DisplayName = functionName };
             }
             
-            // --- FIX START ---
-            // Create a LOCAL context for the operation. Do not assign to the member variable yet.
+            // Create a local context for the operation. Do not assign to the member variable until a diff is actually opened.
             var newDiffContext = new DiffUtility.DiffContext { };
 
             var result = DocumentTextUtil.CreateDocumentContent(_dte, Window.GetWindow(this), currentCode, aiCode, activeDocument, selectedItem, newDiffContext);
 
             if (result.IsNewFileCreationRequired)
             {
+                // User chose to create a new file. Await its creation.
                 await FileUtil.CreateNewFileInSolutionAsync(ThreadHelper.JoinableTaskFactory, _dte, result.NewFilePath, result.NewFileContent);
-                // The local 'newDiffContext' goes out of scope and the member '_diffContext' remains null, which is correct.
+                
+                // Since a new file was created and no diff view is open, ensure the UI reflects this by hiding the diff buttons.
+                UpdateButtonsForDiffView(false);
             }
             else
             {
-                // ONLY assign to the member variable if we are actually opening a diff view.
+                // Attempt to open a diff view for the code replacement.
                 _diffContext = await DiffUtility.OpenDiffViewAsync(Window.GetWindow(this), activeDocument, currentCode, result.ModifiedCode, aiCode, newDiffContext, false, true, cancellationToken);
+                
+                // Update the UI based on whether the diff view was successfully created.
                 if (_diffContext != null)
                 {
+                    // Diff view is open, so show the Accept/Decline buttons.
                     UpdateButtonsForDiffView(true);
                 }
+                else
+                {
+                    // If the diff view was not opened (e.g., user cancelled, or an error occurred),
+                    // ensure the diff buttons are hidden.
+                    UpdateButtonsForDiffView(false);
+                }
             }
-            // --- FIX END ---
         }
 
         #endregion

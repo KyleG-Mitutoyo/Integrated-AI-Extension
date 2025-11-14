@@ -83,35 +83,26 @@ namespace Integrated_AI.Commands
             string code = StringUtil.RemoveBaseIndentation(textSelection.Text);
             string relativePath = GetRelativePath(Dte.ActiveDocument.FullName);
             string header = $"---{relativePath} (partial code block)---";
-            await FormatSendPromptToAIAsync(code, header, "Snippet -> AI");
+            await FormatAndSendPromptToAIAsync(code, header, "Snippet -> AI", relativePath);
         }
-
-        // CHANGE: The entire ExecuteSendFunctionToAI method is updated for responsiveness.
+        
         private async void ExecuteSendFunctionToAI(object sender, EventArgs e)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            // STEP 1: Perform the fast, synchronous part first.
             if (!StringUtil.IsWordAtCursor(Dte.ActiveDocument, out string functionName))
             {
                 ShowFunctionNotFoundMessage();
                 return;
             }
 
-            // CHANGE: Get status bar service to provide user feedback.
             IVsStatusbar statusBar = await AsyncPackage.GetServiceAsync(typeof(SVsStatusbar)) as IVsStatusbar;
 
             try
             {
-                // STEP 2: Provide immediate feedback to the user.
                 statusBar?.SetText($"Analyzing functions in {Path.GetFileName(Dte.ActiveDocument.Name)}...");
-
-                // STEP 3: Yield control to the UI thread. This is the crucial step.
-                // It allows the status bar message to render and keeps VS responsive
-                // before we start the slow operation.
                 await Task.Yield();
 
-                // STEP 4: Now perform the slow, UI-thread-bound operation.
                 var allFunctions = CodeSelectionUtilities.GetFunctionsFromDocument(Dte.ActiveDocument);
                 var functionItem = allFunctions.FirstOrDefault(f => f.DisplayName == functionName);
 
@@ -120,7 +111,7 @@ namespace Integrated_AI.Commands
                     string code = StringUtil.FixExtraIndentation(functionItem.FullCode);
                     string relativePath = GetRelativePath(Dte.ActiveDocument.FullName);
                     string header = $"---{relativePath} (function: {functionItem.DisplayName})---";
-                    await FormatSendPromptToAIAsync(code, header, "Function -> AI");
+                    await FormatAndSendPromptToAIAsync(code, header, "Function -> AI", relativePath);
                 }
                 else
                 {
@@ -129,7 +120,6 @@ namespace Integrated_AI.Commands
             }
             finally
             {
-                // STEP 5: Always clear the status bar message.
                 statusBar?.Clear();
             }
         }
@@ -152,10 +142,9 @@ namespace Integrated_AI.Commands
             if (chatWindow == null) return;
 
             var selectedOption = chatWindow.UrlSelector.SelectedItem as ChatWindow.AIChatOption;
-            bool useMarkdown = selectedOption?.UsesMarkdown ?? false;
+            bool useMarkdown = selectedOption?.UseMarkdown ?? false;
 
             var promptBuilder = new StringBuilder();
-            //promptBuilder.AppendLine("Here are the contents of multiple files:\n");
 
             foreach (var fileItem in selectedFiles)
             {
@@ -167,7 +156,8 @@ namespace Integrated_AI.Commands
 
                     if (useMarkdown)
                     {
-                        promptBuilder.Append($"\n{header}\n\n```code\n{code}\n```\n\n---End code---\n\n");
+                        string languageTag = StringUtil.GetMarkdownLanguageTag(fileItem.FilePath);
+                        promptBuilder.Append($"\n{header}\n\n```{languageTag}\n{code}\n```\n\n---End code---\n\n");
                     }
                     else
                     {
@@ -180,7 +170,7 @@ namespace Integrated_AI.Commands
                 }
             }
 
-            if (promptBuilder.Length > "Here are the contents of multiple files:\n".Length)
+            if (promptBuilder.Length > 0)
             {
                 await SendTextToAIAsync(promptBuilder.ToString(), "Multiple Files -> AI");
             }
@@ -333,8 +323,7 @@ namespace Integrated_AI.Commands
 
             string relativePath = GetRelativePath(document.FullName);
             string header = $"---{relativePath} (whole file contents)---";
-
-            // Re-implement the check to prevent duplicate file content injection.
+            
             GeneralCommands.Instance.ExecuteOpenChatWindow(null, null);
             var chatToolWindow = this.AsyncPackage.FindToolWindow(typeof(ChatToolWindow), 0, false) as ChatToolWindow;
             var chatWindow = chatToolWindow?.Content as ChatWindow;
@@ -348,15 +337,14 @@ namespace Integrated_AI.Commands
                 {
                     WebViewUtilities.Log("This file's contents have already been injected into the chat.");
                     ThemedMessageBox.Show(parentWindow, "This file's contents have already been injected.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return; // Exit without sending duplicate content
+                    return;
                 }
             }
-
-            // If check was not performed or passed, continue to send the code.
-            await FormatSendPromptToAIAsync(code, header, "File -> AI");
+            
+            await FormatAndSendPromptToAIAsync(code, header, "File -> AI", relativePath);
         }
 
-        private async Task FormatSendPromptToAIAsync(string code, string header, string commandTitle)
+        private async Task FormatAndSendPromptToAIAsync(string code, string header, string commandTitle, string filePath)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
@@ -370,12 +358,13 @@ namespace Integrated_AI.Commands
             }
 
             var selectedOption = chatWindow.UrlSelector.SelectedItem as ChatWindow.AIChatOption;
-            bool useMarkdown = selectedOption?.UsesMarkdown ?? false;
+            bool useMarkdown = selectedOption?.UseMarkdown ?? false;
 
             string sourceDescription;
             if (useMarkdown)
             {
-                sourceDescription = $"\n{header}\n\n```code\n{code}\n```\n\n---End code---\n\n";
+                string languageTag = StringUtil.GetMarkdownLanguageTag(filePath);
+                sourceDescription = $"\n{header}\n\n```{languageTag}\n{code}\n```\n\n---End code---\n\n";
             }
             else
             {

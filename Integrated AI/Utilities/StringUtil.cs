@@ -32,6 +32,36 @@ namespace Integrated_AI.Utilities
 {
     public static class StringUtil
     {
+        public static string GetMarkdownLanguageTag(string filePath)
+        {
+            string extension = Path.GetExtension(filePath)?.ToLowerInvariant();
+            switch (extension)
+            {
+                case ".cs": return "csharp";
+                case ".vb": return "vbnet";
+                case ".js": return "javascript";
+                case ".ts": return "typescript";
+                case ".html": case ".htm": return "html";
+                case ".css": return "css";
+                case ".xml": case ".xaml": case ".csproj": case ".vbproj": return "xml";
+                case ".json": return "json";
+                case ".sql": return "sql";
+                case ".py": return "python";
+                case ".cpp": case ".h": case ".c": return "cpp";
+                case ".fs": return "fsharp";
+                case ".md": return "markdown";
+                case ".sh": return "shell";
+                case ".ps1": return "powershell";
+                case ".java": return "java";
+                case ".php": return "php";
+                case ".rb": return "ruby";
+                case ".go": return "go";
+                case ".rs": return "rust";
+                default:
+                    return "code";
+            }
+        }
+
         // Custom method to unescape JSON-encoded strings
         public static string UnescapeJsonString(string input)
         {
