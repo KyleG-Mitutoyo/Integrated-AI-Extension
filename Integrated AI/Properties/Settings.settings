@@ -17,5 +17,8 @@
     <Setting Name="selectedChatUrl" Type="System.String" Scope="User">
       <Value Profile="(Default)">"https://aistudio.google.com"</Value>
     </Setting>
+    <Setting Name="useSmartCommands" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

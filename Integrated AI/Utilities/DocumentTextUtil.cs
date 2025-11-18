@@ -16,14 +16,15 @@
 
 using EnvDTE;
 using EnvDTE80;
+using Integrated_AI.Utilities;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Remoting.Contexts;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using Integrated_AI.Utilities;
 
 namespace Integrated_AI.Utilities
 {
@@ -41,6 +42,19 @@ namespace Integrated_AI.Utilities
         {
             try
             {
+                // Prioritize replacing selected text if any, but not for certain chosenItem types
+                DocumentContentResult result = null;
+                if (chosenItem?.Type != "new_file" && chosenItem?.Type != "file" && chosenItem?.Type != "opened_file")
+                {
+                    // Result might be null after this so return it later
+                    result = ReplaceSelectedText(activeDoc, context, window, currentCode, aiCode);
+                }
+
+                if (result != null)
+                {
+                    return result;
+                }
+
                 var (isFunction, functionName, isFullFile) = (false, string.Empty, false);
 
                 // Determine the language based on the active document's extension
@@ -119,27 +133,6 @@ namespace Integrated_AI.Utilities
                     };
                 }
 
-                // For "Selection" or unmatched functions, check for highlighted text
-                var selection = activeDoc.Selection as TextSelection;
-                if (selection != null && !selection.IsEmpty) // Check if text is highlighted
-                {
-                    var textDocument = activeDoc.Object("TextDocument") as TextDocument;
-                    if (textDocument != null)
-                    {
-                        var startPoint = textDocument.StartPoint.CreateEditPoint();
-                        string textBeforeSelection = startPoint.GetText(selection.TopPoint);
-                        int startIndex = textBeforeSelection.Length;
-                        int length = selection.Text.Length;
-
-                        // Get the line number for the start of the selection. This is crucial
-                        // for allowing ReplaceCodeBlock to calculate the correct base indentation.
-                        int startLine = selection.TopPoint.Line;
-
-                        context.NewCodeStartIndex = startIndex;
-
-                        return new DocumentContentResult { ModifiedCode = ReplaceCodeBlock(window, currentCode, startIndex, startLine, length, aiCode, true) };
-                    }
-                }
 
                 // Snippets with no selected text or unmatched functions should be inserted at the cursor or appended here to avoid the fallback
                 if (isFunction || (chosenItem != null && chosenItem.Type == "snippet"))
@@ -158,6 +151,32 @@ namespace Integrated_AI.Utilities
                 ThemedMessageBox.Show(window, $"Error creating document content: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return new DocumentContentResult { ModifiedCode = currentCode }; // Return unchanged code if error occurs
             }
+        }
+
+        private static DocumentContentResult ReplaceSelectedText(Document activeDoc, DiffUtility.DiffContext context, System.Windows.Window window, string currentCode, string aiCode)
+        {
+            var selection = activeDoc.Selection as TextSelection;
+            if (selection != null && !selection.IsEmpty) // Check if text is highlighted
+            {
+                var textDocument = activeDoc.Object("TextDocument") as TextDocument;
+                if (textDocument != null)
+                {
+                    var startPoint = textDocument.StartPoint.CreateEditPoint();
+                    string textBeforeSelection = startPoint.GetText(selection.TopPoint);
+                    int startIndex = textBeforeSelection.Length;
+                    int length = selection.Text.Length;
+
+                    // Get the line number for the start of the selection. This is crucial
+                    // for allowing ReplaceCodeBlock to calculate the correct base indentation.
+                    int startLine = selection.TopPoint.Line;
+
+                    context.NewCodeStartIndex = startIndex;
+
+                    return new DocumentContentResult { ModifiedCode = ReplaceCodeBlock(window, currentCode, startIndex, startLine, length, aiCode, true) }; ;
+                }
+            }
+
+            return null;
         }
 
         public static string ReplaceCodeBlock(System.Windows.Window window, string documentContent, int startIndex, int startLine, int length, string newCode, bool fixDoubleIndent)

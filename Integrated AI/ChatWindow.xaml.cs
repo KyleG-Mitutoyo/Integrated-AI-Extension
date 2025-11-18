@@ -128,15 +128,20 @@ namespace Integrated_AI
         /// <summary>
         /// Retrieves code, prioritizing highlighted text in the WebView over the clipboard.
         /// </summary>
-        public async Task<string> GetAiCodeAsync()
+        public async Task<string> GetAiCodeAsync(bool checkSelectedText = true)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            string aiCode = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView, Window.GetWindow(this));
+            string aiCode = null;
+
+            if (checkSelectedText)
+            {
+                aiCode = await WebViewUtilities.RetrieveSelectedTextFromWebViewAsync(ChatWebView, Window.GetWindow(this));
+            }
 
             if (string.IsNullOrEmpty(aiCode) || aiCode == "null")
             {
                 aiCode = System.Windows.Clipboard.GetText();
-                WebViewUtilities.Log("No text highlighted in WebView. Falling back to clipboard content.");
+                WebViewUtilities.Log("No text highlighted in WebView or checkSelectedText set to false. Using clipboard content.");
             }
             else
             {
@@ -952,7 +957,7 @@ namespace Integrated_AI
             Settings.Default.Save(); // Save settings when the popup is closed
         }
 
-        // This handler is just for the auto-diff feature
+        // This handler is just for the auto code replace feature
         private void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs args)
         {
             if (AutoDiffToggle.IsChecked != true) return;
@@ -1001,14 +1006,14 @@ namespace Integrated_AI
                         {
                             Log("Using highlighted text provided by the copy interceptor.");
                             aiCode = StringUtil.RemoveBaseIndentation(codeFromSelection);
-                            Log(aiCode);
+                            //Log(aiCode);
                         }
                         else
                         {
                             // If no text was sent, fall back to the clipboard.
                             // GetAiCodeAsync checks clipboard.
                             Log("No selection in payload. Falling back to GetAiCodeAsync (clipboard).");
-                            aiCode = await GetAiCodeAsync();
+                            aiCode = await GetAiCodeAsync(false);
                         }
 
                         if (string.IsNullOrEmpty(aiCode) || _dte.ActiveDocument == null) return;

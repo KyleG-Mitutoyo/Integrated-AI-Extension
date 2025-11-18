@@ -31,6 +31,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using Window = System.Windows.Window;
+using Integrated_AI.Properties;
 
 namespace Integrated_AI.Commands
 {
@@ -41,6 +42,7 @@ namespace Integrated_AI.Commands
         public const int SendFunctionToAICmdId = 0x0111;
         public const int SendFileToAICmdId = 0x0112;
         public const int SendMultipleFilesToAICmdId = 0x0113;
+        public const int SmartSendToAICmdId = 0x0150;
 
         public static readonly Guid CommandSet = new Guid("3e9439f0-9188-4415-b861-b894c074a254");
 
@@ -49,9 +51,10 @@ namespace Integrated_AI.Commands
         {
             AddCommand(CommandSet, SendErrorToAICmdId, this.ExecuteSendErrorToAI);
             AddOleCommand(CommandSet, SendSnippetToAICmdId, this.ExecuteSendSnippetToAI, this.BeforeQueryStatusSendSnippet);
-            AddOleCommand(CommandSet, SendFunctionToAICmdId, this.ExecuteSendFunctionToAI); // Note: BeforeQueryStatus could be added here too if needed
-            AddCommand(CommandSet, SendFileToAICmdId, this.ExecuteSendFileToAI);
+            AddOleCommand(CommandSet, SendFunctionToAICmdId, this.ExecuteSendFunctionToAI, this.BeforeQueryStatusSendFunctionOrFile);
+            AddOleCommand(CommandSet, SendFileToAICmdId, this.ExecuteSendFileToAI, this.BeforeQueryStatusSendFunctionOrFile);
             AddCommand(CommandSet, SendMultipleFilesToAICmdId, this.ExecuteSendMultipleFilesToAI);
+            AddOleCommand(CommandSet, SmartSendToAICmdId, this.ExecuteSmartSendToAI, this.BeforeQueryStatusSmartSend);
         }
 
         public static VsToAiCommands Instance { get; private set; }
@@ -69,8 +72,55 @@ namespace Integrated_AI.Commands
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
                 var textSelection = (TextSelection)Dte.ActiveDocument?.Selection;
-                cmd.Visible = textSelection != null && !string.IsNullOrEmpty(textSelection.Text);
+                cmd.Visible = !Settings.Default.useSmartCommands && textSelection != null && !string.IsNullOrEmpty(textSelection.Text);
             }
+        }
+        
+        private void BeforeQueryStatusSendFunctionOrFile(object sender, EventArgs e)
+        {
+            var cmd = sender as OleMenuCommand;
+            if (cmd != null)
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                cmd.Visible = !Settings.Default.useSmartCommands && Dte.ActiveDocument != null;
+            }
+        }
+
+        private void BeforeQueryStatusSmartSend(object sender, EventArgs e)
+        {
+            var cmd = sender as OleMenuCommand;
+            if (cmd != null)
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                cmd.Visible = Settings.Default.useSmartCommands && Dte.ActiveDocument != null;
+            }
+        }
+        
+        private async void ExecuteSmartSendToAI(object sender, EventArgs e)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (Dte.ActiveDocument == null) return;
+
+            var textSelection = (TextSelection)Dte.ActiveDocument.Selection;
+
+            // 1. Check for snippet
+            if (textSelection != null && !string.IsNullOrEmpty(textSelection.Text))
+            {
+                ExecuteSendSnippetToAI(sender, e);
+                return;
+            }
+
+            // 2. Check for function, first check for word at cursor for better performance
+            if (StringUtil.IsWordAtCursor(Dte.ActiveDocument, out _))
+            {
+                if (await TryExecuteSendFunctionToAIAsync())
+                {
+                    return;
+                }
+            }
+            
+            // 3. Fallback to file
+            ExecuteSendFileToAI(sender, e);
         }
 
         private async void ExecuteSendSnippetToAI(object sender, EventArgs e)
@@ -88,12 +138,20 @@ namespace Integrated_AI.Commands
         
         private async void ExecuteSendFunctionToAI(object sender, EventArgs e)
         {
+            if (!await TryExecuteSendFunctionToAIAsync())
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                ShowFunctionNotFoundMessage();
+            }
+        }
+        
+        private async Task<bool> TryExecuteSendFunctionToAIAsync()
+        {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            if (!StringUtil.IsWordAtCursor(Dte.ActiveDocument, out string functionName))
+            if (Dte.ActiveDocument == null || !StringUtil.IsWordAtCursor(Dte.ActiveDocument, out string functionName))
             {
-                ShowFunctionNotFoundMessage();
-                return;
+                return false;
             }
 
             IVsStatusbar statusBar = await AsyncPackage.GetServiceAsync(typeof(SVsStatusbar)) as IVsStatusbar;
@@ -112,10 +170,11 @@ namespace Integrated_AI.Commands
                     string relativePath = GetRelativePath(Dte.ActiveDocument.FullName);
                     string header = $"---{relativePath} (function: {functionItem.DisplayName})---";
                     await FormatAndSendPromptToAIAsync(code, header, "Function -> AI", relativePath);
+                    return true;
                 }
                 else
                 {
-                    ShowFunctionNotFoundMessage();
+                    return false;
                 }
             }
             finally
@@ -123,6 +182,7 @@ namespace Integrated_AI.Commands
                 statusBar?.Clear();
             }
         }
+
 
         private void ExecuteSendFileToAI(object sender, EventArgs e)
         {

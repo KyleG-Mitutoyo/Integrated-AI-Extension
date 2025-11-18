@@ -99,6 +99,12 @@
                             <ToggleButton x:Name="AutoRestore" Margin="0,0,10,0" ToolTip="Toggle creation of restore point every time a diff is accepted" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoRestore, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
+                        <!-- Smart commands -->
+                        <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
+                            <TextBlock Text="Smart commands" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
+                            <ToggleButton x:Name="SmartCommands" Margin="0,0,10,0" ToolTip="Toggle more compact menus with context-aware commands" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=useSmartCommands, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                        </DockPanel>
+
                         <!-- Show Log Window -->
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
                             <TextBlock Text="Open logs" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>

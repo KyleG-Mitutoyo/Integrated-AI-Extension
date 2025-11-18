@@ -62,9 +62,9 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 
 ## 💡 How to Use: A Quick Start Guide
 
-1.  **Open the Chat Window**: In the Visual Studio top bar, go to `Tools` > `Open AI Chat Window` to open the chat tool window which can be docked or moved. Select your desired chat site from the dropdown within the chat window (default is Google AI Studio).
+1.  **Open the Chat Window**: In the Visual Studio top bar, go to `Tools` > `Integrated AI` > `Open AI Chat Window` to open the chat tool window which can be docked or moved. Select your desired chat site from the dropdown within the chat window (default is Google AI Studio).
 2.  **Chat with the AI**: Your code will appear in the prompt along with your message. Write your request (e.g., "Refactor this to be more efficient" or "Add exception handling").
-3.  **Send Code**: Open a code file. Then right-click and select a `Send to AI` command. You can send multiple code blocks or even multiple files, since each send command is added in its own code block to the AI prompt.
+3.  **Send Code**: Open a code file. Then right-click within the editor and select a `Send to AI` command. You can send multiple code blocks or even multiple files, since each send command is added in its own code block to the AI prompt.
 4.  **Review the Diff**: Once the AI provides a response, highlight or copy the text in the chat window. Then right-click and select a `Replace with AI code` command. A diff view will appear, showing the proposed changes. You can also just use the artifact "copy" buttons on the response code blocks for more automated diffing (see "Configuration" for more info).
 5.  **Accept or Decline**: If you like the changes, click "Accept" in the diff view. A backup of your solution will be created automatically by default, and the document will be saved with the new changes.
 
@@ -76,11 +76,12 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 <summary><b>"VS to AI" Transfers</b></summary>
 
 Code is sent from VS to the AI chat with the `Send to AI` commands from the document right-click menu. The available commands show depending on what is right-clicked:
-- File/Multiple Files to AI: anywhere in the document
+- File to AI: anywhere in the document
 - Snippet to AI: on highlighted text
 - Function to AI: on a function name, where the function definition is within that same document
+If `Smart Commands` is on in the options, the send mode will be chosen based on what is right-clicked.
 
- Code blocks get a context header so the AI knows useful info such as filepath and type. Sites that allow markdown in prompts, such as AI Studio, have collapsible code blocks using ` ```code ` tags.
+Code blocks get a context header so the AI knows useful info such as filepath and type. Sites that allow markdown in prompts, such as AI Studio or Grok, have collapsible code blocks and syntax highlighting using ` ```code ` tags.
 
 > Note: The function commands only work with files that are native to Visual Studio, such as C#, VB, C++, and F#. Files such as XAML and Javascript will still work > with snippets and full file transfers.
 
@@ -106,13 +107,17 @@ _![Error in the prompt area](https://raw.githubusercontent.com/KyleG-Mitutoyo/In
 <details>
 <summary><b>Intelligent "AI to VS" Diffing</b></summary>
 
-The "Replace with AI Code" commands are used to send highlighted or copied code from the AI chat to your editor. First it will check for highlighted text within the chat window, and if nothing is highlighted it will use whatever is in the clipboard. The code is merged into your existing file automatically, showing a diff view before applying changes. If a different code block to replace is needed, you can use the "Replace Different Code" button. There is also a new file option that will create a new file in the chosen location with the AI code as its contents and add it to the project.
+The "Replace with AI Code" commands are used to send highlighted or copied code from the AI chat to your editor. First it will check for highlighted text within the chat window, and if nothing is highlighted it will use whatever is in the clipboard. The code is merged into your existing file automatically, showing a diff view before applying changes. There is also a new file option in the `Tools` > `Integrated AI` menu that will create a new file in the chosen location with the AI code as its contents and add it to the project.
+
+_![Replace Function with AI Code](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/replace%20function.gif)_
 
 If "Auto Code Replace" in the options is turned on, you don't even need to use menu commands! This only works with the artifact copy buttons. It works best with C# and VB code. For other file types, such as XAML, it will fallback to a full file replace or, if there is text selected in the code editor, a snippet replace.
 
 > Tip: Clicking the copy buttons will also prioritize highlighted text and use that rather than the full code block. This is mostly useful for Auto Code Replace if you don't want to use the full code block.
 
 For the "Replace Function with AI Code" command, auto matching attempts to find the function to replace by name. An unmatched name or new function will be inserted at the cursor position.
+
+If a different code block to replace is needed, you can use the "Replace Different Code" button.
 
 _![Replace Different Code window](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/choose%20code.png)_
 
@@ -141,6 +146,7 @@ You can configure the extension's behavior by clicking the gear icon at the top 
 - **Auto Code Replace**: Toggle automatic code analysis for artifact `Copy Code` button clicks during code replacement/diff view creation.
 - **Create Restore on Accept**: Toggle creation of restore point every time a diff is accepted.
 - **Reset URLs**: URLs to chat pages are saved to make switching chats easy. The last-used URL is also saved when closing VS. This button can be used in case a chat page is incorrect.
+- **Smart Commands**: When enabled, this simplifies the right-click context menu to just two commands: `Send to AI` and `Replace with AI Code`. The extension will intelligently determine whether to act on a snippet, function, or the entire file based on your current selection or cursor position. 
 - **Show Log Window**: Used for error reporting and debugging.
 
 ## 🚨 Troubleshooting
@@ -164,6 +170,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.3.2** Add more compact command layout with smart commands, fix selected text in code editor not having priority during auto code replace, move "Send Multiple Files to AI" and "Create New File with AI Code" commands to the Tools menu
 - **1.3.1** Fix Grok and Chatgpt text injecting without line breaks, add markdown injection and better syntax highlighting to more site prompts, fix Deepseek text not injecting
 - **1.3.0** Add new "Replace with AI code" menu commands, remove "-> VS" splitbutton and new function option (since this can be done with a snippet insert).
 - **1.2.3** Fix duplicate files showing in file list, add file filtering options, improve auto-diff code analysis

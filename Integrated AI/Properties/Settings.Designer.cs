@@ -82,5 +82,17 @@ namespace Integrated_AI.Properties {
                 this["selectedChatUrl"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool useSmartCommands {
+            get {
+                return ((bool)(this["useSmartCommands"]));
+            }
+            set {
+                this["useSmartCommands"] = value;
+            }
+        }
     }
 }

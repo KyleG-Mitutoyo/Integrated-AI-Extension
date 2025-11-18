@@ -23,6 +23,7 @@ using System.ComponentModel.Design;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using Integrated_AI.Properties;
 
 namespace Integrated_AI.Commands
 {
@@ -36,6 +37,7 @@ namespace Integrated_AI.Commands
         public const int ReplaceFunctionWithAICmdId = 0x0131;
         public const int ReplaceFileWithAICmdId = 0x0132;
         public const int CreateNewFileWithAICmdId = 0x0133;
+        public const int SmartReplaceWithAICmdId = 0x0151;
 
         // Use the same CommandSet GUID as VsToAiCommands
         public static readonly Guid CommandSet = new Guid("3e9439f0-9188-4415-b861-b894c074a254");
@@ -45,9 +47,10 @@ namespace Integrated_AI.Commands
         {
             // Register all the new commands
             AddOleCommand(CommandSet, ReplaceSnippetWithAICmdId, this.ExecuteReplaceSnippet, this.BeforeQueryStatusReplaceSnippet);
-            AddOleCommand(CommandSet, ReplaceFunctionWithAICmdId, this.ExecuteReplaceFunction, this.BeforeQueryStatusActiveDocument);
-            AddOleCommand(CommandSet, ReplaceFileWithAICmdId, this.ExecuteReplaceFile, this.BeforeQueryStatusActiveDocument);
+            AddOleCommand(CommandSet, ReplaceFunctionWithAICmdId, this.ExecuteReplaceFunction, this.BeforeQueryStatusReplaceFunctionOrFile);
+            AddOleCommand(CommandSet, ReplaceFileWithAICmdId, this.ExecuteReplaceFile, this.BeforeQueryStatusReplaceFunctionOrFile);
             AddOleCommand(CommandSet, CreateNewFileWithAICmdId, this.ExecuteCreateNewFile, this.BeforeQueryStatusAlwaysVisible);
+            AddOleCommand(CommandSet, SmartReplaceWithAICmdId, this.ExecuteSmartReplaceWithAI, this.BeforeQueryStatusSmartReplace);
         }
 
         public static AiToVsCommands Instance { get; private set; }
@@ -68,13 +71,23 @@ namespace Integrated_AI.Commands
             }
         }
 
-        private void BeforeQueryStatusActiveDocument(object sender, EventArgs e)
+        private void BeforeQueryStatusReplaceFunctionOrFile(object sender, EventArgs e)
         {
             var cmd = sender as OleMenuCommand;
             if (cmd != null)
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
-                cmd.Visible = Dte.ActiveDocument != null;
+                cmd.Visible = !Settings.Default.useSmartCommands && Dte.ActiveDocument != null;
+            }
+        }
+
+        private void BeforeQueryStatusSmartReplace(object sender, EventArgs e)
+        {
+            var cmd = sender as OleMenuCommand;
+            if (cmd != null)
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+                cmd.Visible = Settings.Default.useSmartCommands && Dte.ActiveDocument != null;
             }
         }
 
@@ -86,13 +99,37 @@ namespace Integrated_AI.Commands
                 ThreadHelper.ThrowIfNotOnUIThread();
                 var textSelection = (TextSelection)Dte.ActiveDocument?.Selection;
                 // This command should only be visible if there's text selected in the editor.
-                cmd.Visible = textSelection != null && !string.IsNullOrEmpty(textSelection.Text);
+                cmd.Visible = !Settings.Default.useSmartCommands && textSelection != null && !string.IsNullOrEmpty(textSelection.Text);
             }
         }
 
         #endregion
 
         #region Command Handlers
+
+        private async void ExecuteSmartReplaceWithAI(object sender, EventArgs e)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (Dte.ActiveDocument == null) return;
+
+            string applyType;
+            var textSelection = (TextSelection)Dte.ActiveDocument.Selection;
+
+            if (textSelection != null && !string.IsNullOrEmpty(textSelection.Text))
+            {
+                applyType = "snippet";
+            }
+            else if (StringUtil.IsWordAtCursor(Dte.ActiveDocument, out _))
+            {
+                applyType = "function";
+            }
+            else
+            {
+                applyType = "file";
+            }
+
+            await ExecuteAiToVsCommandAsync(applyType);
+        }
 
         private async void ExecuteReplaceSnippet(object sender, EventArgs e) => await ExecuteAiToVsCommandAsync("snippet");
         private async void ExecuteReplaceFunction(object sender, EventArgs e) => await ExecuteAiToVsCommandAsync("function");
