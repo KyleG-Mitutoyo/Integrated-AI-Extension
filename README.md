@@ -153,6 +153,8 @@ You can configure the extension's behavior by clicking the gear icon at the top 
 
 -   **The AI window is blank or shows an incorrect page?**
     -   Try refreshing the window with Ctrl-R (or right-click the window and select "Refresh") or choosing a different chat page. You can also use the "Reset URLs" button in the options.
+-   **Navigation timeout?**
+    -   This is a known issue that happens sometimes if your internet is slow. Switching chat sites and going back to one can help it connect.
 -   **AI chat page logged me out?**
     -   This is an automatic security feature of some chat pages which happens in a normal browser as well, the only fix is to just log back in.
 -   **The "Auto Code Replace" didn't find the right code for replacement?**
@@ -170,6 +172,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.3.3** Fix navigation issues with message boxes causing crashes and increase timeout for slow internet connections
 - **1.3.2** Add more compact command layout with smart commands, fix selected text in code editor not having priority during auto code replace, move "Send Multiple Files to AI" and "Create New File with AI Code" commands to the Tools menu
 - **1.3.1** Fix Grok and Chatgpt text injecting without line breaks, add markdown injection and better syntax highlighting to more site prompts, fix Deepseek text not injecting
 - **1.3.0** Add new "Replace with AI code" menu commands, remove "-> VS" splitbutton and new function option (since this can be done with a snippet insert).

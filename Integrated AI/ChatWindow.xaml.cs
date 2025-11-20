@@ -1095,9 +1095,9 @@ namespace Integrated_AI
 
             try
             {
-                // Start a 20-second timer. If it completes, we timed out.
+                // Start a 60-second timer. If it completes, we timed out.
                 // The CancellationToken will be triggered by NavigationCompleted, cancelling this delay.
-                await Task.Delay(TimeSpan.FromSeconds(20), _navigationCts.Token);
+                await Task.Delay(TimeSpan.FromSeconds(120), _navigationCts.Token);
 
                 // --- If the code reaches this line, it means Task.Delay was NOT cancelled ---
                 // This is the timeout case. We are likely still on a background thread here.
@@ -1134,6 +1134,7 @@ namespace Integrated_AI
         // This is the navigation error handler, kept separate for clarity.
         private void CoreWebView2_NavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
         {
+            // Always cancel the timeout token immediately
             _navigationCts?.Cancel();
 
             if (e.IsSuccess)
@@ -1141,13 +1142,9 @@ namespace Integrated_AI
                 string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
                 Log($"Navigation successful to: {currentUrl}");
 
-                // 1. Persist this URL for the next time Visual Studio starts. 
                 Settings.Default.selectedChatUrl = currentUrl;
                 Settings.Default.Save();
-                Log($"CoreWebView2_NavigationCompleted: Saved last known URL for session restore: {Settings.Default.selectedChatUrl}");
 
-                // 2. Update the in-memory cache for the current UrlOption.
-                // This is mainly for the go to chat button
                 string chatName = GetChatNameFromUrl(currentUrl);
                 if (!string.IsNullOrEmpty(chatName))
                 {
@@ -1155,20 +1152,38 @@ namespace Integrated_AI
                     if (currentOption != null && currentOption.Url != currentUrl)
                     {
                         currentOption.Url = currentUrl;
-                        Log($"Updated in-memory URL for '{chatName}' to: {currentUrl}");
                     }
                 }
             }
             else
             {
+                // --- FIX START: Filter out specific error statuses ---
+
+                // ConnectionAborted happens when:
+                // 1. The Timeout logic calls Stop()
+                // 2. The user clicks a link, then quickly clicks another
+                // 3. The user navigates away while page is loading
+                // We should SILENTLY log this and return. Do not show a MessageBox.
+                if (e.WebErrorStatus == CoreWebView2WebErrorStatus.ConnectionAborted ||
+                    e.WebErrorStatus == CoreWebView2WebErrorStatus.OperationCanceled || 
+                    e.WebErrorStatus == CoreWebView2WebErrorStatus.ValidAuthenticationCredentialsRequired)
+                {
+                    Log($"Navigation interrupted (Status: {e.WebErrorStatus}). This is usually normal behavior or a timeout.");
+                    return; 
+                }
+                // --- FIX END ---
+
                 string errorMessage = $"Failed to load {ChatWebView.Source?.ToString() ?? "page"}. Error status: {e.WebErrorStatus}.";
-                if (e.WebErrorStatus == Microsoft.Web.WebView2.Core.CoreWebView2WebErrorStatus.CannotConnect ||
-                    e.WebErrorStatus == Microsoft.Web.WebView2.Core.CoreWebView2WebErrorStatus.HostNameNotResolved)
+
+                if (e.WebErrorStatus == CoreWebView2WebErrorStatus.CannotConnect ||
+                    e.WebErrorStatus == CoreWebView2WebErrorStatus.HostNameNotResolved)
                 {
                     errorMessage += " Please check your internet connection.";
                 }
 
                 WebViewUtilities.Log(errorMessage);
+
+                // Only show MessageBox for genuine, unexpected network errors
                 ShowThemedMessageBox(errorMessage, "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
