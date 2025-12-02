@@ -292,7 +292,15 @@ namespace Integrated_AI
                     var line = lines[i];
 
                     // Escape characters that would break a JSON string value.
-                    string escapedLine = line.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    // JSON strings cannot contain raw control characters (like tabs). 
+                    // We must escape backslashes, quotes, and tabs. 
+                    // We also remove stray carriage returns to ensure valid JSON.
+                    string escapedLine = line
+                        .Replace("\\", "\\\\")
+                        .Replace("\"", "\\\"")
+                        .Replace("\t", "\\t")
+                        .Replace("\r", "");
+
                     commands.Add($"{{\"type\":\"text\",\"content\":\"{escapedLine}\"}}");
 
                     // If it's not the last line, add a line break command.
@@ -303,8 +311,10 @@ namespace Integrated_AI
                 }
 
                 string jsonPayload = $"[{string.Join(",", commands)}]";
-                string preparedTextForJs = jsonPayload.Replace("\\", "\\\\").Replace("'", "\\'");
 
+                // Prepare the string for injection into the JavaScript function call.
+                // We escape backslashes again because this string is being passed inside a JS string literal.
+                string preparedTextForJs = jsonPayload.Replace("\\", "\\\\").Replace("'", "\\'");
 
                 var (result, lastError) = await ExecuteScriptWithSelectors(
                     webView,

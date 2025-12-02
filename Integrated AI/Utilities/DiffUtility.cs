@@ -48,14 +48,18 @@ namespace Integrated_AI.Utilities
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
 
-            if (activeDoc == null || currentCode == null || aiCodeFullFileContents == null)
+            // FIX: existingContext can be null (default parameter). We must check it before accessing properties.
+            bool isNewFile = existingContext != null && existingContext.IsNewFile;
+
+            // New files don't use any of these so no need for null check
+            if (!isNewFile && (activeDoc == null || currentCode == null || aiCodeFullFileContents == null))
             {
                 WebViewUtilities.Log("OpenDiffView: Invalid input - activeDoc, currentCode, or aiCodeFullFileContents is null.");
                 ThemedMessageBox.Show(window, "Invalid input: DTE active document or code strings are null.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return null;
             }
 
-            string extension = Path.GetExtension(activeDoc.FullName) ?? ".txt";
+            string extension = (activeDoc != null) ? (Path.GetExtension(activeDoc.FullName) ?? ".txt") : ".txt";
             var context = new DiffContext { };
 
             // Use the existing context if provided, otherwise create a new one
@@ -77,7 +81,8 @@ namespace Integrated_AI.Utilities
             context.TempCurrentFile = Path.Combine(Path.GetTempPath(), $"Current_{Guid.NewGuid()}{extension}");
             context.TempAiFile = Path.Combine(Path.GetTempPath(), $"AI_{Guid.NewGuid()}{extension}");
             context.AICodeBlock = aiCode;
-            context.ActiveDocumentPath = activeDoc.FullName;
+            // Only set ActiveDocumentPath if activeDoc is not null
+            context.ActiveDocumentPath = activeDoc?.FullName;
 
             try
             {
@@ -88,7 +93,7 @@ namespace Integrated_AI.Utilities
                     File.WriteAllText(context.TempAiFile, aiCodeFullFileContents);
                 }, cancellationToken);
 
-                WebViewUtilities.Log($"OpenDiffView: Created temp files - Current: {context.TempCurrentFile} (length: {currentCode.Length}), AI: {context.TempAiFile} (length: {aiCodeFullFileContents.Length}), ActiveDoc: {activeDoc.FullName}");
+                WebViewUtilities.Log($"OpenDiffView: Created temp files - Current: {context.TempCurrentFile} (length: {currentCode.Length}), AI: {context.TempAiFile} (length: {aiCodeFullFileContents.Length}), ActiveDoc: {activeDoc?.FullName ?? "None"}");
 
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
 
@@ -97,7 +102,7 @@ namespace Integrated_AI.Utilities
                 {
                     WebViewUtilities.Log("OpenDiffView: Diff service unavailable.");
                     ThemedMessageBox.Show(window, "Visual Studio Difference Service unavailable.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    
+
                     return FileUtil.CleanUpTempFiles(context);
                 }
 
@@ -115,12 +120,13 @@ namespace Integrated_AI.Utilities
                     rightLabel = "Current Document";
                 }
 
-                WebViewUtilities.Log($"OpenDiffView: Calling OpenComparisonWindow2 for {activeDoc.Name}, grfDiffOptions: {grfDiffOptions}");
+                string docName = activeDoc?.Name ?? "Document";
+                WebViewUtilities.Log($"OpenDiffView: Calling OpenComparisonWindow2 for {docName}, grfDiffOptions: {grfDiffOptions}");
                 context.DiffFrame = diffService.OpenComparisonWindow2(
                     leftFileMoniker: context.TempCurrentFile,
                     rightFileMoniker: context.TempAiFile,
-                    caption: $"{activeDoc.Name} compare",
-                    Tooltip: $"Changes to {activeDoc.Name}",
+                    caption: $"{docName} compare",
+                    Tooltip: $"Changes to {docName}",
                     leftLabel: leftLabel,
                     rightLabel: rightLabel,
                     inlineLabel: "",
@@ -131,18 +137,18 @@ namespace Integrated_AI.Utilities
                 {
                     WebViewUtilities.Log("OpenDiffView: Failed to create diff window.");
                     ThemedMessageBox.Show(window, "Failed to create diff window.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    
+
                     return FileUtil.CleanUpTempFiles(context);
                 }
 
                 if (showImmediately)
                 {
                     ErrorHandler.ThrowOnFailure(context.DiffFrame.Show());
-                    WebViewUtilities.Log($"OpenDiffView: Diff window shown successfully for {activeDoc.Name}.");
+                    WebViewUtilities.Log($"OpenDiffView: Diff window shown successfully for {docName}.");
                 }
                 else
                 {
-                    //WebViewUtilities.Log($"OpenDiffView: Diff frame created but not shown for {activeDoc.Name}.");
+                    //WebViewUtilities.Log($"OpenDiffView: Diff frame created but not shown for {docName}.");
                 }
                 return context;
             }
@@ -150,7 +156,7 @@ namespace Integrated_AI.Utilities
             {
                 WebViewUtilities.Log($"OpenDiffView: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
                 ThemedMessageBox.Show(window, $"Error opening diff view: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                
+
                 return FileUtil.CleanUpTempFiles(context);
             }
         }
@@ -415,8 +421,19 @@ namespace Integrated_AI.Utilities
             ThreadHelper.ThrowIfNotOnUIThread();
             if (activeDoc == null) return string.Empty;
 
-            var textDoc = activeDoc.Object("TextDocument") as TextDocument;
-            return textDoc?.StartPoint.CreateEditPoint().GetText(textDoc.EndPoint) ?? string.Empty;
+            try
+            {
+                var textDoc = activeDoc.Object("TextDocument") as TextDocument;
+                return textDoc?.StartPoint.CreateEditPoint().GetText(textDoc.EndPoint) ?? string.Empty;
+            }
+            catch (Exception ex)
+            {
+                // Accessing Object("TextDocument") on a Designer file (like XAML) can sometimes throw
+                // an exception instead of returning null.
+                WebViewUtilities.Log($"GetDocumentText: Failed to retrieve text from document '{activeDoc.Name}': {ex.Message}");
+                //ThemedMessageBox.Show(null, $"Failed to retrieve text from document '{activeDoc.Name}': {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return string.Empty;
+            }
         }
     }
 }

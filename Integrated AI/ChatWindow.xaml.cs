@@ -552,11 +552,27 @@ namespace Integrated_AI
 
                         // Capture essential info from the current diff context before showing a modal dialog.
                         string aiCode = _diffContext.AICodeBlock;
-                        var originalDocument = _dte.Documents.Item(_diffContext.ActiveDocumentPath);
+
+                        // FIX: Retrieve document safely. DTE.Documents.Item throws if not found/null.
+                        Document originalDocument = null;
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(_diffContext.ActiveDocumentPath))
+                            {
+                                originalDocument = _dte.Documents.Item(_diffContext.ActiveDocumentPath);
+                            }
+                        }
+                        catch
+                        {
+                            // Document might be closed or invalid. We proceed with originalDocument as null.
+                            WebViewUtilities.Log($"ChooseButton_Click: Could not find open document for path: {_diffContext.ActiveDocumentPath}");
+                        }
+
                         string tempCurrentFile = _diffContext.TempCurrentFile;
                         string tempAiFile = _diffContext.TempAiFile;
 
                         // --- Step 2: Show the code selection window (this is a blocking, modal call) ---
+                        // CodeSelectionUtilities must handle originalDocument being null gracefully (e.g. only showing file options)
                         var selectedItem = CodeSelectionUtilities.ShowCodeReplacementWindow(
                             _dte, originalDocument, tempCurrentFile, tempAiFile);
 

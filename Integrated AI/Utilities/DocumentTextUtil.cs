@@ -57,14 +57,25 @@ namespace Integrated_AI.Utilities
 
                 var (isFunction, functionName, isFullFile) = (false, string.Empty, false);
 
-                // Determine the language based on the active document's extension
-                string extension = Path.GetExtension(activeDoc.FullName).ToLowerInvariant();
+                // --- SAFEGUARD HERE ---
+                // This is where it was crashing. We now handle activeDoc being null.
+                string extension = ".txt"; 
+                if (activeDoc != null)
+                {
+                    // We split this up to be safe
+                    extension = Path.GetExtension(activeDoc.FullName)?.ToLowerInvariant() ?? ".txt";
+                }
+
                 bool isVB = extension == ".vb";
 
                 // Analyze the code block to determine its type, if there is no chosen item provided
                 if (chosenItem == null)
                 {
-                    (isFunction, functionName, isFullFile) = CodeAnalysisUtil.AnalyzeCodeBlock(dte, activeDoc, aiCode);
+                    // SAFETY CHECK: activeDoc might be null here too
+                    if (activeDoc != null) 
+                    {
+                        (isFunction, functionName, isFullFile) = CodeAnalysisUtil.AnalyzeCodeBlock(dte, activeDoc, aiCode);
+                    }
                 }
                 else
                 {
@@ -78,12 +89,12 @@ namespace Integrated_AI.Utilities
                 {
                     if (chosenItem == null || chosenItem.Type != "new_file")
                     {
-                        //MessageBox.Show("The AI response is a full file replacement. It will replace the entire document.", "Full File Replacement", MessageBoxButton.OK, MessageBoxImage.Information);
-                        return new DocumentContentResult { ModifiedCode = aiCode }; // Replace entire document for "file" type
+                        return new DocumentContentResult { ModifiedCode = aiCode }; 
                     }
                 }
 
-                if (isFunction)
+                // SAFETY CHECK: Ensure activeDoc exists before trying to find functions in it
+                if (isFunction && activeDoc != null)
                 {
                     // For C# or VB functions, find the function by name (not the FullName)
                     var functions = CodeSelectionUtilities.GetFunctionsFromDocument(activeDoc);
@@ -99,7 +110,10 @@ namespace Integrated_AI.Utilities
                         {
                             // Remove comments (C# // or VB ' or REM) above the function definition, also remove header/footer
                             aiCode = StringUtil.RemoveHeaderFooterComments(aiCode);
-                            context.NewCodeStartIndex = startIndex;
+
+                            // SAFETY CHECK: Context might be null
+                            if (context != null) context.NewCodeStartIndex = startIndex;
+
                             return new DocumentContentResult { ModifiedCode = ReplaceCodeBlock(window, currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode, true) };
                         }
                     }
@@ -117,22 +131,20 @@ namespace Integrated_AI.Utilities
                     if (string.IsNullOrEmpty(newFilePath))
                     {
                         WebViewUtilities.Log("New file creation cancelled by user.");
-                        context.IsNewFile = true; // To prevent diff view from opening
+                        if (context != null) context.IsNewFile = true; 
                         return new DocumentContentResult { ModifiedCode = currentCode };
                     }
 
-                    // **THE KEY CHANGE**: Instead of creating the file here,
-                    // we package up the necessary information and return it.
-                    context.IsNewFile = true; // Still useful for the caller
+                    if (context != null) context.IsNewFile = true;
+
                     return new DocumentContentResult
                     {
                         IsNewFileCreationRequired = true,
                         NewFilePath = newFilePath,
                         NewFileContent = aiCode,
-                        ModifiedCode = currentCode // The original document's code remains unchanged
+                        ModifiedCode = currentCode 
                     };
                 }
-
 
                 // Snippets with no selected text or unmatched functions should be inserted at the cursor or appended here to avoid the fallback
                 if (isFunction || (chosenItem != null && chosenItem.Type == "snippet"))
@@ -149,7 +161,7 @@ namespace Integrated_AI.Utilities
             {
                 WebViewUtilities.Log($"Error in CreateDocumentContent: {ex.Message}");
                 ThemedMessageBox.Show(window, $"Error creating document content: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return new DocumentContentResult { ModifiedCode = currentCode }; // Return unchanged code if error occurs
+                return new DocumentContentResult { ModifiedCode = currentCode }; 
             }
         }
 
@@ -183,6 +195,16 @@ namespace Integrated_AI.Utilities
         {
             try
             {
+                // Check if the code being replaced ends with a newline. 
+                // We use this to decide whether to append a newline to the new code later, 
+                // ensuring we don't accidentally merge lines or add extra newlines.
+                string replacedText = "";
+                if (length > 0 && startIndex + length <= documentContent.Length)
+                {
+                    replacedText = documentContent.Substring(startIndex, length);
+                }
+                bool replacedEndsWithNewline = replacedText.EndsWith("\n") || replacedText.EndsWith("\r");
+
                 // Get the text of the line at startLine to determine base indentation
                 int baseIndentation = 0;
                 if (startLine > 0)
@@ -217,6 +239,12 @@ namespace Integrated_AI.Utilities
                 }
 
                 WebViewUtilities.Log($"Base indentation for replacement: {baseIndentation} spaces");
+
+                // Trim trailing newlines from newCode to prevent extra newlines (AI response often has them)
+                if (newCode != null)
+                {
+                    newCode = newCode.TrimEnd('\r', '\n');
+                }
 
                 // Split newCode into lines
                 string[] newCodeLines = newCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
@@ -263,6 +291,13 @@ namespace Integrated_AI.Utilities
                 }
                 string adjustedNewCode = string.Join(Environment.NewLine, newCodeLines);
 
+                // If the original text ended with a newline, append one to the new code to preserve structure.
+                // Since we trimmed newCode earlier, this prevents doubling it while avoiding merged lines.
+                if (replacedEndsWithNewline)
+                {
+                    adjustedNewCode += Environment.NewLine;
+                }
+
                 // Perform the replacement
                 return documentContent.Remove(startIndex, length).Insert(startIndex, adjustedNewCode);
             }
@@ -279,6 +314,14 @@ namespace Integrated_AI.Utilities
         {
             try
             {
+                // Remove trailing newlines from aiCode. 
+                // Since we are inserting into a list of lines, a trailing newline in the string creates 
+                // an empty string in the split array, which results in an unwanted blank line in the editor.
+                if (aiCode != null)
+                {
+                    aiCode = aiCode.TrimEnd('\r', '\n');
+                }
+
                 var lines = currentCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
 
                 if (activeDoc?.Selection is TextSelection selection)
@@ -300,10 +343,18 @@ namespace Integrated_AI.Utilities
                     // Ensure we don't try to insert outside the bounds of the list.
                     if (lineIndex >= 0 && lineIndex <= lines.Count)
                     {
+                        // If the line where the cursor is currently is empty or contains only whitespace,
+                        // remove it before inserting. This prevents the empty line from being pushed down
+                        // below the inserted code, which looks like an extra newline.
+                        if (lineIndex < lines.Count && string.IsNullOrWhiteSpace(lines[lineIndex]))
+                        {
+                            lines.RemoveAt(lineIndex);
+                        }
+
                         var aiCodeLines = aiCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
                         var indentedAiCodeLines = aiCodeLines.Select(line => indentPrefix + line);
 
-                        // Insert the new indented lines. This pushes the current line and subsequent lines down.
+                        // Insert the new indented lines. This pushes the subsequent lines down.
                         lines.InsertRange(lineIndex, indentedAiCodeLines);
 
                         return string.Join("\n", lines);

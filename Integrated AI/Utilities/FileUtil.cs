@@ -403,19 +403,36 @@ namespace Integrated_AI.Utilities
         public static Project FindProjectForActiveDocument(DTE2 dte)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+            Project project = null;
             try
             {
                 if (dte.ActiveDocument != null && dte.ActiveDocument.ProjectItem != null)
                 {
-                    return dte.ActiveDocument.ProjectItem.ContainingProject;
+                    project = dte.ActiveDocument.ProjectItem.ContainingProject;
                 }
             }
             catch (Exception)
             {
                 // ActiveDocument might not have a ProjectItem (e.g., a solution-level file).
-                // Fall through to return null.
             }
-            return null;
+
+            if (project == null)
+            {
+                try
+                {
+                    Array activeProjects = dte.ActiveSolutionProjects as Array;
+                    if (activeProjects != null && activeProjects.Length > 0)
+                    {
+                        project = activeProjects.GetValue(0) as Project;
+                    }
+                }
+                catch
+                {
+                    // Ignore
+                }
+            }
+
+            return project;
         }
 
     }
