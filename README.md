@@ -111,7 +111,7 @@ The "Replace with AI Code" commands are used to send highlighted or copied code 
 
 _![Replace Function with AI Code](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/replace%20function.gif)_
 
-If "Auto Code Replace" in the options is turned on, you don't even need to use menu commands! This only works with the artifact copy buttons. It works best with C# and VB code. For other file types, such as XAML, it will fallback to a full file replace or, if there is text selected in the code editor, a snippet replace.
+If "Auto Code Replace" in the options is turned on, you don't even need to use menu commands! This only works with the artifact copy buttons. It works best with C# and VB code, and can also work with diff AI responses in the format `<<<< Old code ==== New code >>>>` (a diff response isn't required but recommended for an accurate code replace. Some chat sites, such as AI Studio, sometimes respond like this on their own). For other file types, such as XAML, it will fallback to a full file replace or, if there is text selected in the code editor, a snippet replace.
 
 > Tip: Clicking the copy buttons will also prioritize highlighted text and use that rather than the full code block. This is mostly useful for Auto Code Replace if you don't want to use the full code block.
 
@@ -172,6 +172,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.3.5** Add diff block detection during auto code replace, fix AI Studio text inject and remove old placeholder buttons
 - **1.3.4** Fix xaml not injecting into AI chat sometimes, fix extra newline under snippet replacements, fix new file creation failing when a xaml file is active
 - **1.3.3** Fix navigation issues with message boxes causing crashes and increase timeout for slow internet connections
 - **1.3.2** Add more compact command layout with smart commands, fix selected text in code editor not having priority during auto code replace, move "Send Multiple Files to AI" and "Create New File with AI Code" commands to the Tools menu

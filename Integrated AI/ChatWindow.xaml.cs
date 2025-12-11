@@ -333,8 +333,6 @@ namespace Integrated_AI
         {
             if (showDiffButons)
             {
-                ToAIInfoButton.Visibility = Visibility.Collapsed;
-                ToVSInfoButton.Visibility = Visibility.Collapsed;
                 RestoreButton.Visibility = Visibility.Collapsed;
                 SaveBackupButton.Visibility = Visibility.Collapsed;
                 AcceptButton.Visibility = Visibility.Visible;
@@ -344,8 +342,6 @@ namespace Integrated_AI
 
             else
             {
-                ToAIInfoButton.Visibility = Visibility.Visible;
-                ToVSInfoButton.Visibility = Visibility.Visible;
                 RestoreButton.Visibility = Visibility.Visible;
                 SaveBackupButton.Visibility = Visibility.Visible;
                 AcceptButton.Visibility = Visibility.Collapsed;
@@ -657,17 +653,6 @@ namespace Integrated_AI
         private void DebugButton_Click(object sender, RoutedEventArgs e)
         {
             
-        }
-
-        private void ToAIButton_Click(object sender, RoutedEventArgs e)
-        {
-            PopupGuide.IsOpen = true;
-        }
-
-        private void GuideGotItButton_Click(object sender, RoutedEventArgs e)
-        {
-            // Close the popup
-            PopupGuide.IsOpen = false;
         }
 
         private async void RestoreButton_Click(object sender, RoutedEventArgs e)

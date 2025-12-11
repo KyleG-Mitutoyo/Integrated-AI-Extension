@@ -55,6 +55,18 @@ namespace Integrated_AI.Utilities
                     return result;
                 }
 
+                // --- NEW LOGIC START: Check for Diff Blocks (<<<< ==== >>>>) ---
+                // If the user hasn't explicitly chosen a type (like new file), check if the AI sent a specific diff block.
+                if (chosenItem == null && activeDoc != null)
+                {
+                    if (TryProcessDiffBlock(window, currentCode, aiCode, context, out string diffModifiedCode))
+                    {
+                        WebViewUtilities.Log("CreateDocumentContent: Detected and applied Diff Block (Conflict Markers).");
+                        return new DocumentContentResult { ModifiedCode = diffModifiedCode };
+                    }
+                }
+                // --- NEW LOGIC END ---
+
                 var (isFunction, functionName, isFullFile) = (false, string.Empty, false);
 
                 // --- SAFEGUARD HERE ---
@@ -163,6 +175,111 @@ namespace Integrated_AI.Utilities
                 ThemedMessageBox.Show(window, $"Error creating document content: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return new DocumentContentResult { ModifiedCode = currentCode }; 
             }
+        }
+
+        /// <summary>
+        /// Attempts to parse code in the format <<<< OLD ==== NEW >>>> and find the OLD code in the current document.
+        /// </summary>
+        private static bool TryProcessDiffBlock(System.Windows.Window window, string currentCode, string aiCode, DiffUtility.DiffContext context, out string modifiedCode)
+        {
+            modifiedCode = null;
+
+            // Basic check to see if the markers exist before doing expensive operations
+            if (string.IsNullOrEmpty(aiCode) || !aiCode.Contains("<<<<") || !aiCode.Contains("====") || !aiCode.Contains(">>>>"))
+            {
+                return false;
+            }
+
+            try
+            {
+                var lines = aiCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
+
+                // Find markers. We use StartsWith to allow for things like "<<<< filename.cs"
+                int startIdx = lines.FindIndex(l => l.TrimStart().StartsWith("<<<<"));
+                int midIdx = lines.FindIndex(l => l.TrimStart().StartsWith("===="));
+                int endIdx = lines.FindIndex(l => l.TrimStart().StartsWith(">>>>"));
+
+                // Validate structure: Start < Mid < End
+                if (startIdx == -1 || midIdx == -1 || endIdx == -1 || midIdx <= startIdx || endIdx <= midIdx)
+                {
+                    return false;
+                }
+
+                // Extract Old Code (between <<<< and ====)
+                var oldCodeLines = lines.GetRange(startIdx + 1, midIdx - startIdx - 1);
+                // Extract New Code (between ==== and >>>>)
+                var newCodeLines = lines.GetRange(midIdx + 1, endIdx - midIdx - 1);
+
+                string oldCode = string.Join(Environment.NewLine, oldCodeLines);
+                string newCode = string.Join(Environment.NewLine, newCodeLines);
+
+                // --- SEARCH LOGIC ---
+                // We need to find oldCode in currentCode. 
+                // Issue: Line endings might differ (AI uses \n, VS uses \r\n).
+
+                int codeIndex = currentCode.IndexOf(oldCode);
+
+                // If not found, try normalizing line endings to \r\n (common in VS) or \n 
+                // We assume currentCode usually has consistent endings, but let's try strict matching first.
+                if (codeIndex == -1)
+                {
+                    // Create a version of oldCode that strictly uses \r\n
+                    string oldCodeCRLF = string.Join("\r\n", oldCodeLines);
+                    codeIndex = currentCode.IndexOf(oldCodeCRLF);
+
+                    if (codeIndex != -1) oldCode = oldCodeCRLF;
+                }
+
+                // If still not found, try just \n (less common in VS files on Windows, but possible)
+                if (codeIndex == -1)
+                {
+                    string oldCodeLF = string.Join("\n", oldCodeLines);
+                    codeIndex = currentCode.IndexOf(oldCodeLF);
+
+                    if (codeIndex != -1) oldCode = oldCodeLF;
+                }
+
+                // If still not found, try trimming the search block (often AI adds/removes surrounding whitespace)
+                if (codeIndex == -1)
+                {
+                    string trimmedOld = oldCode.Trim();
+                    if (!string.IsNullOrEmpty(trimmedOld))
+                    {
+                        codeIndex = currentCode.IndexOf(trimmedOld);
+                        if (codeIndex != -1) oldCode = trimmedOld;
+                    }
+                }
+
+                if (codeIndex != -1)
+                {
+                    // We found the block!
+
+                    // We need the line number for indentation calculation in ReplaceCodeBlock.
+                    // Count newlines up to codeIndex.
+                    int startLine = 1; // Visual Studio lines are 1-based
+                    for (int i = 0; i < codeIndex; i++)
+                    {
+                        if (currentCode[i] == '\n') startLine++;
+                    }
+
+                    if (context != null) context.NewCodeStartIndex = codeIndex;
+
+                    // Use existing logic to replace and fix indentation
+                    modifiedCode = ReplaceCodeBlock(window, currentCode, codeIndex, startLine, oldCode.Length, newCode, false);
+                    return true;
+                }
+                else
+                {
+                    WebViewUtilities.Log("TryProcessDiffBlock: Markers found, but 'Original Code' block could not be located in the current document.");
+                    ThemedMessageBox.Show(window, "The AI response included a diff block, but the original code block could not be found in the current document.", "Diff Block Not Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log($"TryProcessDiffBlock Error: {ex.Message}");
+            }
+
+            return false;
         }
 
         private static DocumentContentResult ReplaceSelectedText(Document activeDoc, DiffUtility.DiffContext context, System.Windows.Window window, string currentCode, string aiCode)

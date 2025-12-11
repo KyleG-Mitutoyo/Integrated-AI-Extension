@@ -24,39 +24,6 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
             <ComboBox x:Name="UrlSelector" MaxWidth="200" MinWidth="100" Margin="10,5,5,5" SelectionChanged="UrlSelector_SelectionChanged"
                       DisplayMemberPath="DisplayName" SelectedValuePath="Url" />
-            <Button x:Name="ToAIInfoButton" Content="Function -> AI" Click="ToAIButton_Click" Margin="5,5,5,5"/>
-            <Button x:Name="ToVSInfoButton" Content="Function -> VS" Click="ToAIButton_Click" Margin="5,5,5,5"/>
-            <Popup x:Name="PopupGuide" 
-                   PlacementTarget="{Binding ElementName=ToAIInfoButton}"
-                   VerticalOffset="5"
-                   Placement="Bottom"
-                   AllowsTransparency="True" 
-                   StaysOpen="False" 
-                   Width="800">
-                <Border Background="{DynamicResource RegionBrush}" CornerRadius="4" Margin="16" Effect="{StaticResource EffectShadow2}">
-                    <StackPanel Margin="15">
-                        <TextBlock Text="'-> AI' and '-> VS' Commands Have Moved!" 
-                                   FontSize="16" FontWeight="Bold"
-                                   HorizontalAlignment="Center" Margin="0,0,0,10"
-                                   Foreground="{DynamicResource PrimaryTextBrush}"/>
-
-                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,10" 
-                                   Text="To send code to the AI chat or VS, simply right-click in your code editor." HorizontalAlignment="Center"
-                                   Foreground="{DynamicResource PrimaryTextBrush}"/>
-
-                        <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="3" Padding="5">
-                            <Image Source="pack://application:,,,/Integrated AI;component/Resources/function-from-menu.png" Margin="2"/>
-                        </Border>
-
-                        <Button Content="Got It!" 
-                                HorizontalAlignment="Center" 
-                                Margin="0,15,0,0"
-                                Width="100"
-                                Click="GuideGotItButton_Click"
-                                Style="{StaticResource ButtonPrimary}"/>
-                    </StackPanel>
-                </Border>
-            </Popup>
 
             <Button x:Name="AcceptButton" Content="Accept" Style="{StaticResource ButtonSuccess}" Click="AcceptButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="5,0,0,0" Visibility="Collapsed"/>
             <Button x:Name="ChooseButton" Content="Replace different code" Click="ChooseButton_Click" Style="{StaticResource ButtonWarning}" hc:BorderElement.CornerRadius="0" Margin="0" Visibility="Collapsed"

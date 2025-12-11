@@ -74,6 +74,7 @@ namespace Integrated_AI
             {
                 "https://aistudio.google.com", new List<string>
                 {
+                    "textarea[aria-label=\"Enter a prompt\"]",
                     "textarea[aria-label=\"Start typing a prompt\"]",
                     "textarea[aria-label=\"Type something or tab to choose an example prompt\"]"
                 }
