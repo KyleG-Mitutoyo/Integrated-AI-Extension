@@ -84,6 +84,10 @@ namespace Integrated_AI.Utilities
                     CopyProjectItems(project.ProjectItems, solutionUri, backupPath);
                 }
 
+                // Cleanup old backups if setting is enabled
+                string solutionBackupDir = Path.Combine(backupRootPath, uniqueSolutionFolder);
+                CleanupOldBackups(solutionBackupDir);
+
                 return backupPath;
             }
             catch (Exception ex)
@@ -108,6 +112,44 @@ namespace Integrated_AI.Utilities
                 WebViewUtilities.Log($"Backup failed: {ex.Message}");
                 ThemedMessageBox.Show(window, $"Backup failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return null;
+            }
+        }
+
+        // Cleanup old backups, keeping only the most recent 50
+        private static void CleanupOldBackups(string solutionBackupDir)
+        {
+            // Only proceed if the setting is enabled
+            if (!Properties.Settings.Default.deleteOldRestores)
+                return;
+
+            try
+            {
+                DirectoryInfo dir = new DirectoryInfo(solutionBackupDir);
+                if (!dir.Exists) return;
+
+                // Sort directories by Name (yyyy-MM-dd_HH-mm-ss) to get chronological order
+                var backups = dir.GetDirectories().OrderBy(d => d.Name).ToList();
+
+                if (backups.Count > 50)
+                {
+                    int toDelete = backups.Count - 50;
+                    for (int i = 0; i < toDelete; i++)
+                    {
+                        try
+                        {
+                            backups[i].Delete(true);
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log but continue trying to delete others
+                            WebViewUtilities.Log($"Failed to delete old backup '{backups[i].Name}': {ex.Message}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WebViewUtilities.Log($"Error cleaning up old backups: {ex.Message}");
             }
         }
 

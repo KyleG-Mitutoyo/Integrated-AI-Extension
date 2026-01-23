@@ -251,10 +251,6 @@ namespace Integrated_AI
                             filteredList.Add(item);
                         }
                     }
-                    else if (item.Type == "new_file")
-                    {
-                        filteredList.Add(item);
-                    }
                     // Intentionally skip headers for this specific filter view.
                 }
 

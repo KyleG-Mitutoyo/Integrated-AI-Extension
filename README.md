@@ -145,6 +145,7 @@ You can configure the extension's behavior by clicking the gear icon at the top 
 - **Theme**: Set all windows to light or dark mode.
 - **Auto Code Replace**: Toggle automatic code analysis for artifact `Copy Code` button clicks during code replacement/diff view creation.
 - **Create Restore on Accept**: Toggle creation of restore point every time a diff is accepted.
+- **Auto Delete Old Backup Files**: If enabled, this will only keep the most recent 50 backups.
 - **Reset URLs**: URLs to chat pages are saved to make switching chats easy. The last-used URL is also saved when closing VS. This button can be used in case a chat page is incorrect.
 - **Smart Commands**: When enabled, this simplifies the right-click context menu to just two commands: `Send to AI` and `Replace with AI Code`. The extension will intelligently determine whether to act on a snippet, function, or the entire file based on your current selection or cursor position. 
 - **Show Log Window**: Used for error reporting and debugging.
@@ -172,6 +173,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.3.6** Add backup auto-delete option, remove delete restore button (since this can be done with `Open Backup Folder`), remove new file creation from choose code window
 - **1.3.5** Add diff block detection during auto code replace, fix AI Studio text inject and remove old placeholder buttons
 - **1.3.4** Fix xaml not injecting into AI chat sometimes, fix extra newline under snippet replacements, fix new file creation failing when a xaml file is active
 - **1.3.3** Fix navigation issues with message boxes causing crashes and increase timeout for slow internet connections

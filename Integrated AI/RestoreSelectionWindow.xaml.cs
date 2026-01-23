@@ -218,47 +218,6 @@ namespace Integrated_AI
             }
         }
 
-        private void DeleteSelectedButton_Click(object sender, RoutedEventArgs e)
-        {
-            var selectedItems = BackupListBox.SelectedItems.Cast<BackupItem>().ToList();
-            if (selectedItems.Count == 0)
-            {
-                ThemedMessageBox.Show(this, "No backups selected to delete.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            // If more than 200 items are selected, inform the user and take the first 200.
-            if (selectedItems.Count > 200)
-            {
-                ThemedMessageBox.Show(this, "You have selected more than the maximum of 200 backups. Only the first 200 will be processed for deletion.", "Limit Exceeded", MessageBoxButton.OK, MessageBoxImage.Information);
-                selectedItems = selectedItems.Take(200).ToList();
-            }
-
-            var result = ThemedMessageBox.Show(this, $"Are you sure you want to delete {selectedItems.Count} selected backup(s)? This action cannot be undone.",
-                "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                try
-                {
-                    foreach (var item in selectedItems)
-                    {
-                        if (Directory.Exists(item.FolderPath))
-                        {
-                            Directory.Delete(item.FolderPath, true);
-                        }
-                    }
-                    PopulateBackupList(); // Refresh list after deletion
-                    AICodeTextBox.Text = string.Empty; // Clear the text box as the selected item is gone
-                }
-                catch (Exception ex)
-                {
-                    WebViewUtilities.Log($"RestoreSelectionWindow.DeleteSelectedButton_Click: Exception - {ex.Message}, StackTrace: {ex.StackTrace}");
-                    ThemedMessageBox.Show(this, $"Error deleting backups: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-        }
-
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             DialogResult = false;

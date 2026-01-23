@@ -190,10 +190,6 @@ namespace Integrated_AI
             #endregion
 
             #region Files List Population
-            files.Add(new ChooseCodeWindow.ReplacementItem
-            {
-                DisplayName = "New File", ListBoxDisplayName = "New File", FullName = "Create a new file in the project", Type = "new_file"
-            });
 
             files.Add(new ChooseCodeWindow.ReplacementItem { ListBoxDisplayName = "----- Project Files -----", FullName = "Files in the solution" });
             

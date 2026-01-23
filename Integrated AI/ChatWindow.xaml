@@ -66,6 +66,11 @@
                             <ToggleButton x:Name="AutoRestore" Margin="0,0,10,0" ToolTip="Toggle creation of restore point every time a diff is accepted" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=autoRestore, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
+                        <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
+                            <TextBlock Text="Auto Delete Old Restore Files" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
+                            <ToggleButton x:Name="AutoDeleteRestores" Margin="0,0,10,0" ToolTip="Toggle auto deletion of old restore files; keeps only 50 most recent restores" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=deleteOldRestores, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                        </DockPanel>
+
                         <!-- Smart commands -->
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
                             <TextBlock Text="Smart commands" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
