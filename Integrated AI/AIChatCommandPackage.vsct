@@ -36,6 +36,12 @@
 	  <Group guid="guidAIChatCommandPackageCmdSet" id="XamlReplaceWithAIGroup" priority="0x0100">
 	  	<Parent guid="guidXamlEditorContextMenu" id="IDMXamlEditorContextMenu"/>
 	  </Group>
+      
+      <!-- NEW: Group for Solution Explorer Context Menu -->
+      <Group guid="guidAIChatCommandPackageCmdSet" id="SolutionExplorerGroup" priority="0x0100">
+        <!-- We parent this here to ItemNode (files). Additional parents (folders, projects) are handled in CommandPlacements. -->
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_ITEMNODE"/>
+      </Group>
     </Groups>
     
     <Menus>
@@ -48,8 +54,6 @@
     </Menus>
 
     <Buttons>
-      <!-- All your button definitions remain EXACTLY the same. -->
-      <!-- They are still parented to their original groups. -->
       
       <Button guid="guidAIChatCommandPackageCmdSet" id="AIChatCommandId" priority="0x0100" type="Button">
         <Parent guid="guidAIChatCommandPackageCmdSet" id="IntegratedAISubMenuGroup" />
@@ -144,8 +148,10 @@
 	  		<ButtonText>Replace File with AI Code</ButtonText>
 	  	</Strings>
 	  </Button>
+      
+      <!-- Moved Parent to SolutionExplorerGroup -->
 	  <Button guid="guidAIChatCommandPackageCmdSet" id="cmdidCreateNewFileWithAI" priority="0x0108" type="Button">
-	  	<Parent guid="guidAIChatCommandPackageCmdSet" id="IntegratedAISubMenuGroup"/>
+	  	<Parent guid="guidAIChatCommandPackageCmdSet" id="SolutionExplorerGroup"/>
 	  	<Icon guid="guidImages" id="bmpPic1" />
 	  	<CommandFlag>DynamicVisibility</CommandFlag>
 	  	<Strings>
@@ -159,7 +165,6 @@
     </Bitmaps>
   </Commands>
 
-  <!-- STEP 3: Use CommandPlacements to place the existing buttons into the new XAML group -->
   <CommandPlacements>
     <CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="SmartSendToAI" priority="0x0100">
       <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlSendToAIGroup" />
@@ -184,11 +189,25 @@
 	 <Parent guid="guidAIChatCommandPackageCmdSet" id="XamlReplaceWithAIGroup" />
 	</CommandPlacement>
 
+    <!-- 1. IDM_VS_CTXT_ITEMNODE (Right click on file) -->
+    <!-- Removed because this group is already parented to IDM_VS_CTXT_ITEMNODE in the Group definition above -->
+    
+    <!-- 2. IDM_VS_CTXT_FOLDERNODE (Right click on folder) -->
+    <CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="SolutionExplorerGroup" priority="0x0100">
+      <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_FOLDERNODE"/>
+    </CommandPlacement>
+    <!-- 3. IDM_VS_CTXT_PROJNODE (Right click on project) -->
+    <CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="SolutionExplorerGroup" priority="0x0100">
+      <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_PROJNODE"/>
+    </CommandPlacement>
+    <!-- 4. IDM_VS_CTXT_SOLNNODE (Right click on Solution) -->
+    <CommandPlacement guid="guidAIChatCommandPackageCmdSet" id="SolutionExplorerGroup" priority="0x0100">
+      <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_SOLNNODE"/>
+    </CommandPlacement>
+
   </CommandPlacements>
 
   <Symbols>
-    <!-- STEP 1: Manually define the GUID/ID for the XAML Editor Context Menu -->
-    <!-- This was discovered using VSIP Logging, as noted in the XamlStyler file -->
     <GuidSymbol name="guidXamlEditorContextMenu" value="{4C87B692-1202-46AA-B64C-EF01FAEC53DA}">
       <IDSymbol name="IDMXamlEditorContextMenu" value="0x0103" />
     </GuidSymbol>
@@ -208,6 +227,9 @@
       <IDSymbol name="IntegratedAIMenu" value="0x2000" />
       <IDSymbol name="IntegratedAISubMenuGroup" value="0x2001" />
       
+      <!-- New Symbol for Solution Explorer Group -->
+      <IDSymbol name="SolutionExplorerGroup" value="0x1026" />
+
       <IDSymbol name="AIChatCommandId" value="0x0100" />
       <IDSymbol name="cmdidSendErrorToAI" value="0x0105" />
 	  <IDSymbol name="SendSnippetToAI" value="0x0110" />

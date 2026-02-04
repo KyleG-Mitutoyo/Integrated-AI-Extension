@@ -25,11 +25,13 @@
             <ComboBox x:Name="UrlSelector" MaxWidth="200" MinWidth="100" Margin="10,5,5,5" SelectionChanged="UrlSelector_SelectionChanged"
                       DisplayMemberPath="DisplayName" SelectedValuePath="Url" />
 
+            <!-- Diff Buttons -->
             <Button x:Name="AcceptButton" Content="Accept" Style="{StaticResource ButtonSuccess}" Click="AcceptButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="5,0,0,0" Visibility="Collapsed"/>
             <Button x:Name="ChooseButton" Content="Replace different code" Click="ChooseButton_Click" Style="{StaticResource ButtonWarning}" hc:BorderElement.CornerRadius="0" Margin="0" Visibility="Collapsed"
                     ToolTip="Choose a different code block to replace it with the AI code"
                     ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
             <Button x:Name="DeclineButton" Content="Decline" Style="{StaticResource ButtonDanger}" Click="DeclineButton_Click" hc:BorderElement.CornerRadius="0,4,4,0" Margin="0,0,5,0" Visibility="Collapsed"/>
+            
             <Button x:Name="RestoreButton" Content="Restore" Click="RestoreButton_Click" Margin="5,5,0,5" hc:BorderElement.CornerRadius="4,0,0,4"
                     ToolTip="Select or copy code in the chat to go to the backup that was made right before the code was applied"
                     ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000"/>
@@ -67,8 +69,8 @@
                         </DockPanel>
 
                         <DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
-                            <TextBlock Text="Auto Delete Old Restore Files" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
-                            <ToggleButton x:Name="AutoDeleteRestores" Margin="0,0,10,0" ToolTip="Toggle auto deletion of old restore files; keeps only 50 most recent restores" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=deleteOldRestores, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
+                            <TextBlock Text="Auto Delete Old Backup Files" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
+                            <ToggleButton x:Name="AutoDeleteRestores" Margin="0,0,10,0" ToolTip="Toggle auto deletion of old backup files; keeps only 50 most recent backups" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=deleteOldRestores, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
 
                         <!-- Smart commands -->
@@ -88,23 +90,28 @@
                             <TextBlock Text="Reset saved AI chat page URLs" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
                             <Button x:Name="ResetUrls" Content="Reset" Padding="5,0,5,0" VerticalAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,10,0" Click="Reseturls_Click" ToolTip="Reset saved URLs that were saved when switching chats or closing VS" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
                         </DockPanel>
-
-                        <!-- Show Log Messages -->
-                        <!--<DockPanel Margin="0,0,0,10" HorizontalAlignment="Stretch" LastChildFill="True">
-                            <TextBlock Text="Log in status bar" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="10,0,0,0" DockPanel.Dock="Left"/>
-                            <ToggleButton x:Name="ShowStatusLog" Margin="0,0,10,0" ToolTip="Show log messages in the Visual Studio status bar at the bottom" IsChecked="{Binding Source={x:Static properties:Settings.Default}, Path=showStatusLog, Mode=TwoWay}" Style="{StaticResource ToggleButtonSwitch}" Height="20" ToolTipService.Placement="Bottom" ToolTipService.InitialShowDelay="1000" HorizontalAlignment="Right"/>
-                        </DockPanel>-->
                     </StackPanel>
                 </Border>
             </Popup>
-            
-            
-            
             
             <Button Click="DebugButton_Click" BorderThickness="0" BorderBrush="{StaticResource BorderBrush}" hc:BorderElement.CornerRadius="15" Width="10" Height="10" hc:IconElement.Geometry="{StaticResource InfoGeometry}" Margin="5" Padding="0" Visibility="Collapsed"/>
             <Button x:Name="TestWebMessageButton" Content="Test Msg" Click="TestWebMessageButton_Click" Margin="2" Visibility="Collapsed"/>
             
         </StackPanel>
+        
+        <!-- NEW: File Creation Bar (Replaces Row 1 or sits on top) -->
+        <Border x:Name="NewFileBar" Grid.Row="1" Background="{DynamicResource MainContentBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,1" Visibility="Collapsed" Padding="5">
+            <StackPanel Orientation="Vertical">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <TextBlock Text="New File Name:" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="{DynamicResource PrimaryTextBrush}" FontWeight="Bold"/>
+                    <TextBox x:Name="NewFileNameBox" Width="200" hc:InfoElement.Placeholder="MyClass.cs" VerticalAlignment="Center"/>
+                    <Button x:Name="ConfirmCreateFileButton" Content="Confirm" Style="{StaticResource ButtonPrimary}" Click="ConfirmCreateFileButton_Click" Margin="5,0,0,0"/>
+                    <Button x:Name="CancelCreateFileButton" Content="Cancel" Style="{StaticResource ButtonDefault}" Click="CancelCreateFileButton_Click" Margin="5,0,0,0"/>
+                </StackPanel>
+                <TextBlock Text="Please copy or select AI code and choose a filename for the new file." HorizontalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Margin="5"/>
+            </StackPanel>
+        </Border>
+
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">
             <Button x:Name="UseRestoreButton" Content="Restore this backup" Style="{StaticResource ButtonPrimary}" Click="UseRestoreButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="10,0,0,5" Visibility="Collapsed"/>
             <Button x:Name="CloseDiffsButton" Content="Close all diff views" Style="{StaticResource ButtonDanger}" Click="CloseDiffsButton_Click" hc:BorderElement.CornerRadius="0,4,4,0" Margin="0,0,0,5" Visibility="Collapsed"/>

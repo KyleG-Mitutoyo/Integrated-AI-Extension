@@ -163,7 +163,9 @@ namespace Integrated_AI.Commands
                 {
                     // Step 2: Get AI code from the window's public API.
                     string aiCode = await chatWindow.GetAiCodeAsync();
-                    if (string.IsNullOrEmpty(aiCode))
+
+                    // No need to check for null/empty on new_file since code can be provided later.
+                    if (string.IsNullOrEmpty(aiCode) && applyType != "new_file")
                     {
                         chatWindow.ShowThemedMessageBox("No code was found highlighted in the AI chat or in the clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
                         return;

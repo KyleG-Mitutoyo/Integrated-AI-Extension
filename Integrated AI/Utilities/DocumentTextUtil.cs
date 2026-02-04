@@ -16,7 +16,9 @@
 
 using EnvDTE;
 using EnvDTE80;
+using Integrated_AI.Commands;
 using Integrated_AI.Utilities;
+using Microsoft.VisualStudio.Shell.Interop;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -28,23 +30,16 @@ using System.Windows;
 
 namespace Integrated_AI.Utilities
 {
-    public class DocumentContentResult
-    {
-        public string ModifiedCode { get; set; }
-        public bool IsNewFileCreationRequired { get; set; } = false;
-        public string NewFilePath { get; set; }
-        public string NewFileContent { get; set; }
-    }
-
     public static class DocumentTextUtil
     {
-        public static DocumentContentResult CreateDocumentContent(DTE2 dte, System.Windows.Window window, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
+        public static string CreateDocumentContent(DTE2 dte, System.Windows.Window window, string currentCode, string aiCode, Document activeDoc, ChooseCodeWindow.ReplacementItem chosenItem = null, DiffUtility.DiffContext context = null)
         {
             try
             {
+                string result = null;
+
                 // Prioritize replacing selected text if any, but not for certain chosenItem types
-                DocumentContentResult result = null;
-                if (chosenItem?.Type != "new_file" && chosenItem?.Type != "file" && chosenItem?.Type != "opened_file")
+                if (chosenItem?.Type != "file" && chosenItem?.Type != "opened_file")
                 {
                     // Result might be null after this so return it later
                     result = ReplaceSelectedText(activeDoc, context, window, currentCode, aiCode);
@@ -62,7 +57,7 @@ namespace Integrated_AI.Utilities
                     if (TryProcessDiffBlock(window, currentCode, aiCode, context, out string diffModifiedCode))
                     {
                         WebViewUtilities.Log("CreateDocumentContent: Detected and applied Diff Block (Conflict Markers).");
-                        return new DocumentContentResult { ModifiedCode = diffModifiedCode };
+                        return diffModifiedCode;
                     }
                 }
                 // --- NEW LOGIC END ---
@@ -92,16 +87,16 @@ namespace Integrated_AI.Utilities
                 else
                 {
                     isFunction = chosenItem?.Type == "function";
-                    isFullFile = chosenItem?.Type == "file" || chosenItem?.Type == "new_file" || chosenItem?.Type == "opened_file";
+                    isFullFile = chosenItem?.Type == "file" || chosenItem?.Type == "opened_file";
                     functionName = chosenItem?.DisplayName ?? string.Empty;
                 }
 
-                // Only return the AI code if it's a full file that isn't a new file
+                // Only return the AI code if it's a full file
                 if (isFullFile)
                 {
-                    if (chosenItem == null || chosenItem.Type != "new_file")
+                    if (chosenItem == null)
                     {
-                        return new DocumentContentResult { ModifiedCode = aiCode }; 
+                        return aiCode; 
                     }
                 }
 
@@ -126,7 +121,7 @@ namespace Integrated_AI.Utilities
                             // SAFETY CHECK: Context might be null
                             if (context != null) context.NewCodeStartIndex = startIndex;
 
-                            return new DocumentContentResult { ModifiedCode = ReplaceCodeBlock(window, currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode, true) };
+                            return ReplaceCodeBlock(window, currentCode, startIndex, startLine, targetFunction.FullCode.Length, aiCode, true);
                         }
                     }
                     else
@@ -135,45 +130,22 @@ namespace Integrated_AI.Utilities
                     }
                 }
 
-                // Handle new file cases
-                if (chosenItem != null && chosenItem.Type == "new_file")
-                {
-                    // Prompt for the file path on the UI thread. This is quick.
-                    string newFilePath = FileUtil.PromptForNewFilePath(dte, isVB ? "vb" : "cs");
-                    if (string.IsNullOrEmpty(newFilePath))
-                    {
-                        WebViewUtilities.Log("New file creation cancelled by user.");
-                        if (context != null) context.IsNewFile = true; 
-                        return new DocumentContentResult { ModifiedCode = currentCode };
-                    }
-
-                    if (context != null) context.IsNewFile = true;
-
-                    return new DocumentContentResult
-                    {
-                        IsNewFileCreationRequired = true,
-                        NewFilePath = newFilePath,
-                        NewFileContent = aiCode,
-                        ModifiedCode = currentCode 
-                    };
-                }
-
                 // Snippets with no selected text or unmatched functions should be inserted at the cursor or appended here to avoid the fallback
                 if (isFunction || (chosenItem != null && chosenItem.Type == "snippet"))
                 {
                     // For snippet insertions, insert at cursor or append
                     WebViewUtilities.Log("Inserting AI code at cursor position or appending to document.");
-                    return new DocumentContentResult { ModifiedCode = InsertAtCursorOrAppend(window, currentCode, aiCode, activeDoc) };
+                    return InsertAtCursorOrAppend(window, currentCode, aiCode, activeDoc);
                 }
 
                 // Fallback: Replace all code in the document with the new AI code
-                return new DocumentContentResult { ModifiedCode = aiCode };
+                return aiCode;
             }
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error in CreateDocumentContent: {ex.Message}");
                 ThemedMessageBox.Show(window, $"Error creating document content: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return new DocumentContentResult { ModifiedCode = currentCode }; 
+                return currentCode; 
             }
         }
 
@@ -282,7 +254,7 @@ namespace Integrated_AI.Utilities
             return false;
         }
 
-        private static DocumentContentResult ReplaceSelectedText(Document activeDoc, DiffUtility.DiffContext context, System.Windows.Window window, string currentCode, string aiCode)
+        private static string ReplaceSelectedText(Document activeDoc, DiffUtility.DiffContext context, System.Windows.Window window, string currentCode, string aiCode)
         {
             var selection = activeDoc.Selection as TextSelection;
             if (selection != null && !selection.IsEmpty) // Check if text is highlighted
@@ -301,7 +273,7 @@ namespace Integrated_AI.Utilities
 
                     context.NewCodeStartIndex = startIndex;
 
-                    return new DocumentContentResult { ModifiedCode = ReplaceCodeBlock(window, currentCode, startIndex, startLine, length, aiCode, true) }; ;
+                    return ReplaceCodeBlock(window, currentCode, startIndex, startLine, length, aiCode, true);
                 }
             }
 

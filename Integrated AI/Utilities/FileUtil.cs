@@ -435,5 +435,54 @@ namespace Integrated_AI.Utilities
             return project;
         }
 
+        public static string GetSelectedDirectoryFromSolutionExplorer(DTE2 Dte)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            var selectedItems = Dte.SelectedItems;
+
+            if (selectedItems.Count > 0)
+            {
+                var item = selectedItems.Item(1);
+
+                // Case A: A File or Folder (ProjectItem)
+                if (item.ProjectItem != null)
+                {
+                    string fullPath = null;
+                    try
+                    {
+                        // FileNames[1] usually returns the full path
+                        fullPath = item.ProjectItem.FileNames[1];
+                    }
+                    catch { return null; }
+
+                    if (string.IsNullOrEmpty(fullPath)) return null;
+
+                    // Return the full path regardless of whether it is a file or a folder.
+                    // The calling code handles parsing the directory if needed.
+                    return fullPath;
+                }
+                // Case B: A Project
+                else if (item.Project != null)
+                {
+                    string projectPath = item.Project.FullName;
+                    if (!string.IsNullOrEmpty(projectPath))
+                    {
+                        // For projects, we usually want the directory containing the project file
+                        return System.IO.Path.GetDirectoryName(projectPath);
+                    }
+                }
+                // Case C: The Solution
+                else if (Dte.Solution != null && item.Name == Dte.Solution.Properties.Item("Name").Value.ToString())
+                {
+                    // For solutions, we usually want the directory containing the solution file
+                    string solutionPath = Dte.Solution.FullName;
+                    if (!string.IsNullOrEmpty(solutionPath))
+                    {
+                        return System.IO.Path.GetDirectoryName(solutionPath);
+                    }
+                }
+            }
+            return null;
+        }
     }
 }

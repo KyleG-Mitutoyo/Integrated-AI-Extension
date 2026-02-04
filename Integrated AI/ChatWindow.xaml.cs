@@ -19,6 +19,7 @@ using EnvDTE80;
 using HandyControl.Controls;
 using HandyControl.Themes;
 using HandyControl.Tools.Extension;
+using Integrated_AI.Commands;
 using Integrated_AI.Properties;
 using Integrated_AI.Utilities;
 using Microsoft.VisualStudio.PlatformUI;
@@ -27,16 +28,17 @@ using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.Web.WebView2.Core;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Runtime.Remoting.Contexts;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Configuration;
 using System.Windows.Documents;
 using System.Windows.Forms.VisualStyles;
 using System.Windows.Input;
@@ -46,9 +48,8 @@ using static Integrated_AI.RestoreSelectionWindow;
 using static Integrated_AI.Utilities.DiffUtility;
 using static Integrated_AI.WebViewUtilities;
 using Configuration = System.Configuration;
-using Window = System.Windows.Window;
 using HcMessageBox = HandyControl.Controls.MessageBox;
-using System.Threading;
+using Window = System.Windows.Window;
 
 
 namespace Integrated_AI
@@ -89,6 +90,8 @@ namespace Integrated_AI
 
         private CancellationTokenSource _navigationCts;
 
+        // Field used for New File creation state
+        private string _targetCreateFileFolder;
 
         public ChatWindow()
         {
@@ -177,25 +180,63 @@ namespace Integrated_AI
             {
                 selectedItem = new ChooseCodeWindow.ReplacementItem { Type = pasteType, DisplayName = functionName };
             }
-            
-            // Create a local context for the operation. Do not assign to the member variable until a diff is actually opened.
-            var newDiffContext = new DiffUtility.DiffContext { };
 
-            var result = DocumentTextUtil.CreateDocumentContent(_dte, Window.GetWindow(this), currentCode, aiCode, activeDocument, selectedItem, newDiffContext);
-
-            if (result.IsNewFileCreationRequired)
+            if (pasteType == "new_file")
             {
-                // User chose to create a new file. Await its creation.
-                await FileUtil.CreateNewFileInSolutionAsync(ThreadHelper.JoinableTaskFactory, _dte, result.NewFilePath, result.NewFileContent);
-                
-                // Since a new file was created and no diff view is open, ensure the UI reflects this by hiding the diff buttons.
-                UpdateButtonsForDiffView(false);
+                // 1. Get the path from Solution Explorer (Modified utility now returns full path for files)
+                string selectionPath = FileUtil.GetSelectedDirectoryFromSolutionExplorer(_dte);
+                string filenameToPreFill = null;
+
+                // 2. Analyze the selection to determine folder vs file
+                if (!string.IsNullOrEmpty(selectionPath))
+                {
+                    if (File.Exists(selectionPath))
+                    {
+                        // User selected a FILE. 
+                        // Target folder is the file's parent directory.
+                        // Pre-fill the text box with the file's name.
+                        _targetCreateFileFolder = Path.GetDirectoryName(selectionPath);
+                        filenameToPreFill = Path.GetFileName(selectionPath);
+                    }
+                    else
+                    {
+                        // User selected a FOLDER (or Project/Solution which returns a dir path).
+                        // Target folder is the selection itself.
+                        // No pre-fill.
+                        _targetCreateFileFolder = selectionPath;
+                    }
+                }
+
+                // 3. Fallback if nothing was selected in Solution Explorer
+                if (string.IsNullOrEmpty(_targetCreateFileFolder))
+                {
+                    if (_dte.ActiveDocument != null)
+                    {
+                        _targetCreateFileFolder = System.IO.Path.GetDirectoryName(_dte.ActiveDocument.FullName);
+                    }
+                    else
+                    {
+                        ShowThemedMessageBox("Could not determine where to create the file. Please select a folder or file in Solution Explorer.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+                }
+
+                // Show the UI to ask for the filename, passing the pre-fill name if it exists
+                PromptForNewFile(filenameToPreFill);
+
+                // Exit the function. The actual file creation will happen in ConfirmCreateFileButton_Click.
+                return;
             }
             else
             {
+                // Create a local context for the operation. Do not assign to the member variable until a diff is actually opened.
+                var newDiffContext = new DiffUtility.DiffContext { };
+
+                var result = DocumentTextUtil.CreateDocumentContent(_dte, Window.GetWindow(this), currentCode, aiCode, activeDocument, selectedItem, newDiffContext);
+
                 // Attempt to open a diff view for the code replacement.
-                _diffContext = await DiffUtility.OpenDiffViewAsync(Window.GetWindow(this), activeDocument, currentCode, result.ModifiedCode, aiCode, newDiffContext, false, true, cancellationToken);
-                
+                _diffContext = await DiffUtility.OpenDiffViewAsync(Window.GetWindow(this), activeDocument, currentCode, result, aiCode, newDiffContext, false, true, cancellationToken);
+
                 // Update the UI based on whether the diff view was successfully created.
                 if (_diffContext != null)
                 {
@@ -209,6 +250,30 @@ namespace Integrated_AI
                     UpdateButtonsForDiffView(false);
                 }
             }
+        }
+
+        public void PromptForNewFile(string selectedFile = null)
+        {
+            // Reset UI
+            NewFileNameBox.Text = selectedFile ?? string.Empty;
+
+            // Hide diff buttons if open to avoid clutter
+            UpdateButtonsForDiffView(false);
+            CloseDiffsButton.Visibility = Visibility.Collapsed;
+            UseRestoreButton.Visibility = Visibility.Collapsed;
+
+            // Show the bar
+            NewFileBar.Visibility = Visibility.Visible;
+            NewFileNameBox.Focus();
+
+            // Select all text so the user can easily overwrite it if they want a new name
+            if (!string.IsNullOrEmpty(NewFileNameBox.Text))
+            {
+                NewFileNameBox.SelectAll();
+            }
+
+            // Make sure the AI chat window is open after everything is set up
+            GeneralCommands.Instance.ExecuteOpenChatWindow(null, null);
         }
 
         #endregion
@@ -856,6 +921,66 @@ namespace Integrated_AI
             }
         }
 
+        private void CancelCreateFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            NewFileBar.Visibility = Visibility.Collapsed;
+        }
+        
+        private async void ConfirmCreateFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            string fileName = NewFileNameBox.Text.Trim();
+
+            // Get the AI code to populate the new file
+            string aiCode = await GetAiCodeAsync();
+            if (string.IsNullOrEmpty(aiCode))
+            {
+                ShowThemedMessageBox("No code was found highlighted in the AI chat or in the clipboard.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(fileName))
+            {
+                ShowThemedMessageBox("Please enter a valid file name.", "Invalid Name", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        
+            if (fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                ShowThemedMessageBox("File name contains invalid characters.", "Invalid Name", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        
+            if (string.IsNullOrEmpty(_targetCreateFileFolder) || !Directory.Exists(_targetCreateFileFolder))
+            {
+                ShowThemedMessageBox($"Target folder does not exist: {_targetCreateFileFolder}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+        
+            string fullPath = Path.Combine(_targetCreateFileFolder, fileName);
+        
+            if (File.Exists(fullPath))
+            {
+                var result = ShowThemedMessageBox($"File '{fileName}' already exists. Overwrite?", "File Exists", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (result != MessageBoxResult.Yes) return;
+            }
+        
+            try
+            {
+                // Write the file and add to project using the unified helper
+                await FileUtil.CreateNewFileInSolutionAsync(ThreadHelper.JoinableTaskFactory, _dte, fullPath, aiCode ?? "");
+
+                // Cleanup
+                _targetCreateFileFolder = null;
+        
+                // Close bar
+                NewFileBar.Visibility = Visibility.Collapsed;
+            }
+            catch (Exception ex)
+            {
+                ShowThemedMessageBox($"Error creating file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         #endregion
 
         #region Events
@@ -961,7 +1086,8 @@ namespace Integrated_AI
         // This handler is just for the auto code replace feature
         private void CoreWebView2_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs args)
         {
-            if (AutoDiffToggle.IsChecked != true) return;
+            // Ignore messages if auto-diff is disabled or if new file creation is in progress
+            if (AutoDiffToggle.IsChecked != true || NewFileBar.Visibility == Visibility.Visible) return;
 
             string message = args.TryGetWebMessageAsString();
             if (string.IsNullOrEmpty(message)) return;

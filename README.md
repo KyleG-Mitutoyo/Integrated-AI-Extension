@@ -107,7 +107,7 @@ _![Error in the prompt area](https://raw.githubusercontent.com/KyleG-Mitutoyo/In
 <details>
 <summary><b>Intelligent "AI to VS" Diffing</b></summary>
 
-The "Replace with AI Code" commands are used to send highlighted or copied code from the AI chat to your editor. First it will check for highlighted text within the chat window, and if nothing is highlighted it will use whatever is in the clipboard. The code is merged into your existing file automatically, showing a diff view before applying changes. There is also a new file option in the `Tools` > `Integrated AI` menu that will create a new file in the chosen location with the AI code as its contents and add it to the project.
+The "Replace with AI Code" commands are used to send highlighted or copied code from the AI chat to your editor. First it will check for highlighted text within the chat window, and if nothing is highlighted it will use whatever is in the clipboard. The code is merged into your existing file automatically, showing a diff view before applying changes. 
 
 _![Replace Function with AI Code](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/replace%20function.gif)_
 
@@ -120,6 +120,10 @@ For the "Replace Function with AI Code" command, auto matching attempts to find 
 If a different code block to replace is needed, you can use the "Replace Different Code" button.
 
 _![Replace Different Code window](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/choose%20code.png)_
+
+There is also a `Create New File` command in right-click menus under files and folders in the solution explorer that will let you choose the new file name and select or copy AI code to be used for the new file.
+
+_![Create new file command](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/new%20file.png)_
 
 </details>
 
@@ -173,6 +177,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.3.7** Add `Create New File` command to solution explorer when right-clicking a folder/file
 - **1.3.6** Add backup auto-delete option, remove delete restore button (since this can be done with `Open Backup Folder`), remove new file creation from choose code window
 - **1.3.5** Add diff block detection during auto code replace, fix AI Studio text inject and remove old placeholder buttons
 - **1.3.4** Fix xaml not injecting into AI chat sometimes, fix extra newline under snippet replacements, fix new file creation failing when a xaml file is active
