@@ -15,7 +15,7 @@
       <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="selectedChatUrl" Type="System.String" Scope="User">
-      <Value Profile="(Default)">"https://aistudio.google.com"</Value>
+      <Value Profile="(Default)">"https://aistudio.google.com/prompts/new_chat"</Value>
     </Setting>
     <Setting Name="useSmartCommands" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>

@@ -177,6 +177,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.3.8** Update AI Studio URL, improve `Create New File` UX
 - **1.3.7** Add `Create New File` command to solution explorer when right-clicking a folder/file
 - **1.3.6** Add backup auto-delete option, remove delete restore button (since this can be done with `Open Backup Folder`), remove new file creation from choose code window
 - **1.3.5** Add diff block detection during auto code replace, fix AI Studio text inject and remove old placeholder buttons

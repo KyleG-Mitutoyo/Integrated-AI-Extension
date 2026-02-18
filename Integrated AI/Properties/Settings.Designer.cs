@@ -73,7 +73,7 @@ namespace Integrated_AI.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("\"https://aistudio.google.com\"")]
+        [global::System.Configuration.DefaultSettingValueAttribute("\"https://aistudio.google.com/prompts/new_chat\"")]
         public string selectedChatUrl {
             get {
                 return ((string)(this["selectedChatUrl"]));

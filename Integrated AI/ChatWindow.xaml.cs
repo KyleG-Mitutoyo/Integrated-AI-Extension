@@ -44,6 +44,7 @@ using System.Windows.Forms.VisualStyles;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using static Integrated_AI.RestoreSelectionWindow;
 using static Integrated_AI.Utilities.DiffUtility;
 using static Integrated_AI.WebViewUtilities;
@@ -68,7 +69,7 @@ namespace Integrated_AI
         public List<AIChatOption> _urlOptions = new List<AIChatOption>
         {
             new AIChatOption { DisplayName = "Grok", Url = "https://grok.com", DefaultUrl = "https://grok.com", UseMarkdown = true },
-            new AIChatOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com", DefaultUrl = "https://aistudio.google.com", UseMarkdown = true},
+            new AIChatOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com/prompts/new_chat", DefaultUrl = "https://aistudio.google.com/prompts/new_chat", UseMarkdown = true},
             new AIChatOption { DisplayName = "Gemini", Url = "https://gemini.google.com/app", DefaultUrl = "https://gemini.google.com/app"},
             new AIChatOption { DisplayName = "ChatGPT", Url = "https://chatgpt.com", DefaultUrl = "https://chatgpt.com" },
             new AIChatOption { DisplayName = "Claude", Url = "https://claude.ai" , DefaultUrl = "https://claude.ai", UseMarkdown = true},
@@ -264,13 +265,14 @@ namespace Integrated_AI
 
             // Show the bar
             NewFileBar.Visibility = Visibility.Visible;
-            NewFileNameBox.Focus();
 
-            // Select all text so the user can easily overwrite it if they want a new name
-            if (!string.IsNullOrEmpty(NewFileNameBox.Text))
+            Dispatcher.BeginInvoke(new Action(() =>
             {
-                NewFileNameBox.SelectAll();
-            }
+                if (NewFileNameBox.Focus())
+                {
+                    NewFileNameBox.SelectAll();
+                }
+            }), DispatcherPriority.Input);
 
             // Make sure the AI chat window is open after everything is set up
             GeneralCommands.Instance.ExecuteOpenChatWindow(null, null);
@@ -886,7 +888,7 @@ namespace Integrated_AI
                 WebViewUtilities.Log("All in-memory URLs have been reset to their defaults.");
 
                 // 4. Reset the persisted setting for the next session and save it.
-                Settings.Default.selectedChatUrl = "https://aistudio.google.com";
+                Settings.Default.selectedChatUrl = "https://aistudio.google.com/prompts/new_chat";
                 Settings.Default.Save();
                 WebViewUtilities.Log($"Persisted setting 'selectedChatUrl' reset to: {Settings.Default.selectedChatUrl}");
 
@@ -978,6 +980,19 @@ namespace Integrated_AI
             catch (Exception ex)
             {
                 ShowThemedMessageBox($"Error creating file: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void NewFileNameBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                // Mark the event as handled to prevent the system 'ding' sound
+                // or inserting a newline if the textbox accepts returns
+                e.Handled = true;
+        
+                // Call the existing logic
+                ConfirmCreateFileButton_Click(sender, e);
             }
         }
 

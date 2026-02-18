@@ -104,7 +104,8 @@
             <StackPanel Orientation="Vertical">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <TextBlock Text="New File Name:" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="{DynamicResource PrimaryTextBrush}" FontWeight="Bold"/>
-                    <TextBox x:Name="NewFileNameBox" Width="200" hc:InfoElement.Placeholder="MyClass.cs" VerticalAlignment="Center"/>
+                    <TextBox x:Name="NewFileNameBox" Width="200" hc:InfoElement.Placeholder="MyClass.cs" VerticalAlignment="Center"
+                             KeyDown="NewFileNameBox_KeyDown"/>
                     <Button x:Name="ConfirmCreateFileButton" Content="Confirm" Style="{StaticResource ButtonPrimary}" Click="ConfirmCreateFileButton_Click" Margin="5,0,0,0"/>
                     <Button x:Name="CancelCreateFileButton" Content="Cancel" Style="{StaticResource ButtonDefault}" Click="CancelCreateFileButton_Click" Margin="5,0,0,0"/>
                 </StackPanel>
