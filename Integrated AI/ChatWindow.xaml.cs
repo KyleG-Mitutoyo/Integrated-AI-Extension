@@ -116,7 +116,7 @@ namespace Integrated_AI
             _backupsFolder = Path.Combine(baseFolder, "Backups");
             Directory.CreateDirectory(_webViewDataFolder);
             Directory.CreateDirectory(_appDataFolder);
-            Directory.CreateDirectory(_backupsFolder);
+            Directory.CreateDirectory(_backupsFolder); 
 
             FileUtil._recentFunctionsFilePath = Path.Combine(_appDataFolder, "recent_functions.txt");
 
@@ -266,16 +266,21 @@ namespace Integrated_AI
             // Show the bar
             NewFileBar.Visibility = Visibility.Visible;
 
-            Dispatcher.BeginInvoke(new Action(() =>
+            // Make sure the AI chat window is open after everything is set up, 
+            // then apply focus AFTER it slides out.
+            _ = ThreadHelper.JoinableTaskFactory.RunAsync(async () =>
             {
+                // Wait for the window to slide out and initialize
+                await GeneralCommands.Instance.EnsureChatWindowVisibleAsync();
+
+                // Switch back to the UI thread to set focus
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
                 if (NewFileNameBox.Focus())
                 {
                     NewFileNameBox.SelectAll();
                 }
-            }), DispatcherPriority.Input);
-
-            // Make sure the AI chat window is open after everything is set up
-            GeneralCommands.Instance.ExecuteOpenChatWindow(null, null);
+            });
         }
 
         #endregion

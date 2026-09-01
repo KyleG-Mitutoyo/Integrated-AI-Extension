@@ -196,7 +196,7 @@ namespace Integrated_AI.Commands
             var selectedFiles = CodeSelectionUtilities.ShowMultiFileSelectionWindow(Dte);
             if (selectedFiles == null || !selectedFiles.Any()) return;
 
-            GeneralCommands.Instance.ExecuteOpenChatWindow(null, null);
+            await GeneralCommands.Instance.EnsureChatWindowVisibleAsync();
             var chatToolWindow = this.AsyncPackage.FindToolWindow(typeof(ChatToolWindow), 0, false) as ChatToolWindow;
             var chatWindow = chatToolWindow?.Content as ChatWindow;
             if (chatWindow == null) return;
@@ -383,8 +383,8 @@ namespace Integrated_AI.Commands
 
             string relativePath = GetRelativePath(document.FullName);
             string header = $"---{relativePath} (whole file contents)---";
-            
-            GeneralCommands.Instance.ExecuteOpenChatWindow(null, null);
+
+            await GeneralCommands.Instance.EnsureChatWindowVisibleAsync();
             var chatToolWindow = this.AsyncPackage.FindToolWindow(typeof(ChatToolWindow), 0, false) as ChatToolWindow;
             var chatWindow = chatToolWindow?.Content as ChatWindow;
             Window parentWindow = chatWindow != null ? Window.GetWindow(chatWindow) : null;
@@ -408,7 +408,7 @@ namespace Integrated_AI.Commands
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            GeneralCommands.Instance.ExecuteOpenChatWindow(null, null);
+            await GeneralCommands.Instance.EnsureChatWindowVisibleAsync();
             var chatToolWindow = this.AsyncPackage.FindToolWindow(typeof(ChatToolWindow), 0, false) as ChatToolWindow;
             var chatWindow = chatToolWindow?.Content as ChatWindow;
             if (chatWindow == null)
@@ -445,7 +445,7 @@ namespace Integrated_AI.Commands
         private async Task SendTextToAIAsync(string text, string commandTitle)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            GeneralCommands.Instance.ExecuteOpenChatWindow(null, null);
+            await GeneralCommands.Instance.EnsureChatWindowVisibleAsync();
 
             var chatToolWindow = this.AsyncPackage.FindToolWindow(typeof(ChatToolWindow), 0, false) as ChatToolWindow;
             var chatWindow = chatToolWindow?.Content as ChatWindow;

@@ -1,7 +1,7 @@
-# Integrated AI Extension for Visual Studio 2022
+# Integrated AI Extension for Visual Studio 2022/2026
 
-[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/Kyle-Grubbs.integrated-ai?style=flat&label=VS%20Marketplace&color=5C2D91)](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai)
-[![Version](https://img.shields.io/visual-studio-marketplace/i/Kyle-Grubbs.integrated-ai?style=flat&label=Installs)](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai)
+[![Marketplace](https://vsmarketplacebadges.dev/version-short/Kyle-Grubbs.integrated-ai.svg)](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai)
+[![Installs](https://vsmarketplacebadges.dev/installs-short/Kyle-Grubbs.integrated-ai.svg)](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat)](https://www.gnu.org/licenses/gpl-3.0)
 
 Seamlessly bridge your code editor with web AI chats, **no API keys needed!** Refactor, debug, and generate code with a fluid, integrated workflow right inside Visual Studio. This extension is meant for those who want full control of the coding process, rather than vibe coding with agentic code editors, and don't want to mess with API keys, token costs, and limits. 
@@ -54,7 +54,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 
 ## 🛠️ Installation
 
-1.  Open Visual Studio 2022.
+1.  Open Visual Studio 2022/2026.
 2.  Navigate to `Extensions` > `Manage Extensions`.
 3.  In the `Browse` tab, search for **"Integrated AI"**.
 4.  Click **Install** and follow the instructions.
@@ -62,7 +62,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 
 ## 💡 How to Use: A Quick Start Guide
 
-1.  **Open the Chat Window**: In the Visual Studio top bar, go to `Tools` > `Integrated AI` > `Open AI Chat Window` to open the chat tool window which can be docked or moved. Select your desired chat site from the dropdown within the chat window (default is Google AI Studio).
+1.  **Open the Chat Window**: In the Visual Studio top bar, go to `Tools` > `Integrated AI` > `Open AI Chat Window` to open the chat tool window which can be docked or moved. Select your desired chat site from the dropdown within the chat window.
 2.  **Chat with the AI**: Your code will appear in the prompt along with your message. Write your request (e.g., "Refactor this to be more efficient" or "Add exception handling").
 3.  **Send Code**: Open a code file. Then right-click within the editor and select a `Send to AI` command. You can send multiple code blocks or even multiple files, since each send command is added in its own code block to the AI prompt.
 4.  **Review the Diff**: Once the AI provides a response, highlight or copy the text in the chat window. Then right-click and select a `Replace with AI code` command. A diff view will appear, showing the proposed changes. You can also just use the artifact "copy" buttons on the response code blocks for more automated diffing (see "Configuration" for more info).
@@ -177,6 +177,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.3.9** Add support for Gemini Gems, improve solution backups, make chat window work with auto-hide
 - **1.3.8** Update AI Studio URL, improve `Create New File` UX
 - **1.3.7** Add `Create New File` command to solution explorer when right-clicking a folder/file
 - **1.3.6** Add backup auto-delete option, remove delete restore button (since this can be done with `Open Backup Folder`), remove new file creation from choose code window

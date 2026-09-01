@@ -147,6 +147,8 @@ namespace Integrated_AI.Commands
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
+            await GeneralCommands.Instance.EnsureChatWindowVisibleAsync();
+
             // Step 1: Get the ChatWindow instance.
             var chatToolWindow = this.AsyncPackage.FindToolWindow(typeof(ChatToolWindow), 0, true) as ChatToolWindow;
             var chatWindow = chatToolWindow?.Content as ChatWindow;

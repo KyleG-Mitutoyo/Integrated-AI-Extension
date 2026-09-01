@@ -65,7 +65,7 @@ namespace Integrated_AI
                 "https://chatgpt.com", new List<string> { "div#prompt-textarea" } 
             },
             { 
-                "https://gemini.google.com/app", new List<string>
+                "https://gemini.google.com", new List<string>
                 {
                     "div.ql-editor", // Primary selector for the rich text editor
                     "div[contenteditable=\"true\"]" // Fallback selector

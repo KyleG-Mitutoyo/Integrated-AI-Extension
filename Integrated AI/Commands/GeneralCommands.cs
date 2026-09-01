@@ -53,6 +53,28 @@ namespace Integrated_AI.Commands
             IVsWindowFrame windowFrame = (IVsWindowFrame)window.Frame;
             Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(windowFrame.Show());
         }
+
+        private static DateTime _lastWindowShowTime = DateTime.MinValue;
+
+        public async System.Threading.Tasks.Task EnsureChatWindowVisibleAsync()
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            ToolWindowPane window = this.AsyncPackage.FindToolWindow(typeof(ChatToolWindow), 0, true);
+            if (window?.Frame == null)
+            {
+                throw new NotSupportedException("Cannot create AI chat tool window");
+            }
+            IVsWindowFrame windowFrame = (IVsWindowFrame)window.Frame;
+            Microsoft.VisualStudio.ErrorHandler.ThrowOnFailure(windowFrame.Show());
+
+            // Yield to allow the UI thread to pump messages, allowing auto-hidden windows 
+            // to slide out, render, and initialize their WebView2 components before text injection.
+            if ((DateTime.Now - _lastWindowShowTime).TotalSeconds > 2)
+            {
+                await System.Threading.Tasks.Task.Delay(350);
+                _lastWindowShowTime = DateTime.Now;
+            }
+        }
     }
 
     [Guid("7513ff4e-9271-4984-bbcd-46ff9e185399")]

@@ -47,12 +47,11 @@ namespace Integrated_AI.Utilities
                 }
 
                 string solutionDir = Path.GetDirectoryName(dte.Solution.FullName);
-                Uri solutionUri = new Uri(solutionDir + Path.DirectorySeparatorChar); // Important to end with a slash
                 string uniqueSolutionFolder = GetUniqueSolutionFolder(dte);
 
                 // Create backup folder with unique solution folder and datetime stamp
                 string backupFolderName = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-                
+
                 backupPath = Path.Combine(backupRootPath, uniqueSolutionFolder, backupFolderName);
                 Directory.CreateDirectory(backupPath);
 
@@ -67,22 +66,8 @@ namespace Integrated_AI.Utilities
                 };
                 File.WriteAllText(metadataPath, JsonConvert.SerializeObject(metadata, Formatting.Indented));
 
-                // Copy solution file
-                string solutionFileName = Path.GetFileName(dte.Solution.FullName);
-                File.Copy(dte.Solution.FullName, Path.Combine(backupPath, solutionFileName));
-
-                // Copy all project files and their contents
-                foreach (Project project in dte.Solution.Projects)
-                {
-                    // First, copy the project file itself
-                    if (!string.IsNullOrEmpty(project.FullName) && File.Exists(project.FullName))
-                    {
-                        CopyItem(project.FullName, solutionUri, backupPath);
-                    }
-
-                    // Then, recursively copy all items within that project
-                    CopyProjectItems(project.ProjectItems, solutionUri, backupPath);
-                }
+                // Perform a smart directory copy (ignoring bloat folders)
+                CopyDirectorySmart(solutionDir, backupPath);
 
                 // Cleanup old backups if setting is enabled
                 string solutionBackupDir = Path.Combine(backupRootPath, uniqueSolutionFolder);
@@ -92,17 +77,12 @@ namespace Integrated_AI.Utilities
             }
             catch (Exception ex)
             {
-                // If the backup path was determined and the directory was created, attempt to delete it.
+                // (Your existing error handling remains exactly the same here)
                 if (!string.IsNullOrEmpty(backupPath) && Directory.Exists(backupPath))
                 {
-                    try
-                    {
-                        // Delete the incomplete backup folder and all its contents.
-                        Directory.Delete(backupPath, true); 
-                    }
+                    try { Directory.Delete(backupPath, true); }
                     catch (Exception deleteEx)
                     {
-                        // If cleanup also fails, inform the user to manually remove it.
                         WebViewUtilities.Log($"Failed to clean up incomplete backup folder '{backupPath}': {deleteEx.Message}");
                         ThemedMessageBox.Show(window, $"Backup failed: {ex.Message}\n\nAdditionally, failed to clean up the incomplete backup folder '{backupPath}'. Please remove it manually.\nCleanup error: {deleteEx.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                         return null;
@@ -112,6 +92,39 @@ namespace Integrated_AI.Utilities
                 WebViewUtilities.Log($"Backup failed: {ex.Message}");
                 ThemedMessageBox.Show(window, $"Backup failed: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return null;
+            }
+        }
+
+        // Copies directory contents while skipping heavy/generated folders
+        private static void CopyDirectorySmart(string sourceDir, string targetDir)
+        {
+            // Common folders that are massive and don't need to be backed up for code changes
+            var ignoredDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) 
+            { 
+                "bin", "obj", ".vs", ".git", "packages", "node_modules", "TestResults", "x64", "x86", "Debug", "Release" 
+            };
+
+            if (!Directory.Exists(targetDir))
+            {
+                Directory.CreateDirectory(targetDir);
+            }
+
+            foreach (string file in Directory.GetFiles(sourceDir))
+            {
+                string targetFile = Path.Combine(targetDir, Path.GetFileName(file));
+                File.Copy(file, targetFile, true);
+            }
+
+            foreach (string dir in Directory.GetDirectories(sourceDir))
+            {
+                string dirName = Path.GetFileName(dir);
+
+                // Skip ignored directories to save disk space and time
+                if (ignoredDirs.Contains(dirName))
+                    continue;
+
+                string targetSubDir = Path.Combine(targetDir, dirName);
+                CopyDirectorySmart(dir, targetSubDir);
             }
         }
 
@@ -150,35 +163,6 @@ namespace Integrated_AI.Utilities
             catch (Exception ex)
             {
                 WebViewUtilities.Log($"Error cleaning up old backups: {ex.Message}");
-            }
-        }
-
-        // Recursively copies project items
-        private static void CopyProjectItems(ProjectItems items, Uri solutionUri, string backupRootPath)
-        {
-            try
-            {
-                if (items == null) return;
-
-                foreach (ProjectItem item in items)
-                {
-                    // A ProjectItem can represent multiple files (e.g., for forms). FileNames are 1-indexed.
-                    for (short i = 1; i <= item.FileCount; i++)
-                    {
-                        CopyItem(item.FileNames[i], solutionUri, backupRootPath);
-                    }
-
-                    // Recurse into sub-items or nested projects
-                    if (item.ProjectItems != null && item.ProjectItems.Count > 0)
-                    {
-                        CopyProjectItems(item.ProjectItems, solutionUri, backupRootPath);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                WebViewUtilities.Log("CopyProjectItems error");
-                return;
             }
         }
 
@@ -411,36 +395,6 @@ namespace Integrated_AI.Utilities
                 ThemedMessageBox.Show(window, $"Error retrieving backup metadata: {ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 return (null, null, null);
             }
-        }
-
-        private static void CopyItem(string sourcePath, Uri solutionUri, string backupRootPath)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(sourcePath) || !File.Exists(sourcePath)) return;
-
-                Uri sourceUri = new Uri(sourcePath);
-
-                // Get the file's path relative to the solution root.
-                string relativePath = Uri.UnescapeDataString(solutionUri.MakeRelativeUri(sourceUri).ToString().Replace('/', Path.DirectorySeparatorChar));
-
-
-                // The target path is simply the backup root plus the item's relative path.
-                string targetPath = Path.Combine(backupRootPath, relativePath);
-                string targetItemDir = Path.GetDirectoryName(targetPath);
-
-                if (!Directory.Exists(targetItemDir))
-                    Directory.CreateDirectory(targetItemDir);
-
-                File.Copy(sourcePath, targetPath, true);
-            }
-            catch (Exception ex)
-            {
-                WebViewUtilities.Log("CopyItem error");
-                return;
-            }
-
-            
         }
     }
 }
