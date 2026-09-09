@@ -73,44 +73,6 @@ namespace Integrated_AI
                 ApplyFileFilter();                  // Now apply the filter
             });
         }
-        
-        public ChooseCodeWindow(DTE2 dte, SelectionMode mode)
-        {
-            InitializeComponent();
-            _dte = dte;
-            NonClientAreaBackground = Brushes.Transparent;
-            SelectedItems = new List<ReplacementItem>();
-
-            if (mode == SelectionMode.MultipleFiles)
-            {
-                Title = "Select Files to Send to AI";
-                FunctionHeader.Visibility = Visibility.Collapsed;
-                FunctionListBox.Visibility = Visibility.Collapsed;
-                FunctionColumn.Width = new GridLength(0);
-                FunctionHeaderColumn.Width = new GridLength(0);
-
-                Grid.SetColumn(FileHeaderGrid, 0);
-                Grid.SetColumnSpan(FileHeaderGrid, 2);
-                FileHeader.Text = "Select one or more files (Ctrl+Click or Shift+Click):";
-                
-                Grid.SetColumn(FileListBox, 0);
-                Grid.SetColumnSpan(FileListBox, 2);
-                FileListBox.Margin = new Thickness(0);
-                FileListBox.SelectionMode = System.Windows.Controls.SelectionMode.Extended;
-                FileListBox.MouseDoubleClick -= FileListBox_MouseDoubleClick; // Disable double-click for multi-select
-            }
-
-            ThreadHelper.JoinableTaskFactory.Run(async () =>
-            {
-                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                // We only need the files list, but the method returns both.
-                var (_, files) = CodeSelectionUtilities.PopulateReplacementLists(dte, dte.ActiveDocument, null, null);
-                _allFiles = files;
-                FileListBox.ItemsSource = _allFiles; // Populate the list
-                ApplyFileFilter();                   // Now apply the filter
-            });
-        }
-
 
         private void SelectButton_Click(object sender, RoutedEventArgs e)
         {
@@ -179,7 +141,7 @@ namespace Integrated_AI
 
             if (CodeFilesRadioButton?.IsChecked == true)
             {
-                var commonExtensions = CodeSelectionUtilities.GetCommonCodeFileExtensions();
+                var commonExtensions = CodeSelectionUtilities._commonCodeExtensions;
 
                 // 1. Get a set of all file paths that pass the filter
                 var visibleFilePaths = new HashSet<string>(

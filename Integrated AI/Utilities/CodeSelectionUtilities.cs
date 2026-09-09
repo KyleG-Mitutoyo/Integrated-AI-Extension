@@ -27,9 +27,21 @@ using System.Windows;
 
 namespace Integrated_AI
 {
+    public class FunctionItem
+    {
+        public string DisplayName { get; set; }
+        public string ListBoxDisplayName { get; set; }
+        public string FullName { get; set; }
+        public CodeFunction Function { get; set; }
+        public string FullCode { get; set; }
+        public TextPoint StartPoint { get; set; }
+        public TextPoint EndPoint { get; set; }
+
+    }
+
     public static class CodeSelectionUtilities
     {
-        private static readonly HashSet<string> _commonCodeExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        public static readonly HashSet<string> _commonCodeExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             // .NET Languages
             ".cs", ".vb", ".fs", ".fsi", ".fsx", ".fsscript",
@@ -38,9 +50,9 @@ namespace Integrated_AI
             // Web front-end
             ".html", ".htm", ".css", ".scss", ".less", ".js", ".ts", ".jsx", ".tsx",
             // Markup, Data, and Config
-            ".json", ".xml", ".xaml", ".yml", ".yaml", ".ini", ".properties", ".config",
+            ".json", ".xml", ".xaml", ".yml", ".yaml", ".ini", ".properties", ".config", ".java", ".toml", ".env", ".txt",
             // Scripting
-            ".py", ".ps1", ".bat", ".cmd",
+            ".py", ".ps1", ".bat", ".cmd", ".sh", "vbhtml",
             // SQL
             ".sql",
             // ASP.NET
@@ -49,14 +61,15 @@ namespace Integrated_AI
             ".md"
         };
 
-        public static HashSet<string> GetCommonCodeFileExtensions()
+        public static bool IsCodeFile(string filePath)
         {
-            return _commonCodeExtensions;
+            string ext = Path.GetExtension(filePath);
+            return _commonCodeExtensions.Contains(ext);
         }
 
-        public static List<FunctionSelectionWindow.FunctionItem> GetFunctionsFromDocument(Document activeDoc)
+        public static List<FunctionItem> GetFunctionsFromDocument(Document activeDoc)
         {
-            var functions = new List<FunctionSelectionWindow.FunctionItem>();
+            var functions = new List<FunctionItem>();
             if (activeDoc?.Object("TextDocument") is TextDocument textDocument)
             {
                 var codeModel = activeDoc.ProjectItem?.FileCodeModel;
@@ -71,7 +84,7 @@ namespace Integrated_AI
             return functions;
         }
 
-        private static void CollectFunctions(CodeElement element, List<FunctionSelectionWindow.FunctionItem> functions)
+        private static void CollectFunctions(CodeElement element, List<FunctionItem> functions)
         {
             if (element.Kind == vsCMElement.vsCMElementFunction)
             {
@@ -80,7 +93,7 @@ namespace Integrated_AI
                 string displayName = codeFunction.Name;
                 string listBoxDisplayName = $"{codeFunction.Name} ({codeFunction.Parameters.Cast<CodeParameter>().Count()} params)";
                 string fullName = $"{codeFunction.FullName}";
-                functions.Add(new FunctionSelectionWindow.FunctionItem
+                functions.Add(new FunctionItem
                 {
                     DisplayName = displayName,
                     ListBoxDisplayName = listBoxDisplayName,
@@ -101,16 +114,16 @@ namespace Integrated_AI
             }
         }
 
-        public static List<FunctionSelectionWindow.FunctionItem> PopulateFunctionList(IEnumerable<FunctionSelectionWindow.FunctionItem> functions, List<string> recentFunctions, string openedFile, bool showNewFunction)
+        public static List<FunctionItem> PopulateFunctionList(IEnumerable<FunctionItem> functions, List<string> recentFunctions, string openedFile, bool showNewFunction)
         {
             var functionList = functions.ToList();
-            var items = new List<FunctionSelectionWindow.FunctionItem>();
+            var items = new List<FunctionItem>();
 
             // New function is optional, added at the very top
             if (showNewFunction)
             {
                 // Add "New Function" option at the top
-                items.Add(new FunctionSelectionWindow.FunctionItem
+                items.Add(new FunctionItem
                 {
                     DisplayName = "New Function",
                     ListBoxDisplayName = "New Function",
@@ -121,7 +134,7 @@ namespace Integrated_AI
             // Add recent functions and their header if any exist
             if (recentFunctions.Any())
             {
-                items.Add(new FunctionSelectionWindow.FunctionItem { ListBoxDisplayName = "----- Recent Functions -----", FullName = $"Recent functions used for {openedFile}" });
+                items.Add(new FunctionItem { ListBoxDisplayName = "----- Recent Functions -----", FullName = $"Recent functions used for {openedFile}" });
                 foreach (var recent in recentFunctions)
                 {
                     var matchingFunction = functionList.FirstOrDefault(f => f.DisplayName == recent);
@@ -134,7 +147,7 @@ namespace Integrated_AI
             }
 
             // Always add "All Functions" header
-            items.Add(new FunctionSelectionWindow.FunctionItem { ListBoxDisplayName = "----- All Functions -----", FullName = $"All the functions within {openedFile}" });
+            items.Add(new FunctionItem { ListBoxDisplayName = "----- All Functions -----", FullName = $"All the functions within {openedFile}" });
 
             // Add remaining functions
             items.AddRange(functionList);
@@ -306,14 +319,6 @@ namespace Integrated_AI
             var window = new ChooseCodeWindow(dte, activeDoc, tempCurrentFile, tempAiFile);
             bool? result = window.ShowDialog();
             return result == true ? window.SelectedItem : null;
-        }
-
-        public static List<ChooseCodeWindow.ReplacementItem> ShowMultiFileSelectionWindow(DTE2 dte)
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            var window = new ChooseCodeWindow(dte, ChooseCodeWindow.SelectionMode.MultipleFiles);
-            bool? result = window.ShowDialog();
-            return result == true ? window.SelectedItems : null;
         }
     }
 }

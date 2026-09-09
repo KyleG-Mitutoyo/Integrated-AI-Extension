@@ -41,6 +41,42 @@ namespace Integrated_AI.Utilities
         private static readonly Dictionary<string, string> _scriptCache = new Dictionary<string, string>();
         public static string _recentFunctionsFilePath = null;
 
+        public static readonly HashSet<string> ExcludedDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "bin",
+            "obj",
+            ".vs",
+            ".git",
+            "packages",
+            "node_modules",
+            "TestResults",
+            "x64",
+            "x86",
+            "Debug",
+            "Release"
+        };
+
+        public static bool IsExcludedDirectory(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return false;
+        
+            // Normalize slashes
+            string normalizedPath = path.Replace('/', '\\');
+        
+            foreach (var dir in ExcludedDirectories)
+            {
+                // Checks for directory boundaries, e.g., "\bin\" or starting/ending with "bin"
+                if (normalizedPath.IndexOf($"\\{dir}\\", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    normalizedPath.EndsWith($"\\{dir}", StringComparison.OrdinalIgnoreCase) ||
+                    normalizedPath.Equals(dir, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        
+            return false;
+        }
+
         public static List<string> LoadRecentFunctions(string recentFunctionsFilePath)
         {
             try

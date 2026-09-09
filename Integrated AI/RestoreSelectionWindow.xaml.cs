@@ -55,10 +55,10 @@ namespace Integrated_AI
         public List<DiffContext> DiffContexts { get; private set; }
         private readonly string _backupRootPath;
         private DTE2 _dte;
-        private WebView2 _webView; // Added WebView2 reference
+        private WebView2CompositionControl _webView; // Added WebView2 reference
         private readonly string _selectedAiText; // The text selected in the AI chat WebView
 
-        public RestoreSelectionWindow(DTE2 dte, WebView2 webView, string backupRootPath, string selectedAiText = null)
+        public RestoreSelectionWindow(DTE2 dte, WebView2CompositionControl webView, string backupRootPath, string selectedAiText = null)
         {
             InitializeComponent();
             NonClientAreaBackground = Brushes.Transparent;

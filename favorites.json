@@ -2,8 +2,16 @@
   "version": 2,
   "items": [
     {
-      "name": "AIChatCommandPackage.cs",
-      "path": "Integrated AI\\AIChatCommandPackage.cs"
+      "name": "ChatWindow.xaml",
+      "path": "Integrated AI\\ChatWindow.xaml"
+    },
+    {
+      "name": "GeneralCommands.cs",
+      "path": "Integrated AI\\Commands\\GeneralCommands.cs"
+    },
+    {
+      "name": "LogWindow.xaml.cs",
+      "path": "Integrated AI\\LogWindow.xaml.cs"
     }
   ]
 }

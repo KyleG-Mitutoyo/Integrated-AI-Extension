@@ -41,7 +41,7 @@ namespace Integrated_AI.Commands
         public const int SendSnippetToAICmdId = 0x0110;
         public const int SendFunctionToAICmdId = 0x0111;
         public const int SendFileToAICmdId = 0x0112;
-        public const int SendMultipleFilesToAICmdId = 0x0113;
+        public const int SendMultipleFilesToAICmdId = 0x0134;
         public const int SmartSendToAICmdId = 0x0150;
 
         public static readonly Guid CommandSet = new Guid("3e9439f0-9188-4415-b861-b894c074a254");
@@ -193,8 +193,67 @@ namespace Integrated_AI.Commands
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            var selectedFiles = CodeSelectionUtilities.ShowMultiFileSelectionWindow(Dte);
-            if (selectedFiles == null || !selectedFiles.Any()) return;
+            // Using HashSet prevents duplicates in case a user selects a folder AND a file inside it
+            var selectedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (Dte.SelectedItems != null)
+            {
+                foreach (SelectedItem item in Dte.SelectedItems)
+                {
+                    string path = null;
+                    try
+                    {
+                        if (item.ProjectItem != null)
+                        {
+                            path = item.ProjectItem.FileNames[1];
+                        }
+                        else if (item.Project != null)
+                        {
+                            path = Path.GetDirectoryName(item.Project.FullName);
+                        }
+                    }
+                    catch { }
+
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        if (File.Exists(path))
+                        {
+                            if (CodeSelectionUtilities.IsCodeFile(path) && !FileUtil.IsExcludedDirectory(path))
+                            {
+                                selectedFiles.Add(path);
+                            }
+                        }
+                        else if (Directory.Exists(path))
+                        {
+                            try
+                            {
+                                var filesInDir = Directory.GetFiles(path, "*.*", SearchOption.AllDirectories);
+                                foreach (var file in filesInDir)
+                                {
+                                    if (CodeSelectionUtilities.IsCodeFile(file) && !FileUtil.IsExcludedDirectory(file))
+                                    {
+                                        selectedFiles.Add(file);
+                                    }
+                                }
+                            }
+                            catch { } // Ignore unauthorized access or deep paths
+                        }
+                    }
+                }
+            }
+
+            if (selectedFiles.Count == 0)
+            {
+                ThemedMessageBox.Show(null, "No valid code files selected in Solution Explorer.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Optional safeguard against sending a massive number of files
+            //if (selectedFiles.Count > 20)
+            //{
+            //    var result = ThemedMessageBox.Show(null, $"You are about to send {selectedFiles.Count} files to the AI chat. This may exceed the AI's context limit or take a long time.\n\nDo you want to continue?", "Large Number of Files", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            //    if (result != MessageBoxResult.Yes) return;
+            //}
 
             await GeneralCommands.Instance.EnsureChatWindowVisibleAsync();
             var chatToolWindow = this.AsyncPackage.FindToolWindow(typeof(ChatToolWindow), 0, false) as ChatToolWindow;
@@ -206,27 +265,27 @@ namespace Integrated_AI.Commands
 
             var promptBuilder = new StringBuilder();
 
-            foreach (var fileItem in selectedFiles)
+            foreach (var filePath in selectedFiles)
             {
                 try
                 {
-                    string code = File.ReadAllText(fileItem.FilePath);
-                    string relativePath = GetRelativePath(fileItem.FilePath);
+                    string code = File.ReadAllText(filePath);
+                    string relativePath = GetRelativePath(filePath);
                     string header = $"---{relativePath} (whole file contents)---";
 
                     if (useMarkdown)
                     {
-                        string languageTag = StringUtil.GetMarkdownLanguageTag(fileItem.FilePath);
+                        string languageTag = StringUtil.GetMarkdownLanguageTag(filePath);
                         promptBuilder.Append($"\n{header}\n\n```{languageTag}\n{code}\n```\n\n---End code---\n\n");
                     }
                     else
                     {
                         promptBuilder.Append($"\n{header}\n{code}\n---End code---\n\n");
-                    }
+                    } 
                 }
                 catch (Exception ex)
                 {
-                    WebViewUtilities.Log($"Error reading file {fileItem.FilePath}: {ex.Message}");
+                    WebViewUtilities.Log($"Error reading file {filePath}: {ex.Message}");
                 }
             }
 
@@ -451,7 +510,7 @@ namespace Integrated_AI.Commands
             var chatWindow = chatToolWindow?.Content as ChatWindow;
 
             if (chatWindow == null) return;
-            WebView2 webView = chatWindow.ChatWebView;
+            WebView2CompositionControl webView = chatWindow.ChatWebView;
             Window parentWindow = Window.GetWindow(chatWindow);
             if (webView == null || parentWindow == null) return;
 

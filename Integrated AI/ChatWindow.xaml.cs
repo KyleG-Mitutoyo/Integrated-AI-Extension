@@ -68,6 +68,7 @@ namespace Integrated_AI
         // Existing fields...
         public List<AIChatOption> _urlOptions = new List<AIChatOption>
         {
+            new AIChatOption { DisplayName = "Welcome", Url = "internal://welcome", DefaultUrl = "internal://welcome" },
             new AIChatOption { DisplayName = "Grok", Url = "https://grok.com", DefaultUrl = "https://grok.com", UseMarkdown = true },
             new AIChatOption { DisplayName = "Google AI Studio", Url = "https://aistudio.google.com/prompts/new_chat", DefaultUrl = "https://aistudio.google.com/prompts/new_chat", UseMarkdown = true},
             new AIChatOption { DisplayName = "Gemini", Url = "https://gemini.google.com/app", DefaultUrl = "https://gemini.google.com/app"},
@@ -87,6 +88,7 @@ namespace Integrated_AI
         public BackupItem _selectedBackup;
         private DocumentEvents _documentEvents;
         private bool _isWebViewInitialized = false;
+        private bool _isWebViewInitializing = false;
         private bool _isThemeInitialized = false;
 
         private CancellationTokenSource _navigationCts;
@@ -352,8 +354,8 @@ namespace Integrated_AI
             else
             {
                 // This is the fallback for a fresh install, corrupted setting, or obsolete URL.
-                // Default to a known-good provider.
-                optionToSelect = _urlOptions.FirstOrDefault(o => o.DisplayName == "Google AI Studio")
+                // Default to Welcome page.
+                optionToSelect = _urlOptions.FirstOrDefault(o => o.DisplayName == "Welcome")
                                ?? _urlOptions.FirstOrDefault(); // Fallback to the first if default is missing.
 
                 if (optionToSelect != null)
@@ -447,26 +449,46 @@ namespace Integrated_AI
 
         private void UrlSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Do not allow navigation until our async initialization is 100% complete.
-            if (!_isWebViewInitialized || ChatWebView?.CoreWebView2 == null)
-            {
-                return;
-            }
-
             if (UrlSelector.SelectedItem is AIChatOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
             {
+                if (selectedOption.Url.StartsWith("internal://welcome"))
+                {
+                    WelcomeGrid.Visibility = Visibility.Visible;
+                    ChatWebView.Visibility = Visibility.Collapsed;
+                    
+                    Settings.Default.selectedChatUrl = selectedOption.Url;
+                    Settings.Default.Save();
+                    return;
+                }
+                
+                WelcomeGrid.Visibility = Visibility.Collapsed;
+                ChatWebView.Visibility = Visibility.Visible;
+
+                // Do not allow navigation until our async initialization is 100% complete.
+                if (!_isWebViewInitialized || ChatWebView?.CoreWebView2 == null)
+                {
+                    // Delay initialization slightly to prevent calling it during the constructor component setup
+                    if (this.IsLoaded)
+                    {
+                        _ = InitializeWebViewAsync();
+                    }
+                    return;
+                }
+
                 try
                 {
-                    // First update the old selected option URL with the surrent URL before navigating, to save the state for later.
+                    // First update the old selected option URL with the current URL before navigating, to save the state for later.
                     string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
-
-                    foreach (AIChatOption option in _urlOptions)
+                    if (!string.IsNullOrEmpty(currentUrl) && !currentUrl.StartsWith("internal://welcome"))
                     {
-                        // Check if the display name matches the selected option
-                        if (option.DisplayName == GetChatNameFromUrl(currentUrl))
+                        foreach (AIChatOption option in _urlOptions)
                         {
-                            option.Url = currentUrl;
-                            WebViewUtilities.Log($"UrlSelector_SelectionChanged: Updated URL for {option.DisplayName} to {option.Url}");
+                            // Check if the display name matches the selected option
+                            if (option.DisplayName == GetChatNameFromUrl(currentUrl))
+                            {
+                                option.Url = currentUrl;
+                                WebViewUtilities.Log($"UrlSelector_SelectionChanged: Updated URL for {option.DisplayName} to {option.Url}");
+                            }
                         }
                     }
 
@@ -476,7 +498,19 @@ namespace Integrated_AI
                 {
                     Log($"Invalid URL '{selectedOption.Url}': {ex.Message}");
                     // Optional: Fallback to DefaultUrl if the cached Url is somehow invalid.
-                    ChatWebView.Source = new Uri(selectedOption.DefaultUrl);
+                    if (selectedOption.DefaultUrl != "internal://welcome")
+                    {
+                        ChatWebView.Source = new Uri(selectedOption.DefaultUrl);
+                    }
+                }
+
+                // If the tooltip is currently active or firstLoad is true, dismiss it forever
+                if (Properties.Settings.Default.firstLoad)
+                {
+                    Properties.Settings.Default.firstLoad = false;
+                    Properties.Settings.Default.Save();
+
+                    SelectAiToolTip.Visibility = Visibility.Collapsed;
                 }
             }
         }
@@ -893,9 +927,15 @@ namespace Integrated_AI
                 WebViewUtilities.Log("All in-memory URLs have been reset to their defaults.");
 
                 // 4. Reset the persisted setting for the next session and save it.
-                Settings.Default.selectedChatUrl = "https://aistudio.google.com/prompts/new_chat";
+                Settings.Default.selectedChatUrl = "internal://welcome";
                 Settings.Default.Save();
                 WebViewUtilities.Log($"Persisted setting 'selectedChatUrl' reset to: {Settings.Default.selectedChatUrl}");
+
+                var welcomeOption = _urlOptions.FirstOrDefault(o => o.DisplayName == "Welcome");
+                if (welcomeOption != null)
+                {
+                    UrlSelector.SelectedItem = welcomeOption;
+                }
 
                 ShowThemedMessageBox("URLs have been successfully reset.", "Reset Complete", MessageBoxButton.OK, MessageBoxImage.Information);
             }
@@ -1029,7 +1069,22 @@ namespace Integrated_AI
             // ---------------------------
 
             // Start the new, centralized initialization flow.
-            await InitializeWebViewAsync();
+            if (UrlSelector.SelectedItem is AIChatOption selectedOption && selectedOption.Url.StartsWith("internal://welcome"))
+            {
+                WelcomeGrid.Visibility = Visibility.Visible;
+                ChatWebView.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                WelcomeGrid.Visibility = Visibility.Collapsed;
+                ChatWebView.Visibility = Visibility.Visible;
+                await InitializeWebViewAsync();
+            }
+
+            if (Settings.Default.firstLoad)
+            {
+                SelectAiToolTip.Visibility = Visibility.Visible;
+            }
         }
 
 
@@ -1046,15 +1101,25 @@ namespace Integrated_AI
             Utilities.ThemeUtility.ThemeChanged -= UpdateTheme;
             // ---------------------------
 
-
             // The saving logic is now handled by CoreWebView2_NavigationCompleted,
             // but saving here as a final fallback is okay.
-            string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
-            if (!string.IsNullOrEmpty(currentUrl) && Settings.Default.selectedChatUrl != currentUrl)
+            if (UrlSelector.SelectedItem is AIChatOption selectedOption && selectedOption.Url.StartsWith("internal://welcome"))
             {
-                Settings.Default.selectedChatUrl = currentUrl;
-                Settings.Default.Save();
-                WebViewUtilities.Log($"ChatWindow_Unloaded: Final URL updated: {Settings.Default.selectedChatUrl}");
+                if (Settings.Default.selectedChatUrl != selectedOption.Url)
+                {
+                    Settings.Default.selectedChatUrl = selectedOption.Url;
+                    Settings.Default.Save();
+                }
+            }
+            else
+            {
+                string currentUrl = WebViewUtilities.GetCurrentUrl(ChatWebView);
+                if (!string.IsNullOrEmpty(currentUrl) && Settings.Default.selectedChatUrl != currentUrl)
+                {
+                    Settings.Default.selectedChatUrl = currentUrl;
+                    Settings.Default.Save();
+                    WebViewUtilities.Log($"ChatWindow_Unloaded: Final URL updated: {Settings.Default.selectedChatUrl}");
+                }
             }
         }
 
@@ -1178,11 +1243,12 @@ namespace Integrated_AI
 
         private async Task InitializeWebViewAsync()
         {
-            if (_isWebViewInitialized)
+            if (_isWebViewInitialized || _isWebViewInitializing)
             {
                 return;
             }
 
+            _isWebViewInitializing = true;
             try
             {
                 // Step 1: Call the simplified utility to ensure CoreWebView2 is ready.
@@ -1221,7 +1287,10 @@ namespace Integrated_AI
                 // Step 5: Perform the initial navigation.
                 if (UrlSelector.SelectedItem is AIChatOption selectedOption && !string.IsNullOrEmpty(selectedOption.Url))
                 {
-                    ChatWebView.Source = new Uri(selectedOption.Url);
+                    if (!selectedOption.Url.StartsWith("internal://welcome"))
+                    {
+                        ChatWebView.Source = new Uri(selectedOption.Url);
+                    }
                 }
 
                 _isWebViewInitialized = true;
@@ -1231,6 +1300,10 @@ namespace Integrated_AI
             {
                 Log($"A critical error occurred during WebView initialization: {ex.Message}");
                 ShowThemedMessageBox($"The AI Chat panel could not be initialized. Please try restarting Visual Studio.\n\nError: {ex.Message}", "Fatal Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _isWebViewInitializing = false;
             }
         }
 
@@ -1333,6 +1406,16 @@ namespace Integrated_AI
                 // Only show MessageBox for genuine, unexpected network errors
                 ShowThemedMessageBox(errorMessage, "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+        }
+
+        private void Hyperlink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = e.Uri.AbsoluteUri,
+                UseShellExecute = true
+            });
+            e.Handled = true;
         }
 
         #endregion

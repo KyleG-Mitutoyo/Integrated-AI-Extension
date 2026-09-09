@@ -1,8 +1,8 @@
 # Integrated AI Extension for Visual Studio 2022/2026
 
-[![Marketplace](https://vsmarketplacebadges.dev/version-short/Kyle-Grubbs.integrated-ai.svg)](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai)
-[![Installs](https://vsmarketplacebadges.dev/installs-short/Kyle-Grubbs.integrated-ai.svg)](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat)](https://www.gnu.org/licenses/gpl-3.0)
+[![Marketplace](https://vsmarketplacebadges.dev/version-short/Kyle-Grubbs.integrated-ai.svg?style=plastic&color=purple)](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai)
+[![Installs](https://vsmarketplacebadges.dev/installs-short/Kyle-Grubbs.integrated-ai.svg?style=plastic&color=orange)](https://marketplace.visualstudio.com/items?itemName=Kyle-Grubbs.integrated-ai)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=plastic)](https://www.gnu.org/licenses/gpl-3.0)
 
 Seamlessly bridge your code editor with web AI chats, **no API keys needed!** Refactor, debug, and generate code with a fluid, integrated workflow right inside Visual Studio. This extension is meant for those who want full control of the coding process, rather than vibe coding with agentic code editors, and don't want to mess with API keys, token costs, and limits. 
 
@@ -46,7 +46,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
   - **Snippet**: Send only the code you've highlighted.
   - **Function**: Right-click a function name to send the whole function.
   - **File**: Send the complete content of the active document.
-  - **Multiple Files**: Select and send several files at once from your solution.
+  - **Multiple Files**: Select and send several files at once from the solution explorer. Select a folder to send all files within the folder.
 - **⚠️ Error to AI**: From the error list, right click after selecting errors/warnings and click `Send to AI chat`. It will send the error description(s) and the line with code that has the error.
 - **✨ Intelligent AI-to-VS Diffing**: Move code from the AI back to your editor with the `Replace with AI code` menu commands. You have full control of what gets replaced, with options similar to the Send to AI commands. The extension can also intelligently analyze the AI's response to find the corresponding function or snippet in your file (turn on Auto Code Replace in the options). It then presents a **rich diff view**, allowing you to review changes line-by-line and accept, decline, or manually choose a different replacement. 
 - **🔒 Automatic Backups**: Never lose work. When you accept a diff, the extension automatically creates a zip backup of your entire solution, giving you a restore point. There is also a manual backup button.
@@ -62,7 +62,7 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 
 ## 💡 How to Use: A Quick Start Guide
 
-1.  **Open the Chat Window**: In the Visual Studio top bar, go to `Tools` > `Integrated AI` > `Open AI Chat Window` to open the chat tool window which can be docked or moved. Select your desired chat site from the dropdown within the chat window.
+1.  **Open the Chat Window**: In the Visual Studio top bar, go to `Tools` > `Open AI Chat Window` to open the chat tool window which can be docked or moved. Select your desired chat site from the dropdown within the chat window.
 2.  **Chat with the AI**: Your code will appear in the prompt along with your message. Write your request (e.g., "Refactor this to be more efficient" or "Add exception handling").
 3.  **Send Code**: Open a code file. Then right-click within the editor and select a `Send to AI` command. You can send multiple code blocks or even multiple files, since each send command is added in its own code block to the AI prompt.
 4.  **Review the Diff**: Once the AI provides a response, highlight or copy the text in the chat window. Then right-click and select a `Replace with AI code` command. A diff view will appear, showing the proposed changes. You can also just use the artifact "copy" buttons on the response code blocks for more automated diffing (see "Configuration" for more info).
@@ -75,15 +75,16 @@ You can use this extension with your favorite AI chat, for free or with a subscr
 <details>
 <summary><b>"VS to AI" Transfers</b></summary>
 
-Code is sent from VS to the AI chat with the `Send to AI` commands from the document right-click menu. The available commands show depending on what is right-clicked:
-- File to AI: anywhere in the document
+Code is sent from VS to the AI chat with the `Send to AI` commands from the document right-click menu or when right-clicking on file(s) or folder(s) in the solution explorer. The available commands show depending on what is right-clicked:
+- File to AI: anywhere in the document or on the file in solution explorer
 - Snippet to AI: on highlighted text
 - Function to AI: on a function name, where the function definition is within that same document
-If `Smart Commands` is on in the options, the send mode will be chosen based on what is right-clicked.
+
+If `Smart Commands` is on in the options, the send mode will be chosen based on what is right-clicked; the command will show as `Send to AI`.
 
 Code blocks get a context header so the AI knows useful info such as filepath and type. Sites that allow markdown in prompts, such as AI Studio or Grok, have collapsible code blocks and syntax highlighting using ` ```code ` tags.
 
-> Note: The function commands only work with files that are native to Visual Studio, such as C#, VB, C++, and F#. Files such as XAML and Javascript will still work > with snippets and full file transfers.
+> Note: The function commands only work with files that are native to Visual Studio, such as C#, VB, C++, and F#. Files such as XAML and Javascript will still work with snippets and full file transfers.
 
 > Tip: To use keyboard shortcuts for any command, go to `Tools` > `Options` > `Environment/Keyboard` and search for the command to add a key combination. 
 > Set the scope to `Text Editor` to avoid conflicts with existing shortcuts.
@@ -102,6 +103,10 @@ _![Send Error to AI](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated
 
 _![Error in the prompt area](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/error%20prompt.png)_
 
+Send multiple files to AI by selecting them in solution explorer and right-click to use the `Send to AI` command. This also works when a folder is selected, which sends all files within the folder to AI. 
+
+_![Send multiple files to AI](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/multiple%20files.gif)_
+
 </details>
 
 <details>
@@ -111,7 +116,7 @@ The "Replace with AI Code" commands are used to send highlighted or copied code 
 
 _![Replace Function with AI Code](https://raw.githubusercontent.com/KyleG-Mitutoyo/Integrated-AI-Extension/refs/heads/main/assets/replace%20function.gif)_
 
-If "Auto Code Replace" in the options is turned on, you don't even need to use menu commands! This only works with the artifact copy buttons. It works best with C# and VB code, and can also work with diff AI responses in the format `<<<< Old code ==== New code >>>>` (a diff response isn't required but recommended for an accurate code replace. Some chat sites, such as AI Studio, sometimes respond like this on their own). For other file types, such as XAML, it will fallback to a full file replace or, if there is text selected in the code editor, a snippet replace.
+If "Auto Code Replace" in the options is turned on, you don't even need to use menu commands! This only works with the artifact copy buttons. It works best with C# and VB code, and can also work with diff AI responses in the format `<<<< Old code ==== New code >>>>` or `<search> Old code </search> <replace> New code </replace>` (a diff response isn't required but recommended for an accurate code replace. Some chat sites, such as AI Studio, sometimes respond like this on their own. Others will need to be prompted). For other file types, such as XAML, it will fallback to a full file replace or, if there is text selected in the code editor, a snippet replace.
 
 > Tip: Clicking the copy buttons will also prioritize highlighted text and use that rather than the full code block. This is mostly useful for Auto Code Replace if you don't want to use the full code block.
 
@@ -177,6 +182,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.4.0** Add `Send to AI` command to solution explorer when right-clicking a folder/file, remove `Send Multiple Files to AI` command (replaced by the right-click command), add welcome page, add new diff format for code replace, update ChatGPT selectors, fix WebView appearing above other VS tool windows
 - **1.3.9** Add support for Gemini Gems, improve solution backups, make chat window work with auto-hide
 - **1.3.8** Update AI Studio URL, improve `Create New File` UX
 - **1.3.7** Add `Create New File` command to solution explorer when right-clicking a folder/file

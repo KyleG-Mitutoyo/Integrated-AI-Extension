@@ -22,8 +22,44 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
+            <Grid x:Name="SelectAiToolTip" Margin="10,5,0,5" Height="20" Visibility="Collapsed">
+                <Grid.RenderTransform>
+                    <TranslateTransform x:Name="ToolTipTranslate" X="0" Y="0"/>
+                </Grid.RenderTransform>
+                <Grid.Triggers>
+                    <EventTrigger RoutedEvent="Loaded">
+                        <BeginStoryboard>
+                            <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                <DoubleAnimation Storyboard.TargetName="ToolTipTranslate"
+                                                 Storyboard.TargetProperty="X"
+                                                 From="0" To="8"
+                                                 Duration="0:0:0.6">
+                                    <DoubleAnimation.EasingFunction>
+                                        <QuadraticEase EasingMode="EaseInOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
+                </Grid.Triggers>
+
+                <!-- 1. The Arrow Shape (Background) -->
+                <Path Fill="{DynamicResource PrimaryBrush}"
+                      Data="M 4,0 L 100,0 L 115,10 L 100,20 L 4,20 A 4,4 0 0 1 0,16 L 0,4 A 4,4 0 0 1 4,0 Z"
+                      Stretch="Fill"/>
+
+                <!-- 2. The Text Content (Foreground Overlay) -->
+                <TextBlock Text="Select AI chat" 
+                           Foreground="White" 
+                           FontWeight="Bold" 
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Center"
+                           Margin="10,0,20,1"
+                           FontSize="12"/>
+            </Grid>
+
             <ComboBox x:Name="UrlSelector" MaxWidth="200" MinWidth="100" Margin="10,5,5,5" SelectionChanged="UrlSelector_SelectionChanged"
-                      DisplayMemberPath="DisplayName" SelectedValuePath="Url" />
+                    DisplayMemberPath="DisplayName" SelectedValuePath="Url" />
 
             <!-- Diff Buttons -->
             <Button x:Name="AcceptButton" Content="Accept" Style="{StaticResource ButtonSuccess}" Click="AcceptButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="5,0,0,0" Visibility="Collapsed"/>
@@ -117,6 +153,130 @@
             <Button x:Name="UseRestoreButton" Content="Restore this backup" Style="{StaticResource ButtonPrimary}" Click="UseRestoreButton_Click" hc:BorderElement.CornerRadius="4,0,0,4" Margin="10,0,0,5" Visibility="Collapsed"/>
             <Button x:Name="CloseDiffsButton" Content="Close all diff views" Style="{StaticResource ButtonDanger}" Click="CloseDiffsButton_Click" hc:BorderElement.CornerRadius="0,4,4,0" Margin="0,0,0,5" Visibility="Collapsed"/>
         </StackPanel>
-        <wpf:WebView2 x:Name="ChatWebView" Grid.Row="2" />
+        
+        <wpf:WebView2CompositionControl x:Name="ChatWebView" Grid.Row="2" />
+        
+        <Grid x:Name="WelcomeGrid" Grid.Row="2" Background="{DynamicResource MainContentBackgroundBrush}" Visibility="Collapsed">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20" MaxWidth="650">
+                    <!-- Header Section -->
+                    <Grid Width="96" Height="96" HorizontalAlignment="Center" Margin="0,0,0,12">
+                        <Grid.Resources>
+                            <LinearGradientBrush x:Key="LogoAnimatedGradientBrush" StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#1A1A1A" Offset="0.0"/>   <!-- Black -->
+                                <GradientStop Color="#10A37F" Offset="0.2"/>  <!-- Green -->
+                                <GradientStop Color="#D97757" Offset="0.5"/>  <!-- Orange -->
+                                <GradientStop Color="#1A73E8" Offset="1.0"/>   <!-- Blue -->
+                            </LinearGradientBrush>
+                        </Grid.Resources>
+
+                        <!-- Animated Multi-Color Outer Ring -->
+                        <Ellipse Width="90" Height="90" 
+                                 Stroke="{StaticResource LogoAnimatedGradientBrush}" 
+                                 StrokeThickness="3" 
+                                 RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform>
+                                <RotateTransform x:Name="BorderRotateTransform" Angle="0"/>
+                            </Ellipse.RenderTransform>
+                            <Ellipse.Triggers>
+                                <EventTrigger RoutedEvent="Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                             From="0" To="360" Duration="0:0:10"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Ellipse.Triggers>
+                        </Ellipse>
+
+                        <!-- Inner Circle with White Background -->
+                        <Ellipse Width="84" Height="84" Fill="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                        <!-- Logo Image -->
+                        <Image Source="pack://application:,,,/Integrated AI;component/Resources/IAI-logo2.png" 
+                               Width="64" 
+                               Height="64" 
+                               HorizontalAlignment="Center" 
+                               VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <TextBlock Text="Welcome to Integrated AI" FontSize="26" FontWeight="Bold" TextWrapping="Wrap" Foreground="{DynamicResource PrimaryTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                    <TextBlock Text="Bridge your Visual Studio workspace directly with web AI chats without API keys or token costs." 
+                               FontSize="13" Foreground="{DynamicResource PrimaryTextBrush}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="0,0,0,24" Opacity="0.8"/>
+
+                    <!-- Main Features & Getting Started Card -->
+                    <Border Background="{DynamicResource RegionBrush}" CornerRadius="8" Padding="20,16" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="Core Capabilities &amp; Quick Start" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,16"/>
+
+                            <!-- Step 1 / Feature 1 -->
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="28"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="1." FontSize="14" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Send Code &amp; Context to AI" FontSize="14" TextWrapping="Wrap" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Right-click in your editor or Solution Explorer and click a 'Send to AI' command to send snippets, functions, or full files directly into your selected AI chat. You can also right-click errors or warnings in the error list to send to AI." 
+                                               FontSize="14" TextWrapping="Wrap" Foreground="{DynamicResource PrimaryTextBrush}" Opacity="0.8" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Step 2 / Feature 2 -->
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="28"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="2." FontSize="14" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Review &amp; Apply Changes via Diff View" FontSize="14" TextWrapping="Wrap" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Copy AI code responses with code copy buttons or right-click in the editor and choose a 'Replace with AI Code' command after copying/highlighting text to invoke intelligent code merging. Review proposed line-by-line changes in a built-in diff view before accepting them." 
+                                               FontSize="14" TextWrapping="Wrap" Foreground="{DynamicResource PrimaryTextBrush}" Opacity="0.8" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Step 3 / Feature 3 -->
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="28"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="3." FontSize="14" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Automatic Safety Backups" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Accepting AI suggestions automatically creates a backup restore point of your solution so you can experiment without losing progress. The Restore button allows managing backups, comparing, and restoring." 
+                                               FontSize="14" TextWrapping="Wrap" Foreground="{DynamicResource PrimaryTextBrush}" Opacity="0.8" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Step 4 / Feature 4 -->
+                            <Grid Margin="0,0,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="28"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="4." FontSize="14" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Customization &amp; Controls" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Use the top dropdown to switch chat providers, or click the gear icon to toggle Auto Code Replace, Smart Commands, and themes." 
+                                               FontSize="14" TextWrapping="Wrap" Foreground="{DynamicResource PrimaryTextBrush}" Opacity="0.8" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Bottom Documentation Link -->
+                    <TextBlock HorizontalAlignment="Center" Margin="0,20,0,0" FontSize="14" TextWrapping="Wrap">
+                        <Run Text="To see detailed usage examples and more features, check out the " Foreground="{DynamicResource PrimaryTextBrush}"/>
+                        <Hyperlink NavigateUri="https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension#-feature-deep-dive" RequestNavigate="Hyperlink_RequestNavigate">
+                            <Run Text="Detailed Feature Guide"/>
+                        </Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
     </Grid>
 </UserControl>

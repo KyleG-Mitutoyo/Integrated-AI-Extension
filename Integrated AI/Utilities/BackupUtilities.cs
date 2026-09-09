@@ -98,12 +98,6 @@ namespace Integrated_AI.Utilities
         // Copies directory contents while skipping heavy/generated folders
         private static void CopyDirectorySmart(string sourceDir, string targetDir)
         {
-            // Common folders that are massive and don't need to be backed up for code changes
-            var ignoredDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) 
-            { 
-                "bin", "obj", ".vs", ".git", "packages", "node_modules", "TestResults", "x64", "x86", "Debug", "Release" 
-            };
-
             if (!Directory.Exists(targetDir))
             {
                 Directory.CreateDirectory(targetDir);
@@ -119,8 +113,8 @@ namespace Integrated_AI.Utilities
             {
                 string dirName = Path.GetFileName(dir);
 
-                // Skip ignored directories to save disk space and time
-                if (ignoredDirs.Contains(dirName))
+                // Use the centralized set/helper
+                if (FileUtil.ExcludedDirectories.Contains(dirName))
                     continue;
 
                 string targetSubDir = Path.Combine(targetDir, dirName);

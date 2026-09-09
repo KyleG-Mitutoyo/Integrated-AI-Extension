@@ -62,7 +62,11 @@ namespace Integrated_AI
                 } 
             },
             { 
-                "https://chatgpt.com", new List<string> { "div#prompt-textarea" } 
+                "https://chatgpt.com", new List<string> 
+                { 
+                    "textarea[aria-label=\"Chat with ChatGPT\"]",
+                    "div#prompt-textarea"
+                } 
             },
             { 
                 "https://gemini.google.com", new List<string>
@@ -123,7 +127,7 @@ namespace Integrated_AI
         }
 
 
-        public static async Task InitializeWebView2Async(WebView2 webView, string userDataFolder)
+        public static async Task InitializeWebView2Async(WebView2CompositionControl webView, string userDataFolder)
         {
             try
             {
@@ -151,7 +155,7 @@ namespace Integrated_AI
         // - isChatGpt: Indicates if the URL is for ChatGPT (for injectTextIntoElement).
         // Returns a tuple with the result (or null if failed) and the last error message.
         private static async Task<(string Result, string LastError)> ExecuteScriptWithSelectors(
-            WebView2 webView,
+            WebView2CompositionControl webView,
             string scriptFileName,
             string currentUrl,
             string operationName,
@@ -231,7 +235,7 @@ namespace Integrated_AI
             return (null, lastError);
         }
 
-        public static async Task<string> RetrieveTextFromWebViewAsync(WebView2 webView, System.Windows.Window window)
+        public static async Task<string> RetrieveTextFromWebViewAsync(WebView2CompositionControl webView, System.Windows.Window window)
         {
             if (webView?.CoreWebView2 == null)
             {
@@ -270,12 +274,12 @@ namespace Integrated_AI
         }
 
 
-        public static async Task InjectTextIntoWebViewAsync(WebView2 webView, System.Windows.Window window, string textToInject, string sourceOfText)
+        public static async Task InjectTextIntoWebViewAsync(WebView2CompositionControl webView, System.Windows.Window window, string textToInject, string sourceOfText)
         {
             if (webView?.CoreWebView2 == null)
             {
                 Log("Web view is not ready. Cannot inject text.");
-                ThemedMessageBox.Show(window, "Web view is not ready. Please wait for the page to load.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ThemedMessageBox.Show(window, "Web view is not ready. Please make sure a chat site is selected and wait for the page to load.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -345,7 +349,7 @@ namespace Integrated_AI
             }
         }
 
-        public static async Task<string> RetrieveSelectedTextFromWebViewAsync(WebView2 webView, System.Windows.Window window)
+        public static async Task<string> RetrieveSelectedTextFromWebViewAsync(WebView2CompositionControl webView, System.Windows.Window window)
         {
             if (webView?.CoreWebView2 == null)
             {
@@ -404,7 +408,7 @@ namespace Integrated_AI
             }
         }
 
-        public static string GetCurrentUrl(WebView2 webView)
+        public static string GetCurrentUrl(WebView2CompositionControl webView)
         {
             return webView?.CoreWebView2?.Source?.ToString() ?? string.Empty;
         }

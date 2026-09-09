@@ -12,7 +12,7 @@ namespace Integrated_AI.Properties {
     
     
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "17.14.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "18.9.0.0")]
     internal sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase {
         
         private static Settings defaultInstance = ((Settings)(global::System.Configuration.ApplicationSettingsBase.Synchronized(new Settings())));
@@ -73,7 +73,7 @@ namespace Integrated_AI.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("\"https://aistudio.google.com/prompts/new_chat\"")]
+        [global::System.Configuration.DefaultSettingValueAttribute("\"internal://welcome\"")]
         public string selectedChatUrl {
             get {
                 return ((string)(this["selectedChatUrl"]));
@@ -104,6 +104,18 @@ namespace Integrated_AI.Properties {
             }
             set {
                 this["deleteOldRestores"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool firstLoad {
+            get {
+                return ((bool)(this["firstLoad"]));
+            }
+            set {
+                this["firstLoad"] = value;
             }
         }
     }

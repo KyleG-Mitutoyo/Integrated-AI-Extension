@@ -151,93 +151,116 @@ namespace Integrated_AI.Utilities
 
         /// <summary>
         /// Attempts to parse code in the format <<<< OLD ==== NEW >>>> and find the OLD code in the current document.
+        /// Also works with XML format: <search>OLD</search> and <replace>NEW</replace>.
         /// </summary>
         private static bool TryProcessDiffBlock(System.Windows.Window window, string currentCode, string aiCode, DiffUtility.DiffContext context, out string modifiedCode)
         {
             modifiedCode = null;
 
-            // Basic check to see if the markers exist before doing expensive operations
-            if (string.IsNullOrEmpty(aiCode) || !aiCode.Contains("<<<<") || !aiCode.Contains("====") || !aiCode.Contains(">>>>"))
+            if (string.IsNullOrEmpty(aiCode))
             {
                 return false;
             }
 
             try
             {
-                var lines = aiCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
+                string oldCode = null;
+                string newCode = null;
 
-                // Find markers. We use StartsWith to allow for things like "<<<< filename.cs"
-                int startIdx = lines.FindIndex(l => l.TrimStart().StartsWith("<<<<"));
-                int midIdx = lines.FindIndex(l => l.TrimStart().StartsWith("===="));
-                int endIdx = lines.FindIndex(l => l.TrimStart().StartsWith(">>>>"));
+                // 1. Check for XML format: <search> ... </search> and <replace> ... </replace>
+                int searchStartTag = aiCode.IndexOf("<search>", StringComparison.OrdinalIgnoreCase);
+                int searchEndTag = aiCode.IndexOf("</search>", StringComparison.OrdinalIgnoreCase);
+                int replaceStartTag = aiCode.IndexOf("<replace>", StringComparison.OrdinalIgnoreCase);
+                int replaceEndTag = aiCode.IndexOf("</replace>", StringComparison.OrdinalIgnoreCase);
 
-                // Validate structure: Start < Mid < End
-                if (startIdx == -1 || midIdx == -1 || endIdx == -1 || midIdx <= startIdx || endIdx <= midIdx)
+                if (searchStartTag != -1 && searchEndTag > searchStartTag &&
+                    replaceStartTag != -1 && replaceEndTag > replaceStartTag)
+                {
+                    int oldCodeStart = searchStartTag + "<search>".Length;
+                    oldCode = aiCode.Substring(oldCodeStart, searchEndTag - oldCodeStart);
+
+                    int newCodeStart = replaceStartTag + "<replace>".Length;
+                    newCode = aiCode.Substring(newCodeStart, replaceEndTag - newCodeStart);
+                }
+                // 2. Check for traditional Diff format: <<<< ... ==== ... >>>>
+                else if (aiCode.Contains("<<<<") && aiCode.Contains("====") && aiCode.Contains(">>>>"))
+                {
+                    var lines = aiCode.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None).ToList();
+
+                    int startIdx = lines.FindIndex(l => l.TrimStart().StartsWith("<<<<"));
+                    int midIdx = lines.FindIndex(l => l.TrimStart().StartsWith("===="));
+                    int endIdx = lines.FindIndex(l => l.TrimStart().StartsWith(">>>>"));
+
+                    if (startIdx != -1 && midIdx != -1 && endIdx != -1 && midIdx > startIdx && endIdx > midIdx)
+                    {
+                        var oldCodeLines = lines.GetRange(startIdx + 1, midIdx - startIdx - 1);
+                        var newCodeLines = lines.GetRange(midIdx + 1, endIdx - midIdx - 1);
+
+                        oldCode = string.Join("\n", oldCodeLines);
+                        newCode = string.Join("\n", newCodeLines);
+                    }
+                }
+
+                if (oldCode == null || newCode == null)
                 {
                     return false;
                 }
 
-                // Extract Old Code (between <<<< and ====)
-                var oldCodeLines = lines.GetRange(startIdx + 1, midIdx - startIdx - 1);
-                // Extract New Code (between ==== and >>>>)
-                var newCodeLines = lines.GetRange(midIdx + 1, endIdx - midIdx - 1);
+                // Clean leading/trailing newlines and carriage returns from extracted blocks
+                oldCode = oldCode.Trim('\r', '\n');
+                newCode = newCode.Trim('\r', '\n');
 
-                string oldCode = string.Join(Environment.NewLine, oldCodeLines);
-                string newCode = string.Join(Environment.NewLine, newCodeLines);
+                // Normalize currentCode line endings for matching
+                string normalizedCurrent = currentCode.Replace("\r\n", "\n");
+                string normalizedOld = oldCode.Replace("\r\n", "\n");
 
-                // --- SEARCH LOGIC ---
-                // We need to find oldCode in currentCode. 
-                // Issue: Line endings might differ (AI uses \n, VS uses \r\n).
+                int codeIndex = normalizedCurrent.IndexOf(normalizedOld);
 
-                int codeIndex = currentCode.IndexOf(oldCode);
-
-                // If not found, try normalizing line endings to \r\n (common in VS) or \n 
-                // We assume currentCode usually has consistent endings, but let's try strict matching first.
+                // Fallback: try trimmed match if exact line match fails
                 if (codeIndex == -1)
                 {
-                    // Create a version of oldCode that strictly uses \r\n
-                    string oldCodeCRLF = string.Join("\r\n", oldCodeLines);
-                    codeIndex = currentCode.IndexOf(oldCodeCRLF);
-
-                    if (codeIndex != -1) oldCode = oldCodeCRLF;
-                }
-
-                // If still not found, try just \n (less common in VS files on Windows, but possible)
-                if (codeIndex == -1)
-                {
-                    string oldCodeLF = string.Join("\n", oldCodeLines);
-                    codeIndex = currentCode.IndexOf(oldCodeLF);
-
-                    if (codeIndex != -1) oldCode = oldCodeLF;
-                }
-
-                // If still not found, try trimming the search block (often AI adds/removes surrounding whitespace)
-                if (codeIndex == -1)
-                {
-                    string trimmedOld = oldCode.Trim();
-                    if (!string.IsNullOrEmpty(trimmedOld))
+                    normalizedOld = normalizedOld.Trim();
+                    if (!string.IsNullOrEmpty(normalizedOld))
                     {
-                        codeIndex = currentCode.IndexOf(trimmedOld);
-                        if (codeIndex != -1) oldCode = trimmedOld;
+                        codeIndex = normalizedCurrent.IndexOf(normalizedOld);
                     }
                 }
 
                 if (codeIndex != -1)
                 {
-                    // We found the block!
+                    // Calculate index in original currentCode (accounting for CRLF vs LF byte differences)
+                    int actualIndex = 0;
+                    int normIdx = 0;
+                    while (normIdx < codeIndex && actualIndex < currentCode.Length)
+                    {
+                        if (currentCode[actualIndex] == '\r' && actualIndex + 1 < currentCode.Length && currentCode[actualIndex + 1] == '\n')
+                        {
+                            actualIndex += 2;
+                            normIdx++;
+                        }
+                        else
+                        {
+                            actualIndex++;
+                            normIdx++;
+                        }
+                    }
 
-                    // We need the line number for indentation calculation in ReplaceCodeBlock.
-                    // Count newlines up to codeIndex.
-                    int startLine = 1; // Visual Studio lines are 1-based
-                    for (int i = 0; i < codeIndex; i++)
+                    int startLine = 1;
+                    for (int i = 0; i < actualIndex; i++)
                     {
                         if (currentCode[i] == '\n') startLine++;
                     }
 
-                    if (context != null) context.NewCodeStartIndex = codeIndex;
+                    if (context != null) context.NewCodeStartIndex = actualIndex;
 
-                    // Use existing logic to replace and fix indentation
-                    modifiedCode = ReplaceCodeBlock(window, currentCode, codeIndex, startLine, oldCode.Length, newCode, false);
+                    // Extract exact matched substring length from original text
+                    int matchLength = normalizedOld.Replace("\n", "\r\n").Length;
+                    if (actualIndex + matchLength > currentCode.Length || !currentCode.Substring(actualIndex).StartsWith(normalizedOld.Replace("\n", "\r\n")))
+                    {
+                        matchLength = normalizedOld.Length; // Fallback for pure LF documents
+                    }
+
+                    modifiedCode = ReplaceCodeBlock(window, currentCode, actualIndex, startLine, matchLength, newCode, false);
                     return true;
                 }
                 else

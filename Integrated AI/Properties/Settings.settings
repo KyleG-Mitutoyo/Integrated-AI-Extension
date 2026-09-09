@@ -15,12 +15,15 @@
       <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="selectedChatUrl" Type="System.String" Scope="User">
-      <Value Profile="(Default)">"https://aistudio.google.com/prompts/new_chat"</Value>
+      <Value Profile="(Default)">"internal://welcome"</Value>
     </Setting>
     <Setting Name="useSmartCommands" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="deleteOldRestores" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="firstLoad" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
   </Settings>
