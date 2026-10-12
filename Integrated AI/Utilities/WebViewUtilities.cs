@@ -63,16 +63,21 @@ namespace Integrated_AI
             },
             { 
                 "https://chatgpt.com", new List<string> 
-                { 
+                {
+                    "div.ProseMirror",
+                    "div#prompt-textarea",
                     "textarea[aria-label=\"Chat with ChatGPT\"]",
-                    "div#prompt-textarea"
+                    "#prompt-textarea",
+                    "div[contenteditable=\"true\"]",
+                    "textarea#mobile-composer-prompt",
+                    "p[data-placeholder*=\"Ask\"]"
                 } 
             },
             { 
                 "https://gemini.google.com", new List<string>
                 {
-                    "div.ql-editor", // Primary selector for the rich text editor
-                    "div[contenteditable=\"true\"]" // Fallback selector
+                    "div.ql-editor", 
+                    "div[contenteditable=\"true\"]" 
                 }
             },
             {
@@ -87,9 +92,9 @@ namespace Integrated_AI
                 "https://claude.ai", new List<string>
                 {
                     "textarea[aria-label=\"Type your prompt to Claude\"]",
-                    "div[contenteditable=\"true\"]", // Primary, more stable selector
-                    "p[data-placeholder*=\"Type your prompt to Claude\"]", // Good fallback for empty state
-                    "div.ProseMirror" // Another possible stable selector
+                    "div[contenteditable=\"true\"]", 
+                    "p[data-placeholder*=\"Type your prompt to Claude\"]", 
+                    "div.ProseMirror" 
                 } 
             }
         };
@@ -131,15 +136,33 @@ namespace Integrated_AI
         {
             try
             {
-                // Its only jobs are to create the environment and ensure the CoreWebView2 object exists.
+                // 1. Wait until WPF has attached the control to an active Win32 HWND (HwndSource)
+                while ((PresentationSource.FromVisual(webView) as System.Windows.Interop.HwndSource)?.Handle is null)
+                {
+                    Log("Waiting for WebView2CompositionControl host HWND to be established...");
+
+                    var tcs = new TaskCompletionSource<bool>();
+                    RoutedEventHandler loadedHandler = (s, e) => tcs.TrySetResult(true);
+                    webView.Loaded += loadedHandler;
+
+                    // Pump the Dispatcher at Loaded priority so layout/docking completes
+                    await webView.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Loaded);
+
+                    // Give a short delay if the window is animating or docking in the VS shell
+                    await Task.Delay(50);
+
+                    webView.Loaded -= loadedHandler;
+                }
+
+                Log($"Host HWND verified: {((System.Windows.Interop.HwndSource)PresentationSource.FromVisual(webView)).Handle:X}. Initializing CoreWebView2...");
+
+                // 2. Initialize environment and CoreWebView2
                 var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
                 await webView.EnsureCoreWebView2Async(env);
             }
             catch (Exception ex)
             {
-                // We will let the caller handle the message box to keep this a pure utility.
                 Log($"FATAL: Failed to initialize WebView2 Environment/Core: {ex.Message}");
-                // Rethrow the exception so the caller knows initialization failed.
                 throw new InvalidOperationException("Failed to initialize WebView2. See inner exception for details.", ex);
             }
         }

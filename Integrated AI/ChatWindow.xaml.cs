@@ -455,12 +455,22 @@ namespace Integrated_AI
                 {
                     WelcomeGrid.Visibility = Visibility.Visible;
                     ChatWebView.Visibility = Visibility.Collapsed;
-                    
+
                     Settings.Default.selectedChatUrl = selectedOption.Url;
                     Settings.Default.Save();
                     return;
                 }
-                
+
+                // Dismiss the tooltip immediately when an AI chat is selected
+                if (Properties.Settings.Default.firstLoad || SelectAiToolTip.Visibility == Visibility.Visible)
+                {
+                    Properties.Settings.Default.firstLoad = false;
+                    Properties.Settings.Default.Save();
+
+                    SelectAiToolTip.Visibility = Visibility.Collapsed;
+                }
+                // ------------------------------------------------------------------------
+
                 WelcomeGrid.Visibility = Visibility.Collapsed;
                 ChatWebView.Visibility = Visibility.Visible;
 
@@ -502,15 +512,6 @@ namespace Integrated_AI
                     {
                         ChatWebView.Source = new Uri(selectedOption.DefaultUrl);
                     }
-                }
-
-                // If the tooltip is currently active or firstLoad is true, dismiss it forever
-                if (Properties.Settings.Default.firstLoad)
-                {
-                    Properties.Settings.Default.firstLoad = false;
-                    Properties.Settings.Default.Save();
-
-                    SelectAiToolTip.Visibility = Visibility.Collapsed;
                 }
             }
         }

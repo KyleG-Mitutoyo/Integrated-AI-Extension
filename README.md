@@ -161,13 +161,15 @@ You can configure the extension's behavior by clicking the gear icon at the top 
 
 ## 🚨 Troubleshooting
 
--   **The AI window is blank or shows an incorrect page?**
+-   **The AI window is blank or shows an incorrect page**
     -   Try refreshing the window with Ctrl-R (or right-click the window and select "Refresh") or choosing a different chat page. You can also use the "Reset URLs" button in the options.
--   **Navigation timeout?**
+-   **Failed to append: Input field not found for Selector**
+    -   This happens when a chat site is updated and the layout/look changes. This will have to be reported on the [Github page](https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension/issues/new)
+-   **Navigation timeout**
     -   This is a known issue that happens sometimes if your internet is slow. Switching chat sites and going back to one can help it connect.
--   **AI chat page logged me out?**
+-   **AI chat page logged me out**
     -   This is an automatic security feature of some chat pages which happens in a normal browser as well, the only fix is to just log back in.
--   **The "Auto Code Replace" didn't find the right code for replacement?**
+-   **The "Auto Code Replace" didn't find the right code for replacement**
     -   The diff logic works best when the AI provides a complete function, file, or a clearly defined snippet. If the AI's response is heavily modified or partial, the logic may struggle. Try asking the AI to provide the complete function, file, or snippet in its response.
 
 For any other issues, please [report them](https://github.com/KyleG-Mitutoyo/Integrated-AI-Extension/issues/new) on the GitHub page.
@@ -182,6 +184,7 @@ This is a tool for developers, by a developer. Your feedback is invaluable!
 
 ## 📝 Changelog
 
+- **1.4.1** Update ChatGPT selectors, fix Webview failure with fresh Visual Studio install, fix chat site tooltip not hiding after first selection
 - **1.4.0** Add `Send to AI` command to solution explorer when right-clicking a folder/file, remove `Send Multiple Files to AI` command (replaced by the right-click command), add welcome page, add new diff format for code replace, update ChatGPT selectors, fix WebView appearing above other VS tool windows
 - **1.3.9** Add support for Gemini Gems, improve solution backups, make chat window work with auto-hide
 - **1.3.8** Update AI Studio URL, improve `Create New File` UX
